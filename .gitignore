@@ -13,6 +13,8 @@ credit_cards/.env
 credentials.json
 *.json.key
 *.pem
+# OAuth token cache (written automatically after first browser login)
+.oauth_token.json
 
 # OS
 .DS_Store

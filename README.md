@@ -53,12 +53,23 @@ cp credit_cards/.env.example credit_cards/.env
 # Edit .env and fill in DATABASE_URL and GOOGLE_CREDENTIALS_PATH
 ```
 
-### 3. Google Sheets service account
+### 3. Google Sheets credentials
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials
-2. Create a **Service Account**, download the JSON key, save it as `credentials.json` (path set in `.env`)
-3. Enable the **Google Sheets API** and **Google Drive API** for your project
-4. Share your Google Sheet with the service account email (Editor access)
+The app defaults to **OAuth 2.0** — no service account key file required.
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services → Credentials**
+2. Click **Create Credentials → OAuth client ID**, choose **Desktop app**, give it any name
+3. Copy the **Client ID** and **Client Secret** into `credit_cards/.env`:
+   ```
+   GOOGLE_CLIENT_ID=YOUR_CLIENT_ID.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET
+   ```
+4. Enable the **Google Sheets API** and **Google Drive API** for your project
+5. Share your Google Sheet with **your Google account** (the one you'll log in with)
+
+On the first call to `/sync/read` or `/sync/write`, a browser window will open asking you to authorize access. After that, the token is cached in `.oauth_token.json` and reused automatically (never committed — it's in `.gitignore`).
+
+> **Service account alternative:** If you have a key file, set `GOOGLE_AUTH_METHOD=service_account` and `GOOGLE_CREDENTIALS_PATH=credentials.json` in `.env` instead.
 
 ### 4. Python environment
 

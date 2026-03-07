@@ -9,15 +9,33 @@ Cell mapping mirrors Financial.xlsx exactly:
   - Row 5:  2nd Year+ Annual EV (output, per card col)
   - Col E, rows 2-5: wallet totals (Annual EV, Points Earned, Annual Pts, 2nd Year EV)
   - Rows 19-35, col E: annual spend per category (input)
+
+Authentication
+--------------
+Two modes are supported, controlled by GOOGLE_AUTH_METHOD in .env:
+
+  oauth (default)
+    Browser-based OAuth 2.0. On first run, opens a browser to authorize access.
+    Credentials are cached in the file set by GOOGLE_TOKEN_PATH (default: .oauth_token.json).
+    Requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env (from an OAuth 2.0 Desktop
+    app credential — no service account key needed).
+
+  service_account
+    Traditional service account JSON key file.
+    Requires GOOGLE_CREDENTIALS_PATH pointing to the downloaded JSON key.
 """
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Optional
 
 import gspread
-from google.oauth2.service_account import Credentials
+from google.auth.transport.requests import Request
+from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -63,9 +81,56 @@ CELL_YEARS_COUNTED = (1, 3)
 
 
 def _get_client() -> gspread.Client:
-    """Build a gspread client from a service account credentials file."""
-    creds_path = os.environ.get("GOOGLE_CREDENTIALS_PATH", "credentials.json")
-    creds = Credentials.from_service_account_file(creds_path, scopes=SCOPES)
+    """
+    Build a gspread client using OAuth (default) or a service account key,
+    controlled by GOOGLE_AUTH_METHOD in .env.
+    """
+    method = os.environ.get("GOOGLE_AUTH_METHOD", "oauth").lower()
+
+    if method == "service_account":
+        creds_path = os.environ.get("GOOGLE_CREDENTIALS_PATH", "credentials.json")
+        creds = service_account.Credentials.from_service_account_file(
+            creds_path, scopes=SCOPES
+        )
+        return gspread.authorize(creds)
+
+    # --- OAuth 2.0 (default) ---
+    token_path = os.environ.get("GOOGLE_TOKEN_PATH", ".oauth_token.json")
+    creds: Optional[Credentials] = None
+
+    # Load cached token if it exists
+    if os.path.exists(token_path):
+        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
+
+    # Refresh or run the browser auth flow
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            client_id = os.environ.get("GOOGLE_CLIENT_ID")
+            client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
+            if not client_id or not client_secret:
+                raise RuntimeError(
+                    "OAuth credentials missing. Set GOOGLE_CLIENT_ID and "
+                    "GOOGLE_CLIENT_SECRET in credit_cards/.env, or set "
+                    "GOOGLE_AUTH_METHOD=service_account and provide a key file."
+                )
+            client_config = {
+                "installed": {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"],
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                }
+            }
+            flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+            creds = flow.run_local_server(port=0)
+
+        # Cache the token for future runs
+        with open(token_path, "w") as f:
+            f.write(creds.to_json())
+
     return gspread.authorize(creds)
 
 
