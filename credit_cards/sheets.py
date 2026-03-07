@@ -115,11 +115,14 @@ def _get_client() -> gspread.Client:
                     "GOOGLE_CLIENT_SECRET in credit_cards/.env, or set "
                     "GOOGLE_AUTH_METHOD=service_account and provide a key file."
                 )
+            # Support both "web" and "installed" (Desktop) OAuth client types.
+            # Web clients must use a localhost redirect; installed clients can
+            # also use run_local_server, so we treat them the same way here.
             client_config = {
-                "installed": {
+                "web": {
                     "client_id": client_id,
                     "client_secret": client_secret,
-                    "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"],
+                    "redirect_uris": ["http://localhost"],
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
                 }
