@@ -4,12 +4,11 @@ A full-stack web application for modeling the expected value (EV) of any combina
 
 ## Features
 
-- **Wallet calculator** — select cards, set annual spend per category, and compute annual EV, per-card breakdowns, and points earned by currency
+- **Wallet Tool** — single tab to manage wallets tied to a user. Each wallet has cards added at a specific date with optional sign-up bonus (SUB) and minimum-spend overrides. Set a projection time frame (years and months), adjust annual spend, and calculate EV and **expected opportunity cost** of spending toward each card’s SUB (taking away from points earned on other cards in that wallet).
 - **Issuer ecosystem modeling** — cards automatically upgrade from cashback to transferable-point earning when a premium anchor card (e.g. Sapphire Reserve, Citi Strata Elite) is present in the wallet; generalizes across all supported issuers
-- **Opportunity cost analysis** — estimates in dollar terms how much earning from the rest of your wallet you would forego to hit a new card's sign-up bonus; cross-currency aware using best-alternative earn rates per category
-- **Roadmap scenarios** — model future wallet states by assigning cards to date windows and computing EV at any reference date
+- **Opportunity cost in the UI** — per-card SUB opportunity cost (dollar value foregone on the rest of the wallet) is shown in the results
 - **Card library** — browse all cards with their multipliers, credits, and SUB details
-- **REST API** — full CRUD for cards, currencies, spend categories, and scenarios; interactive docs at `/docs`
+- **REST API** — full CRUD for cards, currencies, spend categories, wallets, and wallet cards; interactive docs at `/docs`
 
 ---
 
@@ -47,11 +46,11 @@ createdb creditcards     # create the database
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-python3 -m pip install -r backend/requirements.txt openpyxl
+python3 -m pip install -r backend/requirements.txt
 cd backend && python3 -m app.seed_data && cd ..
 ```
 
-This populates issuers, currencies, ecosystem boosts, all cards, multipliers, credits, and default spend categories from `docs/Financial.xlsx`.
+This populates the default user (id=1), issuers, currencies, ecosystem boosts, all cards, multipliers, credits, and default spend categories from the DataFrames in `backend/app/seed_data.py` (edit those or load from CSV/Excel via pandas).
 
 ### 5. Start both servers
 
@@ -93,7 +92,6 @@ Set `DATABASE_URL` in your local `.env` to the Azure connection string, then:
 
 ```bash
 source .venv/bin/activate
-python3 -m pip install openpyxl
 cd backend && python3 -m app.seed_data && cd ..
 ```
 
@@ -183,7 +181,7 @@ Credit Card Tool/
 │   │   ├── schemas.py              # Pydantic v2 request/response schemas
 │   │   ├── database.py             # Async PostgreSQL session factory + Azure Identity
 │   │   ├── db_helpers.py           # DB → calculator dataclass converters
-│   │   └── seed_data.py            # One-time seeder (reads docs/Financial.xlsx)
+│   │   └── seed_data.py            # One-time seeder (pandas DataFrames)
 │   └── requirements.txt
 │
 ├── frontend/                       # React app (Vite + TypeScript + Tailwind)
@@ -199,13 +197,15 @@ Credit Card Tool/
 │   │       └── WalletSummary.tsx   # EV results display
 │   └── dist/                       # Built output (served by FastAPI in production)
 │
+├── data/                           # Reference data (generated)
+│   └── reference.xlsx              # One tab per seed class; edit and seed loads from it
+│
 ├── scripts/
 │   ├── dev.sh                      # Local dev launcher (API + React)
 │   ├── azure_startup.sh            # Azure App Service startup command
-│   └── requirements-setup.txt      # One-time setup deps (openpyxl for seeding)
 │
 └── docs/
-    └── Financial.xlsx              # Source data for initial DB seeding
+    └── (optional) CSV/Excel        # Can be loaded in seed_data.py via pd.read_csv etc.
 ```
 
 ---

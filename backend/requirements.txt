@@ -22,9 +22,7 @@ pydantic-settings>=2.2.1       # Typed settings/config from env vars (BaseSettin
 pandas>=2.2.0                  # Data analysis — CSV/Excel import-export,
                                # portfolio comparison tables, historical EV trends
 numpy>=1.26.0                  # Numerical computing for financial calculations
-openpyxl>=3.1.2                # Excel read/write — seeding from Financial.xlsx,
-                               # exporting wallet summaries
-
+openpyxl>=3.1.2                # Excel read/write — reference xlsx, optional seed import
 # ── Serialization ─────────────────────────────────────────────────────────────
 orjson>=3.10.0                 # Fast JSON serializer; FastAPI uses it automatically
                                # when installed (significant speedup for large responses)

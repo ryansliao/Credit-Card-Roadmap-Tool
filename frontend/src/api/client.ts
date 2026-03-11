@@ -31,16 +31,41 @@ export interface CardCredit {
 export interface IssuerRead {
   id: number
   name: string
+  co_brand_partner: string | null
+  network: string | null
 }
 
 export interface CurrencyRead {
   id: number
-  issuer_id: number
+  issuer_id: number | null
   name: string
   cents_per_point: number
   is_cashback: boolean
   is_transferable: boolean
-  comparison_factor: number
+  converts_to_points?: boolean
+  converts_to_currency_id?: number | null
+  issuer?: IssuerRead | null
+}
+
+export interface EcosystemCurrencyRead {
+  currency_id: number
+  currency?: CurrencyRead | null
+}
+
+export interface EcosystemRead {
+  id: number
+  name: string
+  points_currency_id: number
+  cashback_currency_id: number | null
+  points_currency?: CurrencyRead | null
+  cashback_currency?: CurrencyRead | null
+  ecosystem_currencies: EcosystemCurrencyRead[]  // additional only
+}
+
+export interface CardEcosystemMembership {
+  ecosystem_id: number
+  key_card: boolean
+  ecosystem?: EcosystemRead | null
 }
 
 export interface Card {
@@ -50,13 +75,13 @@ export interface Card {
   currency_obj: CurrencyRead
   issuer_id: number
   currency_id: number
-  ecosystem_boost_id: number | null
   annual_fee: number
   sub_points: number
   sub_min_spend: number | null
   sub_months: number | null
   sub_spend_points: number
   annual_bonus_points: number
+  ecosystem_memberships: CardEcosystemMembership[]
   multipliers: CardMultiplier[]
   credits: CardCredit[]
 }
@@ -122,13 +147,202 @@ export interface ScenarioResult {
   wallet: WalletResult
 }
 
+// ─── Wallets (Wallet Tool) ───────────────────────────────────────────────────
+
+export interface WalletCard {
+  id: number
+  wallet_id: number
+  card_id: number
+  card_name: string | null
+  added_date: string
+  sub_points: number | null
+  sub_min_spend: number | null
+  sub_months: number | null
+  sub_spend_points: number | null
+  years_counted: number
+}
+
+export interface Wallet {
+  id: number
+  user_id: number
+  name: string
+  description: string | null
+  as_of_date: string | null
+  wallet_cards: WalletCard[]
+}
+
+export interface WalletResultResponse {
+  wallet_id: number
+  wallet_name: string
+  as_of_date: string | null
+  projection_years: number
+  projection_months: number
+  years_counted: number
+  wallet: WalletResult
+}
+
+export interface CreateWalletPayload {
+  user_id: number
+  name: string
+  description?: string | null
+  as_of_date?: string | null
+}
+
+export interface AddCardToWalletPayload {
+  card_id: number
+  added_date: string
+  sub_points?: number | null
+  sub_min_spend?: number | null
+  sub_months?: number | null
+  sub_spend_points?: number | null
+  years_counted?: number
+}
+
+export const walletsApi = {
+  list: (userId: number = 1) =>
+    request<Wallet[]>(`/wallets?user_id=${userId}`),
+  get: (id: number) => request<Wallet>(`/wallets/${id}`),
+  create: (payload: CreateWalletPayload) =>
+    request<Wallet>('/wallets', { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id: number, payload: Partial<CreateWalletPayload>) =>
+    request<Wallet>(`/wallets/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  delete: (id: number) => request<void>(`/wallets/${id}`, { method: 'DELETE' }),
+  addCard: (walletId: number, payload: AddCardToWalletPayload) =>
+    request<WalletCard>(`/wallets/${walletId}/cards`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  removeCard: (walletId: number, cardId: number) =>
+    request<void>(`/wallets/${walletId}/cards/${cardId}`, { method: 'DELETE' }),
+  results: (
+    walletId: number,
+    params?: {
+      reference_date?: string
+      projection_years?: number
+      projection_months?: number
+      spend_overrides?: Record<string, number>
+    }
+  ) => {
+    const search = new URLSearchParams()
+    if (params?.reference_date) search.set('reference_date', params.reference_date)
+    if (params?.projection_years != null) search.set('projection_years', String(params.projection_years))
+    if (params?.projection_months != null) search.set('projection_months', String(params.projection_months))
+    if (params?.spend_overrides && Object.keys(params.spend_overrides).length > 0) {
+      search.set('spend_overrides', JSON.stringify(params.spend_overrides))
+    }
+    const qs = search.toString()
+    return request<WalletResultResponse>(
+      `/wallets/${walletId}/results${qs ? `?${qs}` : ''}`
+    )
+  },
+}
+
+// ─── Issuers ───────────────────────────────────────────────────────────────────
+
+export interface IssuerCreatePayload {
+  name: string
+  co_brand_partner?: string | null
+  network?: string | null
+}
+
+export interface IssuerUpdatePayload {
+  name?: string
+  co_brand_partner?: string | null
+  network?: string | null
+}
+
+export const issuersApi = {
+  list: () => request<IssuerRead[]>('/issuers'),
+  create: (payload: IssuerCreatePayload) =>
+    request<IssuerRead>('/issuers', { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id: number, payload: IssuerUpdatePayload) =>
+    request<IssuerRead>(`/issuers/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  delete: (id: number) => request<void>(`/issuers/${id}`, { method: 'DELETE' }),
+}
+
+// ─── Currencies ───────────────────────────────────────────────────────────────
+
+export interface CurrencyCreatePayload {
+  issuer_id?: number | null
+  name: string
+  cents_per_point?: number
+  is_cashback?: boolean
+  is_transferable?: boolean
+}
+
+export interface CurrencyUpdatePayload {
+  name?: string
+  issuer_id?: number | null
+  cents_per_point?: number
+  is_cashback?: boolean
+  is_transferable?: boolean
+}
+
+export const currenciesApi = {
+  list: () => request<CurrencyRead[]>('/currencies'),
+  create: (payload: CurrencyCreatePayload) =>
+    request<CurrencyRead>('/currencies', { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id: number, payload: CurrencyUpdatePayload) =>
+    request<CurrencyRead>(`/currencies/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  delete: (id: number) => request<void>(`/currencies/${id}`, { method: 'DELETE' }),
+}
+
+// ─── Ecosystems ────────────────────────────────────────────────────────────────
+
+export interface EcosystemCreatePayload {
+  name: string
+  points_currency_id: number
+  cashback_currency_id?: number | null
+  additional_currency_ids?: number[]
+}
+
+export interface EcosystemUpdatePayload {
+  name?: string
+  points_currency_id?: number
+  cashback_currency_id?: number | null
+  additional_currency_ids?: number[]
+}
+
+export const ecosystemsApi = {
+  list: () => request<EcosystemRead[]>('/ecosystems'),
+  get: (id: number) => request<EcosystemRead>(`/ecosystems/${id}`),
+  create: (payload: EcosystemCreatePayload) =>
+    request<EcosystemRead>('/ecosystems', { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id: number, payload: EcosystemUpdatePayload) =>
+    request<EcosystemRead>(`/ecosystems/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  delete: (id: number) => request<void>(`/ecosystems/${id}`, { method: 'DELETE' }),
+}
+
 // ─── Cards ────────────────────────────────────────────────────────────────────
+
+export interface CardEcosystemMembershipPayload {
+  ecosystem_id: number
+  key_card: boolean
+}
+
+export interface CardCreatePayload {
+  name: string
+  issuer_id: number
+  currency_id: number
+  annual_fee?: number
+  sub_points?: number
+  sub_min_spend?: number | null
+  sub_months?: number | null
+  sub_spend_points?: number
+  annual_bonus_points?: number
+  ecosystem_memberships?: CardEcosystemMembershipPayload[]
+  multipliers?: CardMultiplier[]
+  credits?: CardCredit[]
+}
 
 export const cardsApi = {
   list: () => request<Card[]>('/cards'),
   get: (id: number) => request<Card>(`/cards/${id}`),
-  update: (id: number, data: Partial<Card>) =>
+  create: (payload: CardCreatePayload) =>
+    request<Card>('/cards', { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id: number, data: Partial<CardCreatePayload>) =>
     request<Card>(`/cards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: number) => request<void>(`/cards/${id}`, { method: 'DELETE' }),
 }
 
 // ─── Spend categories ─────────────────────────────────────────────────────────

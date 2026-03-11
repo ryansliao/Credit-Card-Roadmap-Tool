@@ -33,10 +33,6 @@ class CurrencyData:
     cents_per_point: float
     is_cashback: bool
     is_transferable: bool
-    # Multiplier applied when comparing this currency's points to transferable
-    # point currencies in the same wallet.  1.0 for most; < 1.0 for currencies
-    # whose redemption path is structurally discounted (e.g. 0.85 for Delta).
-    comparison_factor: float = 1.0
 
 
 @dataclass
@@ -57,13 +53,13 @@ class CardData:
     sub_spend_points: int
     annual_bonus_points: int
 
-    # Ecosystem boost: if set and the boost is active (anchor present in wallet),
-    # this card's effective currency switches to ecosystem_boost_currency.
-    ecosystem_boost_id: Optional[int] = None
-    ecosystem_boost_currency: Optional[CurrencyData] = None
+    # Ecosystem-based conversion: when a key card for one of these ecosystems is in the wallet,
+    # this card earns the given points currency instead of its default.
+    # Map ecosystem_id -> CurrencyData (beneficiary conversion target).
+    ecosystem_beneficiary_currency: dict[int, CurrencyData] = field(default_factory=dict)
 
-    # Boost IDs that THIS card activates as an anchor
-    is_anchor_for_boost_ids: list[int] = field(default_factory=list)
+    # Ecosystem ids for which this card is a key card (unlocks conversion when in wallet).
+    ecosystem_ids_where_key: set[int] = field(default_factory=set)
 
     # category -> multiplier
     multipliers: dict[str, float] = field(default_factory=dict)
@@ -116,38 +112,34 @@ class WalletResult:
 
 
 # ---------------------------------------------------------------------------
-# Boost helpers
+# Ecosystem conversion helpers
 # ---------------------------------------------------------------------------
 
 
-def _active_boost_ids(selected_cards: list[CardData]) -> set[int]:
-    """
-    Return the set of EcosystemBoost IDs that are currently active,
-    i.e. at least one anchor card for each boost is in the selected wallet.
-    """
-    active: set[int] = set()
-    for card in selected_cards:
-        active.update(card.is_anchor_for_boost_ids)
-    return active
+def _ecosystems_with_key_card(selected_cards: list[CardData]) -> set[int]:
+    """Ecosystem ids that have at least one selected card that is a key card for that ecosystem."""
+    out: set[int] = set()
+    for c in selected_cards:
+        out |= c.ecosystem_ids_where_key
+    return out
 
 
-def _effective_currency(card: CardData, active_boost_ids: set[int]) -> CurrencyData:
+def _effective_currency(
+    card: CardData, ecosystems_with_key: set[int]
+) -> CurrencyData:
     """
     Return the currency this card actually earns in, given the wallet state.
-    If the card's ecosystem boost is active the card switches to the boost's
-    target currency (e.g. 'Chase UR Cash' → 'Chase UR').
+    When this card is a beneficiary in an ecosystem that has a key card in the wallet,
+    return that ecosystem's points currency; otherwise return primary currency.
     """
-    if (
-        card.ecosystem_boost_id is not None
-        and card.ecosystem_boost_id in active_boost_ids
-        and card.ecosystem_boost_currency is not None
-    ):
-        return card.ecosystem_boost_currency
+    for eco_id, points_currency in card.ecosystem_beneficiary_currency.items():
+        if eco_id in ecosystems_with_key:
+            return points_currency
     return card.currency
 
 
-def _effective_cpp(card: CardData, active_boost_ids: set[int]) -> float:
-    return _effective_currency(card, active_boost_ids).cents_per_point
+def _effective_cpp(card: CardData, ecosystems_with_key: set[int]) -> float:
+    return _effective_currency(card, ecosystems_with_key).cents_per_point
 
 
 # ---------------------------------------------------------------------------
@@ -172,16 +164,16 @@ def calc_credit_valuation(card: CardData) -> float:
 def calc_2nd_year_ev(
     card: CardData,
     spend: dict[str, float],
-    active_boost_ids: set[int],
+    ecosystems_with_key: set[int],
 ) -> float:
     """
     Steady-state annual EV (no SUB amortisation).
-    Formula: annual_earn / 100 * cpp * comparison_factor + credits - fee
+    Formula: annual_earn / 100 * cpp + credits - fee
     """
-    currency = _effective_currency(card, active_boost_ids)
+    currency = _effective_currency(card, ecosystems_with_key)
     annual_earn = calc_annual_point_earn(card, spend)
     credits = calc_credit_valuation(card)
-    return annual_earn / 100 * currency.cents_per_point * currency.comparison_factor + credits - card.annual_fee
+    return annual_earn / 100 * currency.cents_per_point + credits - card.annual_fee
 
 
 def calc_sub_extra_spend(
@@ -202,14 +194,14 @@ def _best_wallet_earn_rate_dollars(
     card: CardData,
     selected_cards: list[CardData],
     spend: dict[str, float],
-    active_boost_ids: set[int],
+    ecosystems_with_key: set[int],
 ) -> float:
     """
     Spend-weighted best dollar-equivalent earn rate across all other selected
     cards for each category.
 
     For every category with positive spend, this finds the other card that
-    would earn the most in dollar terms (multiplier × cpp × comparison_factor).
+    would earn the most in dollar terms (multiplier × cpp).
     Returns a blended rate in $/$ (dollars earned per dollar spent).
 
     This replaces the old avg-multiplier approach: it is cross-currency aware
@@ -227,10 +219,7 @@ def _best_wallet_earn_rate_dollars(
             continue
         # Best dollar-earn rate for this category among other selected cards
         best_rate = max(
-            c.multipliers.get(cat, 1.0)
-            * _effective_cpp(c, active_boost_ids)
-            * _effective_currency(c, active_boost_ids).comparison_factor
-            / 100.0
+            c.multipliers.get(cat, 1.0) * _effective_cpp(c, ecosystems_with_key) / 100.0
             for c in others
         )
         total_spend += s
@@ -243,7 +232,7 @@ def calc_sub_opportunity_cost(
     card: CardData,
     selected_cards: list[CardData],
     spend: dict[str, float],
-    active_boost_ids: set[int],
+    ecosystems_with_key: set[int],
 ) -> tuple[float, float]:
     """
     Dollar opportunity cost of redirecting extra SUB spend from the rest of
@@ -259,11 +248,11 @@ def calc_sub_opportunity_cost(
     if extra_spend <= 0:
         return 0.0, 0.0
 
-    best_rate = _best_wallet_earn_rate_dollars(card, selected_cards, spend, active_boost_ids)
+    best_rate = _best_wallet_earn_rate_dollars(card, selected_cards, spend, ecosystems_with_key)
     gross = extra_spend * best_rate
 
-    currency = _effective_currency(card, active_boost_ids)
-    sub_spend_value = card.sub_spend_points * currency.cents_per_point * currency.comparison_factor / 100.0
+    currency = _effective_currency(card, ecosystems_with_key)
+    sub_spend_value = card.sub_spend_points * currency.cents_per_point / 100.0
     net = max(0.0, gross - sub_spend_value)
 
     return round(gross, 4), round(net, 4)
@@ -288,16 +277,14 @@ def calc_total_points(
     card: CardData,
     spend: dict[str, float],
     years: int,
-    active_boost_ids: set[int],
+    ecosystems_with_key: set[int],
 ) -> float:
     """
     Total points over `years` including SUB and annual bonuses.
-    Applies comparison_factor from the effective currency so that currencies
-    with a structural discount (e.g. Delta SkyMiles at 0.85) are normalised.
     """
-    currency = _effective_currency(card, active_boost_ids)
+    currency = _effective_currency(card, ecosystems_with_key)
     annual_earn = calc_annual_point_earn(card, spend)
-    _, net_opp = calc_sub_opportunity_cost(card, [card], spend, active_boost_ids)
+    _, net_opp = calc_sub_opportunity_cost(card, [card], spend, ecosystems_with_key)
 
     # Convert net opp cost back to a points deduction in the card's currency
     cpp = currency.cents_per_point
@@ -309,34 +296,33 @@ def calc_total_points(
         + card.sub_points
         - net_opp_pts
     ) + annual_earn * (years - 1)
-    return total * currency.comparison_factor
+    return total
 
 
 def calc_annual_ev(
     card: CardData,
     spend: dict[str, float],
     years: int,
-    active_boost_ids: set[int],
+    ecosystems_with_key: set[int],
 ) -> float:
     """
     Annual EV over `years`, amortising the SUB.
 
     Formula:
-      ( (annual_earn + sub_spend_pts) / 100 * cpp * comparison_factor * years
+      ( (annual_earn + sub_spend_pts) / 100 * cpp * years
         + sub_pts / 100
         + annual_bonus_pts * (years - 1)
         + credits
         - fee
       ) / years
     """
-    currency = _effective_currency(card, active_boost_ids)
+    currency = _effective_currency(card, ecosystems_with_key)
     cpp = currency.cents_per_point
-    cf = currency.comparison_factor
     annual_earn = calc_annual_point_earn(card, spend)
     credits = calc_credit_valuation(card)
 
     value = (
-        ((annual_earn + card.sub_spend_points) / 100 * cpp * cf) * years
+        ((annual_earn + card.sub_spend_points) / 100 * cpp) * years
         + card.sub_points / 100
         + card.annual_bonus_points * (years - 1)
         + credits
@@ -361,7 +347,7 @@ def compute_wallet(
     Only cards with id in `selected_ids` contribute to EV and currency totals.
     """
     selected_cards = [c for c in all_cards if c.id in selected_ids]
-    active_boosts = _active_boost_ids(selected_cards)
+    active_ecosystems = _ecosystems_with_key_card(selected_cards)
 
     card_results: list[CardResult] = []
 
@@ -382,14 +368,14 @@ def compute_wallet(
             )
             continue
 
-        eff_currency = _effective_currency(card, active_boosts)
-        annual_ev = calc_annual_ev(card, spend, years, active_boosts)
-        second_year_ev = calc_2nd_year_ev(card, spend, active_boosts)
+        eff_currency = _effective_currency(card, active_ecosystems)
+        annual_ev = calc_annual_ev(card, spend, years, active_ecosystems)
+        second_year_ev = calc_2nd_year_ev(card, spend, active_ecosystems)
         annual_point_earn = calc_annual_point_earn(card, spend)
-        total_points = calc_total_points(card, spend, years, active_boosts)
+        total_points = calc_total_points(card, spend, years, active_ecosystems)
         credit_val = calc_credit_valuation(card)
         sub_extra = calc_sub_extra_spend(card, spend)
-        gross_opp, net_opp = calc_sub_opportunity_cost(card, selected_cards, spend, active_boosts)
+        gross_opp, net_opp = calc_sub_opportunity_cost(card, selected_cards, spend, active_ecosystems)
         avg_mult = calc_avg_spend_multiplier(card, spend)
 
         card_results.append(
@@ -423,7 +409,7 @@ def compute_wallet(
     # Dynamic currency totals — grouped by effective currency name
     currency_pts: dict[str, float] = {}
     for card in selected_cards:
-        eff = _effective_currency(card, active_boosts)
+        eff = _effective_currency(card, active_ecosystems)
         earn = calc_annual_point_earn(card, spend)
         currency_pts[eff.name] = currency_pts.get(eff.name, 0.0) + earn
 

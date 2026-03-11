@@ -68,6 +68,11 @@ export default function WalletSummary({ result }: Props) {
                     <p className="text-xs text-slate-400">
                       {(cr.annual_point_earn / 1000).toFixed(1)}k pts · {money(cr.credit_valuation)}{' '}
                       credits
+                      {cr.sub_opp_cost_dollars > 0 && (
+                        <span className="text-amber-400/90 ml-1">
+                          · SUB opp cost {money(cr.sub_opp_cost_dollars)}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="text-right ml-3">

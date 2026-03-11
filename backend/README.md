@@ -1,6 +1,6 @@
 # Backend — Credit Card Optimizer API
 
-FastAPI + SQLAlchemy async backend. Exposes a REST API for card management, wallet EV calculation, and roadmap scenario modeling.
+FastAPI + SQLAlchemy async backend. Exposes a REST API for card management, wallet EV calculation, and the Wallet Tool (user → wallets → wallet cards with SUB overrides and time-frame-based EV and opportunity cost).
 
 ---
 
@@ -15,7 +15,7 @@ backend/
 │   ├── schemas.py      Pydantic v2 request/response schemas
 │   ├── database.py     Async engine + session factory; Azure Managed Identity support
 │   ├── main.py         FastAPI app, all endpoints, React SPA serving
-│   └── seed_data.py    One-time seeder — reads docs/Financial.xlsx + static maps
+│   └── seed_data.py    One-time seeder — pandas DataFrames + static maps
 └── requirements.txt
 ```
 
@@ -28,6 +28,8 @@ Data flows inward: `main.py` → `db_helpers.py` → `calculator.py` (pure). The
 ### Tables and relationships
 
 ```
+User ──< Wallet ──< WalletCard >── Card   (Wallet Tool: cards in wallet with added_date, optional SUB overrides)
+
 Issuer ──< Currency
        ──< EcosystemBoost >── Currency   (boosted_currency_id)
                         ──< EcosystemBoostAnchor >── Card
@@ -38,7 +40,14 @@ Card >── Issuer
      ──< EcosystemBoostAnchor  (boosts this card activates as anchor)
      ──< CardCategoryMultiplier
      ──< CardCredit
+     ──< WalletCard
 ```
+
+### User and Wallet (Wallet Tool)
+
+- **User** — minimal model (id, name). Single-tenant: seed one default user (id=1); all wallets belong to that user.
+- **Wallet** — belongs to a user; has name, optional description, optional as_of_date. Replaces ad-hoc “scenario” as the persistent wallet entity for the Wallet Tool.
+- **WalletCard** — links a card to a wallet with required `added_date` and optional SUB overrides (`sub_points`, `sub_min_spend`, `sub_months`, `sub_spend_points`). Null overrides use the Card’s catalog values. `years_counted` is used for SUB amortization (derived from the UI projection years + months).
 
 ### Issuer
 
@@ -54,7 +63,6 @@ A reward currency tied to an issuer, with full metadata:
 | `cents_per_point` | float | Dollar value of one point/mile (e.g. 1.5 for Chase UR) |
 | `is_cashback` | bool | True for pre-boost cashback variants (e.g. Chase UR Cash) |
 | `is_transferable` | bool | True when points can move to airline/hotel partners |
-| `comparison_factor` | float | Normalization multiplier for wallet-level comparison. 1.0 for most; 0.85 for Delta SkyMiles (structurally lower redemption value vs. transferable currencies) |
 
 ### EcosystemBoost
 
@@ -112,9 +120,9 @@ _effective_cpp(card, boost_ids)        # Derived from effective currency's cents
 |---|---|
 | `calc_annual_point_earn` | Σ(spend × multiplier) + annual_bonus_points |
 | `calc_credit_valuation` | Σ(credit values) |
-| `calc_2nd_year_ev` | Steady-state annual EV: earn/100 × cpp × comparison_factor + credits − fee |
+| `calc_2nd_year_ev` | Steady-state annual EV: earn/100 × cpp + credits − fee |
 | `calc_annual_ev` | SUB-amortized EV over `years_counted` |
-| `calc_total_points` | Cumulative points over `years` adjusted by comparison_factor |
+| `calc_total_points` | Cumulative points over `years` |
 | `calc_sub_extra_spend` | Gap between SUB threshold and natural spend on this card |
 | `calc_sub_opportunity_cost` | Dollar cost of redirecting extra spend (see below) |
 | `calc_avg_spend_multiplier` | Spend-weighted average multiplier across categories |
@@ -123,7 +131,7 @@ _effective_cpp(card, boost_ids)        # Derived from effective currency's cents
 
 `calc_sub_opportunity_cost` returns a `(gross, net)` pair in **dollars** rather than raw points:
 
-- **gross** — `sub_extra_spend × best_wallet_earn_rate` where the best rate is the spend-weighted maximum earn rate (multiplier × cpp × comparison_factor) across all other selected cards, computed per category. Cross-currency aware.
+- **gross** — `sub_extra_spend × best_wallet_earn_rate` where the best rate is the spend-weighted maximum earn rate (multiplier × cpp) across all other selected cards, computed per category. Cross-currency aware.
 - **net** — `max(0, gross − sub_spend_points_value)` — the true cost after crediting back what the new card earns on that same extra spend.
 
 Using dollars and best-alternative rates (instead of average multipliers) produces a meaningful cross-currency comparison: redirecting spend from a 4x Amex MR card to a 1x cashback card carries a much higher cost than redirecting from a 1x UR card.
@@ -151,7 +159,7 @@ Interactive docs available at `http://localhost:8000/docs` when running locally.
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/currencies` | List all currencies with issuer info |
-| `PATCH` | `/currencies/{id}` | Update CPP, comparison_factor, flags |
+| `PATCH` | `/currencies/{id}` | Update CPP, flags |
 
 ### Ecosystem boosts
 
@@ -202,20 +210,32 @@ Interactive docs available at `http://localhost:8000/docs` when running locally.
 | `DELETE` | `/scenarios/{id}/cards/{card_id}` | Remove a card from a scenario |
 | `GET` | `/scenarios/{id}/results` | Compute wallet EV for active cards at a reference date |
 
+### Wallets (Wallet Tool)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/wallets` | List wallets for the given user (default `user_id=1`) |
+| `POST` | `/wallets` | Create a wallet (body: `user_id`, `name`, optional `description`, `as_of_date`) |
+| `GET` | `/wallets/{id}` | Get a wallet with its wallet_cards (and card names) |
+| `PATCH` | `/wallets/{id}` | Update wallet name / description / as_of_date |
+| `DELETE` | `/wallets/{id}` | Delete a wallet |
+| `POST` | `/wallets/{id}/cards` | Add a card (body: `card_id`, `added_date`, optional SUB overrides, `years_counted`) |
+| `DELETE` | `/wallets/{id}/cards/{card_id}` | Remove a card from the wallet |
+| `GET` | `/wallets/{id}/results` | Compute EV and opportunity cost. Query params: `reference_date`, `projection_years`, `projection_months`, optional `spend_overrides` (JSON). Cards with `added_date` ≤ reference date are active; SUB amortization uses years derived from projection. |
+
 ---
 
 ## Seeding the database
 
-Seeding is a one-time operation that reads `docs/Financial.xlsx` and populates all tables in dependency order:
+Seeding is a one-time operation that uses the DataFrames in `seed_data.py` (CARDS_DF, MULTIPLIERS_DF, CREDITS_DF, SPEND_DF) and populates all tables in dependency order:
 
 ```
-Issuers → Currencies → EcosystemBoosts → SpendCategories
+User (default id=1) → Issuers → Currencies → EcosystemBoosts → SpendCategories
 → Cards → EcosystemBoostAnchors → CardCategoryMultipliers → CardCredits
 ```
 
 ```bash
 cd backend
-python3 -m pip install openpyxl   # only needed for seeding
 python3 -m app.seed_data
 ```
 

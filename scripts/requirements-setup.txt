@@ -1,2 +1,0 @@
-# One-time setup dependencies (not needed in production)
-openpyxl>=3.1.2

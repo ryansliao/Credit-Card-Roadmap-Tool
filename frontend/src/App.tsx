@@ -1,8 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom'
-import Cards from './pages/Cards'
-import Calculator from './pages/Calculator'
-import Scenarios from './pages/Scenarios'
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import Library from './pages/Library'
+import WalletTool from './pages/WalletTool'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000 } },
@@ -25,9 +24,8 @@ function Nav() {
   return (
     <nav className="bg-slate-900 border-b border-slate-700 px-6 py-3 flex items-center gap-2">
       <span className="text-white font-bold text-lg mr-6">Credit Card Optimizer</span>
-      {link('/', 'Calculator')}
-      {link('/scenarios', 'Scenarios')}
-      {link('/cards', 'Card Library')}
+      {link('/', 'Wallet Tool')}
+      {link('/library', 'Library')}
     </nav>
   )
 }
@@ -40,9 +38,9 @@ export default function App() {
           <Nav />
           <main className="p-6">
             <Routes>
-              <Route path="/" element={<Calculator />} />
-              <Route path="/scenarios" element={<Scenarios />} />
-              <Route path="/cards" element={<Cards />} />
+              <Route path="/" element={<WalletTool />} />
+              <Route path="/library" element={<Library />} />
+              <Route path="/cards" element={<Navigate to="/library" replace />} />
             </Routes>
           </main>
         </div>

@@ -1,5 +1,5 @@
 """
-Seed the database with all credit cards parsed from Financial.xlsx.
+Seed the database with all credit cards from pandas DataFrames.
 
 Run directly (from the backend/ directory):
     python -m app.seed_data
@@ -9,22 +9,20 @@ Or from the project root:
 
 Seeding order (respects FK dependencies):
     1. Issuers
-    2. Currencies          (FK -> issuers)
-    3. EcosystemBoosts     (FK -> issuers, currencies)
-    4. EcosystemBoostAnchors after cards are created
-    5. Cards               (FK -> issuers, currencies, ecosystem_boosts)
-    6. EcosystemBoostAnchors (FK -> ecosystem_boosts, cards)
-    7. CardCategoryMultipliers / CardCredits / SpendCategories
+    2. Currencies          (FK -> issuers; converts_to_points / converts_to_currency_id set from card boost data)
+    3. Spend categories
+    4. Cards               (FK -> issuers, currencies); anchors_cashback_conversion set from Anchors sheet
+    5. CardCategoryMultipliers / CardCredits
 """
 
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 from pathlib import Path
+from typing import Optional
 
-import openpyxl
+import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,272 +33,251 @@ from app.models import (
     Card,
     CardCategoryMultiplier,
     CardCredit,
+    CardEcosystem,
     Currency,
-    EcosystemBoost,
-    EcosystemBoostAnchor,
+    Ecosystem,
     Issuer,
     SpendCategory,
+    User,
 )
 
-XLSX_PATH = Path(__file__).resolve().parent.parent.parent / "docs" / "Financial.xlsx"
-
-CATEGORIES = [
-    "All Other",
-    "Dining",
-    "Groceries",
-    "Personal Care",
-    "Drugstores",
-    "Fitness",
-    "Gas",
-    "Rideshare",
-    "Transit",
-    "Entertainment",
-    "Streaming",
-    "Software, Hardware",
-    "Internet",
-    "Phone",
-    "Airlines",
-    "Hotels",
-    "Rotating",
-]
-
-CREDIT_TYPES = [
-    "Misc. Travel",
-    "Hotel Collection",
-    "Hotel Status",
-    "Rental Car Status",
-    "Lounge Access",
-    "Airport Security",
-    "Flight Credits",
-    "Status Headstart",
-    "Dining",
-    "Streaming",
-    "Rideshare & Delivery",
-    "Live Entertainment",
-    "Miscellaneous",
-]
-
 # ---------------------------------------------------------------------------
-# Issuer seed data
+# Reference data path (data/reference.xlsx at project root)
 # ---------------------------------------------------------------------------
 
-ISSUERS = [
-    "American Express",
-    "Chase",
-    "Capital One",
-    "Citi",
-    "Bilt",
-    "Delta / American Express",
-    "Hilton / American Express",
-]
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+REFERENCE_XLSX = _PROJECT_ROOT / "data" / "reference.xlsx"
 
-# ---------------------------------------------------------------------------
-# Currency seed data
-# Each entry: (issuer_name, currency_name, cpp, is_cashback, is_transferable, comparison_factor)
-# ---------------------------------------------------------------------------
-
-CURRENCIES: list[tuple[str, str, float, bool, bool, float]] = [
-    # American Express
-    ("American Express", "Amex MR",        2.0,  False, True,  1.0),
-    # Chase — cashback variant (Freedom Unlimited/Flex alone) + transferable variant
-    ("Chase",            "Chase UR Cash",   1.0,  True,  False, 1.0),
-    ("Chase",            "Chase UR",        1.5,  False, True,  1.0),
-    # Capital One
-    ("Capital One",      "Capital One Miles", 1.5, False, True, 1.0),
-    # Citi — cashback variant + transferable variant
-    ("Citi",             "Citi TY Cash",    1.0,  True,  False, 1.0),
-    ("Citi",             "Citi TY",         1.5,  False, True,  1.0),
-    # Bilt
-    ("Bilt",             "Bilt Rewards",    1.5,  False, True,  1.0),
-    # Delta cobrand — non-transferable, comparison_factor < 1 to normalise vs MR/UR
-    ("Delta / American Express", "Delta SkyMiles", 1.2, False, False, 0.85),
-    # Hilton cobrand — non-transferable, low cpp but high earn multipliers
-    ("Hilton / American Express", "Hilton Honors", 0.5, False, False, 1.0),
-]
-
-# ---------------------------------------------------------------------------
-# Ecosystem boost seed data
-# Each entry: (issuer_name, boost_name, boosted_currency_name, description)
-# ---------------------------------------------------------------------------
-
-ECOSYSTEM_BOOSTS: list[tuple[str, str, str, str]] = [
-    (
-        "Chase",
-        "Chase UR Upgrade",
-        "Chase UR",
-        (
-            "When a Chase Sapphire Reserve, Sapphire Preferred, or Ink Preferred "
-            "is in the wallet, cashback-earning Chase cards (Freedom Unlimited, "
-            "Freedom Flex) convert to transferable Chase UR points."
-        ),
-    ),
-    (
-        "Citi",
-        "Citi TY Upgrade",
-        "Citi TY",
-        (
-            "When a Citi Strata Elite is in the wallet, other Citi ThankYou cards "
-            "(Strata Premier, Custom Cash, Double Cash) convert from cashback to "
-            "transferable Citi TY points."
-        ),
-    ),
-]
-
-# ---------------------------------------------------------------------------
-# Card -> issuer / currency / ecosystem_boost mappings
-# ---------------------------------------------------------------------------
-
-# card name -> issuer name
-CARD_ISSUER_MAP: dict[str, str] = {
-    "American Express Platinum":        "American Express",
-    "American Express Gold":            "American Express",
-    "American Express Business Gold":   "American Express",
-    "American Express Blue Business Plus": "American Express",
-    "Chase Sapphire Reserve":           "Chase",
-    "Chase Sapphire Preferred":         "Chase",
-    "Chase Ink Preferred":              "Chase",
-    "Chase Ink Cash":                   "Chase",
-    "Chase Freedom Unlimited":          "Chase",
-    "Chase Freedom Flex":               "Chase",
-    "Capital One Venture X":            "Capital One",
-    "Capital One Savor":                "Capital One",
-    "Citi Strata Elite":                "Citi",
-    "Citi Strata Premier":              "Citi",
-    "Citi Strata":                      "Citi",
-    "Citi Custom Cash":                 "Citi",
-    "Citi Double Cash":                 "Citi",
-    "Bilt Palladium":                   "Bilt",
-    "Bilt Obsidian":                    "Bilt",
-    "Bilt Blue":                        "Bilt",
-    "Delta SkyMiles Gold":              "Delta / American Express",
-    "Delta SkyMiles Gold Business":     "Delta / American Express",
-    "Delta SkyMiles Platinum":          "Delta / American Express",
-    "Delta SkyMiles Reserve":           "Delta / American Express",
-    "Hilton Honors Surpass":            "Hilton / American Express",
-    "Hilton Honors Aspire":             "Hilton / American Express",
-}
-
-# card name -> default currency name
-# Cashback-capable Chase/Citi cards default to their cashback currency;
-# the ecosystem boost will upgrade them at runtime.
-CARD_CURRENCY_MAP: dict[str, str] = {
-    "American Express Platinum":        "Amex MR",
-    "American Express Gold":            "Amex MR",
-    "American Express Business Gold":   "Amex MR",
-    "American Express Blue Business Plus": "Amex MR",
-    "Chase Sapphire Reserve":           "Chase UR",
-    "Chase Sapphire Preferred":         "Chase UR",
-    "Chase Ink Preferred":              "Chase UR",
-    "Chase Ink Cash":                   "Chase UR",
-    "Chase Freedom Unlimited":          "Chase UR Cash",
-    "Chase Freedom Flex":               "Chase UR Cash",
-    "Capital One Venture X":            "Capital One Miles",
-    "Capital One Savor":                "Capital One Miles",
-    "Citi Strata Elite":                "Citi TY",
-    "Citi Strata Premier":              "Citi TY Cash",
-    "Citi Strata":                      "Citi TY Cash",
-    "Citi Custom Cash":                 "Citi TY Cash",
-    "Citi Double Cash":                 "Citi TY Cash",
-    "Bilt Palladium":                   "Bilt Rewards",
-    "Bilt Obsidian":                    "Bilt Rewards",
-    "Bilt Blue":                        "Bilt Rewards",
-    "Delta SkyMiles Gold":              "Delta SkyMiles",
-    "Delta SkyMiles Gold Business":     "Delta SkyMiles",
-    "Delta SkyMiles Platinum":          "Delta SkyMiles",
-    "Delta SkyMiles Reserve":           "Delta SkyMiles",
-    "Hilton Honors Surpass":            "Hilton Honors",
-    "Hilton Honors Aspire":             "Hilton Honors",
-}
-
-# card name -> ecosystem boost name (only cards that BENEFIT from a boost)
-CARD_BOOST_MAP: dict[str, str] = {
-    "Chase Freedom Unlimited":  "Chase UR Upgrade",
-    "Chase Freedom Flex":       "Chase UR Upgrade",
-    "Citi Strata Premier":      "Citi TY Upgrade",
-    "Citi Strata":              "Citi TY Upgrade",
-    "Citi Custom Cash":         "Citi TY Upgrade",
-    "Citi Double Cash":         "Citi TY Upgrade",
-}
-
-# boost name -> list of anchor card names
-BOOST_ANCHORS: dict[str, list[str]] = {
-    "Chase UR Upgrade": [
-        "Chase Sapphire Reserve",
-        "Chase Sapphire Preferred",
-        "Chase Ink Preferred",
-    ],
-    "Citi TY Upgrade": [
-        "Citi Strata Elite",
-    ],
-}
+# Default DataFrames / structures when reference.xlsx is missing or not used
+_CARDS_DF_DEFAULT = pd.DataFrame(
+    columns=[
+        "name",
+        "issuer_name",
+        "currency_name",
+        "ecosystem_boost_name",
+        "annual_fee",
+        "sub_points",
+        "sub_min_spend",
+        "sub_months",
+        "sub_spend_points",
+        "annual_bonus_points",
+    ]
+)
+_MULTIPLIERS_DF_DEFAULT = pd.DataFrame(columns=["card_name", "category", "multiplier"])
+_CREDITS_DF_DEFAULT = pd.DataFrame(columns=["card_name", "credit_type", "label", "value"])
+_ANCHORS_DF_DEFAULT = pd.DataFrame(columns=["boost_name", "card_name"])
 
 
-# ---------------------------------------------------------------------------
-# XLSX parsing
-# ---------------------------------------------------------------------------
+def _load_reference_data() -> tuple[
+    list[str],
+    list[tuple[str, str, float, bool, bool]],
+    list[tuple[str, str, str, str]],
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+]:
+    """
+    Load issuers, currencies, boosts, and DataFrames from data/reference.xlsx.
+    Returns (issuers, currencies, ecosystem_boosts, cards_df, multipliers_df, credits_df, spend_df, anchors_df).
+    If the file is missing or a sheet is invalid, the corresponding tuple entries are None and DataFrames are defaults.
+    """
+    _empty_spend = pd.DataFrame(columns=["category", "annual_spend"])
+    if not REFERENCE_XLSX.exists():
+        return (
+            [],
+            [],
+            [],
+            _CARDS_DF_DEFAULT.copy(),
+            _MULTIPLIERS_DF_DEFAULT.copy(),
+            _CREDITS_DF_DEFAULT.copy(),
+            _empty_spend.copy(),
+            _ANCHORS_DF_DEFAULT.copy(),
+        )
+
+    issuers_list: list[tuple[str, Optional[str], Optional[str]]] = []
+    currencies_list: list[tuple[str, str, float, bool, bool, float]] = []
+    boosts_list: list[tuple[str, str, str, str]] = []
+    cards_df = _CARDS_DF_DEFAULT.copy()
+    multipliers_df = _MULTIPLIERS_DF_DEFAULT.copy()
+    credits_df = _CREDITS_DF_DEFAULT.copy()
+    spend_df = _empty_spend.copy()
+    anchors_df = _ANCHORS_DF_DEFAULT.copy()
+
+    try:
+        # Issuers: (name, co_brand_partner?, network?)
+        df = pd.read_excel(REFERENCE_XLSX, sheet_name="Issuers", engine="openpyxl")
+        if not df.empty and "name" in df.columns:
+            has_extra = "co_brand_partner" in df.columns and "network" in df.columns
+            if has_extra:
+                issuers_list = [
+                    (
+                        str(row["name"]).strip(),
+                        str(row["co_brand_partner"]).strip() if pd.notna(row.get("co_brand_partner")) and str(row.get("co_brand_partner")).strip() else None,
+                        str(row["network"]).strip() if pd.notna(row.get("network")) and str(row.get("network")).strip() else None,
+                    )
+                    for _, row in df.iterrows()
+                    if pd.notna(row.get("name"))
+                ]
+            else:
+                issuers_list = [
+                    (n, None, None)
+                    for n in df["name"].dropna().astype(str).str.strip().tolist()
+                ]
+
+        # Currencies
+        df = pd.read_excel(REFERENCE_XLSX, sheet_name="Currencies", engine="openpyxl")
+        if not df.empty and "issuer_name" in df.columns and "currency_name" in df.columns:
+            rows = []
+            for _, row in df.iterrows():
+                rows.append(
+                    (
+                        str(row["issuer_name"]).strip(),
+                        str(row["currency_name"]).strip(),
+                        float(row.get("cents_per_point", 1.0) or 1.0),
+                        bool(row.get("is_cashback", False)),
+                        bool(row.get("is_transferable", False)),
+                    )
+                )
+            currencies_list = rows
+
+        # EcosystemBoosts
+        df = pd.read_excel(REFERENCE_XLSX, sheet_name="EcosystemBoosts", engine="openpyxl")
+        if not df.empty and "issuer_name" in df.columns and "boost_name" in df.columns:
+            rows = []
+            for _, row in df.iterrows():
+                rows.append(
+                    (
+                        str(row["issuer_name"]).strip(),
+                        str(row["boost_name"]).strip(),
+                        str(row.get("boosted_currency_name", "")).strip(),
+                        str(row.get("description", "") or ""),
+                    )
+                )
+            boosts_list = rows
+
+        # SpendCategories
+        df = pd.read_excel(REFERENCE_XLSX, sheet_name="SpendCategories", engine="openpyxl")
+        if not df.empty and "category" in df.columns:
+            spend_df = df[["category", "annual_spend"]] if "annual_spend" in df.columns else df
+            if "annual_spend" not in spend_df.columns:
+                spend_df["annual_spend"] = 0.0
+
+        # Cards
+        df = pd.read_excel(REFERENCE_XLSX, sheet_name="Cards", engine="openpyxl")
+        if not df.empty:
+            cards_df = df
+
+        # Multipliers
+        df = pd.read_excel(REFERENCE_XLSX, sheet_name="Multipliers", engine="openpyxl")
+        if not df.empty and "card_name" in df.columns and "category" in df.columns:
+            multipliers_df = df
+
+        # Credits
+        df = pd.read_excel(REFERENCE_XLSX, sheet_name="Credits", engine="openpyxl")
+        if not df.empty and "card_name" in df.columns:
+            credits_df = df
+
+        # Anchors
+        df = pd.read_excel(REFERENCE_XLSX, sheet_name="Anchors", engine="openpyxl")
+        if not df.empty and "boost_name" in df.columns and "card_name" in df.columns:
+            anchors_df = df
+    except Exception:
+        # On any read error, fall back to empty data for this run
+        return (
+            [],
+            [],
+            [],
+            _CARDS_DF_DEFAULT.copy(),
+            _MULTIPLIERS_DF_DEFAULT.copy(),
+            _CREDITS_DF_DEFAULT.copy(),
+            pd.DataFrame(columns=["category", "annual_spend"]),
+            _ANCHORS_DF_DEFAULT.copy(),
+        )
+
+    return (
+        issuers_list,
+        currencies_list,
+        boosts_list,
+        cards_df,
+        multipliers_df,
+        credits_df,
+        spend_df,
+        anchors_df,
+    )
 
 
-def parse_xlsx() -> dict:
-    wb = openpyxl.load_workbook(XLSX_PATH, data_only=True)
-    ws = wb["Credit Card Tool"]
-    rows = list(ws.iter_rows(min_row=1, values_only=True))
+# Module-level DataFrames (overwritten at seed() from reference.xlsx when present)
+CARDS_DF = _CARDS_DF_DEFAULT.copy()
+MULTIPLIERS_DF = _MULTIPLIERS_DF_DEFAULT.copy()
+CREDITS_DF = _CREDITS_DF_DEFAULT.copy()
+SPEND_DF = pd.DataFrame(columns=["category", "annual_spend"])
+ANCHORS_DF = _ANCHORS_DF_DEFAULT.copy()
 
-    card_cols = list(range(5, 57, 2))
-    card_names = [rows[0][c] for c in card_cols]
 
+def _cards_from_dfs(
+    cards_df: pd.DataFrame,
+    multipliers_df: pd.DataFrame,
+    credits_df: pd.DataFrame,
+) -> dict:
+    """Build the same card dict structure that seed() expects from the three DataFrames."""
+    categories = (
+        multipliers_df["category"].dropna().unique().tolist()
+        if not multipliers_df.empty and "category" in multipliers_df.columns
+        else []
+    )
     all_cards: dict = {}
-    for col, name in zip(card_cols, card_names):
-        if not name:
+    for _, row in cards_df.iterrows():
+        name = row["name"]
+        if pd.isna(name) or not name:
             continue
-        mult_col = col + 1
-
-        annual_fee        = rows[6][col] or 0
-        sub_points        = rows[7][col] or 0
-        sub_min_spend     = rows[9][col]
-        sub_months        = rows[10][col]
-        sub_spend_points  = rows[13][col] or 0
-        annual_bonus_pts  = rows[8][col] or 0
-
-        multipliers: dict[str, float] = {}
-        for cat, row_idx in zip(CATEGORIES, range(18, 35)):
-            val = rows[row_idx][mult_col]
-            multipliers[cat] = float(val) if val is not None else 1.0
+        name = str(name).strip()
+        mults = (
+            multipliers_df[multipliers_df["card_name"] == name]
+            .set_index("category")["multiplier"]
+            .to_dict()
+            if not multipliers_df.empty and "card_name" in multipliers_df.columns
+            else {}
+        )
+        multipliers = {cat: float(mults.get(cat, 1.0)) for cat in categories}
 
         credits: dict[str, dict] = {}
-        for ctype, row_idx in zip(CREDIT_TYPES, range(35, 48)):
-            label = rows[row_idx][col]
-            value = rows[row_idx][mult_col]
-            if label is not None or (value is not None and value != 0):
-                credits[ctype] = {
-                    "label": str(label) if label else "",
-                    "value": float(value) if value is not None else 0.0,
-                }
+        if not credits_df.empty and "card_name" in credits_df.columns:
+            card_credits = credits_df[credits_df["card_name"] == name]
+            for _, cr in card_credits.iterrows():
+                ctype = cr.get("credit_type", "")
+                if pd.notna(ctype) and (pd.notna(cr.get("label")) or (pd.notna(cr.get("value")) and cr.get("value", 0) != 0)):
+                    credits[str(ctype)] = {
+                        "label": str(cr["label"]) if pd.notna(cr.get("label")) else "",
+                        "value": float(cr["value"]) if pd.notna(cr.get("value")) else 0.0,
+                    }
 
         all_cards[name] = {
-            "name":                name,
-            "annual_fee":          float(annual_fee),
-            "sub_points":          int(sub_points),
-            "sub_min_spend":       int(sub_min_spend) if sub_min_spend is not None else None,
-            "sub_months":          int(sub_months) if sub_months is not None else None,
-            "sub_spend_points":    int(sub_spend_points),
-            "annual_bonus_points": int(annual_bonus_pts),
-            "multipliers":         multipliers,
-            "credits":             credits,
+            "name": name,
+            "issuer_name": str(row["issuer_name"]).strip() if pd.notna(row.get("issuer_name")) else None,
+            "currency_name": str(row["currency_name"]).strip() if pd.notna(row.get("currency_name")) else None,
+            "ecosystem_boost_name": str(row["ecosystem_boost_name"]).strip() if pd.notna(row.get("ecosystem_boost_name")) else None,
+            "annual_fee": float(row.get("annual_fee", 0) or 0),
+            "sub_points": int(row.get("sub_points", 0) or 0),
+            "sub_min_spend": int(row["sub_min_spend"]) if pd.notna(row.get("sub_min_spend")) else None,
+            "sub_months": int(row["sub_months"]) if pd.notna(row.get("sub_months")) else None,
+            "sub_spend_points": int(row.get("sub_spend_points", 0) or 0),
+            "annual_bonus_points": int(row.get("annual_bonus_points", 0) or 0),
+            "multipliers": multipliers,
+            "credits": credits,
         }
-
     return all_cards
 
 
-def parse_spend_categories() -> list[dict]:
-    wb = openpyxl.load_workbook(XLSX_PATH, data_only=True)
-    ws = wb["Credit Card Tool"]
-    rows = list(ws.iter_rows(min_row=1, values_only=True))
-
-    result = []
-    for cat, row_idx in zip(CATEGORIES, range(18, 35)):
-        spend = rows[row_idx][4]
-        result.append({"category": cat, "annual_spend": float(spend) if spend else 0.0})
-    return result
+def _spend_from_df(spend_df: pd.DataFrame) -> list[dict]:
+    """Build list of {category, annual_spend} from spend DataFrame."""
+    if spend_df.empty or "category" not in spend_df.columns:
+        return []
+    return [
+        {"category": row["category"], "annual_spend": float(row.get("annual_spend", 0) or 0)}
+        for _, row in spend_df.iterrows()
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -308,72 +285,56 @@ def parse_spend_categories() -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-async def _upsert_issuer(session: AsyncSession, name: str) -> Issuer:
+async def _upsert_issuer(
+    session: AsyncSession,
+    name: str,
+    co_brand_partner: Optional[str] = None,
+    network: Optional[str] = None,
+) -> Issuer:
     existing = await session.execute(select(Issuer).where(Issuer.name == name))
     obj = existing.scalar_one_or_none()
     if obj is None:
-        obj = Issuer(name=name)
+        obj = Issuer(
+            name=name,
+            co_brand_partner=co_brand_partner,
+            network=network,
+        )
         session.add(obj)
         await session.flush()
+    else:
+        if co_brand_partner is not None:
+            obj.co_brand_partner = co_brand_partner
+        if network is not None:
+            obj.network = network
     return obj
 
 
 async def _upsert_currency(
     session: AsyncSession,
-    issuer: Issuer,
+    issuer: Optional[Issuer],
     name: str,
     cpp: float,
     is_cashback: bool,
     is_transferable: bool,
-    comparison_factor: float,
 ) -> Currency:
     existing = await session.execute(select(Currency).where(Currency.name == name))
     obj = existing.scalar_one_or_none()
+    issuer_id = issuer.id if issuer else None
     if obj is None:
         obj = Currency(
-            issuer_id=issuer.id,
+            issuer_id=issuer_id,
             name=name,
             cents_per_point=cpp,
             is_cashback=is_cashback,
             is_transferable=is_transferable,
-            comparison_factor=comparison_factor,
         )
         session.add(obj)
         await session.flush()
     else:
-        obj.issuer_id = issuer.id
+        obj.issuer_id = issuer_id
         obj.cents_per_point = cpp
         obj.is_cashback = is_cashback
         obj.is_transferable = is_transferable
-        obj.comparison_factor = comparison_factor
-        await session.flush()
-    return obj
-
-
-async def _upsert_boost(
-    session: AsyncSession,
-    issuer: Issuer,
-    name: str,
-    boosted_currency: Currency,
-    description: str,
-) -> EcosystemBoost:
-    existing = await session.execute(
-        select(EcosystemBoost).where(EcosystemBoost.name == name)
-    )
-    obj = existing.scalar_one_or_none()
-    if obj is None:
-        obj = EcosystemBoost(
-            issuer_id=issuer.id,
-            boosted_currency_id=boosted_currency.id,
-            name=name,
-            description=description,
-        )
-        session.add(obj)
-        await session.flush()
-    else:
-        obj.issuer_id = issuer.id
-        obj.boosted_currency_id = boosted_currency.id
-        obj.description = description
         await session.flush()
     return obj
 
@@ -384,42 +345,59 @@ async def _upsert_boost(
 
 
 async def seed(session: AsyncSession) -> None:
-    """Upsert all reference data and cards."""
+    """Upsert all reference data and cards. Loads from data/reference.xlsx when present."""
+
+    (
+        issuers_from_file,
+        currencies_from_file,
+        boosts_from_file,
+        cards_df,
+        multipliers_df,
+        credits_df,
+        spend_df,
+        anchors_df,
+    ) = _load_reference_data()
+
+    issuers_list = issuers_from_file or []
+    currencies_list = currencies_from_file or []
+    boosts_list = boosts_from_file or []
+
+    # 0. Default user (for single-tenant Wallet Tool)
+    default_user = await session.execute(select(User).where(User.id == 1))
+    if default_user.scalar_one_or_none() is None:
+        session.add(User(id=1, name="Default User"))
+        await session.flush()
+        print("  User: default user created (id=1)")
+    else:
+        print("  User: default user exists")
 
     # 1. Issuers
     issuer_objs: dict[str, Issuer] = {}
-    for name in ISSUERS:
-        issuer_objs[name] = await _upsert_issuer(session, name)
+    for name, co_brand_partner, network in issuers_list:
+        issuer_objs[name] = await _upsert_issuer(session, name, co_brand_partner, network)
     print(f"  Issuers:  {len(issuer_objs)}")
 
-    # 2. Currencies
+    # 2. Currencies (issuer optional, e.g. for Cash)
     currency_objs: dict[str, Currency] = {}
-    for issuer_name, cur_name, cpp, is_cb, is_tf, cf in CURRENCIES:
+    for issuer_name, cur_name, cpp, is_cb, is_tf in currencies_list:
+        issuer = issuer_objs.get(str(issuer_name).strip()) if issuer_name and str(issuer_name).strip() else None
         currency_objs[cur_name] = await _upsert_currency(
             session,
-            issuer_objs[issuer_name],
+            issuer,
             cur_name,
             cpp,
             is_cb,
             is_tf,
-            cf,
         )
     print(f"  Currencies: {len(currency_objs)}")
 
-    # 3. Ecosystem boosts (anchor links come after cards are created)
-    boost_objs: dict[str, EcosystemBoost] = {}
-    for issuer_name, boost_name, boosted_cur_name, desc in ECOSYSTEM_BOOSTS:
-        boost_objs[boost_name] = await _upsert_boost(
-            session,
-            issuer_objs[issuer_name],
-            boost_name,
-            currency_objs[boosted_cur_name],
-            desc,
-        )
-    print(f"  EcosystemBoosts: {len(boost_objs)}")
+    # boost_name -> point currency name (for setting currency.converts_to_points on cashback currencies)
+    boost_name_to_point_currency: dict[str, str] = {
+        row[1]: row[2] for row in boosts_list
+    }
 
-    # 4. Spend categories
-    spend_cats = parse_spend_categories()
+    # 3. Spend categories
+    spend_cats = _spend_from_df(spend_df)
     for sc in spend_cats:
         existing = await session.execute(
             select(SpendCategory).where(SpendCategory.category == sc["category"])
@@ -431,17 +409,21 @@ async def seed(session: AsyncSession) -> None:
             obj.annual_spend = sc["annual_spend"]
     print(f"  SpendCategories: {len(spend_cats)}")
 
-    # 5. Cards
-    all_cards_raw = parse_xlsx()
+    # 4. Cards
+    all_cards_raw = _cards_from_dfs(cards_df, multipliers_df, credits_df)
     card_objs: dict[str, Card] = {}
 
     for card_name, card_data in all_cards_raw.items():
         multipliers = card_data.pop("multipliers")
         credits_data = card_data.pop("credits")
+        issuer_name = card_data.pop("issuer_name", None)
+        currency_name = card_data.pop("currency_name", None)
+        boost_name = card_data.pop("ecosystem_boost_name", None)
 
-        issuer_name = CARD_ISSUER_MAP.get(card_name, "Unknown")
-        currency_name = CARD_CURRENCY_MAP.get(card_name, "Chase UR Cash")
-        boost_name = CARD_BOOST_MAP.get(card_name)
+        if not issuer_name or not currency_name:
+            raise ValueError(
+                f"Card '{card_name}' must have issuer_name and currency_name in CARDS_DF."
+            )
 
         issuer = issuer_objs.get(issuer_name)
         if issuer is None:
@@ -453,10 +435,17 @@ async def seed(session: AsyncSession) -> None:
         if currency is None:
             raise ValueError(
                 f"Currency '{currency_name}' not found for card '{card_name}'. "
-                "Check CARD_CURRENCY_MAP and CURRENCIES."
+                "Add it to the Currencies sheet in data/reference.xlsx."
             )
 
-        boost = boost_objs.get(boost_name) if boost_name else None
+        # If this card had an ecosystem boost, mark its (cashback) currency as converts_to_points
+        if boost_name and currency_name and boost_name in boost_name_to_point_currency:
+            point_cur_name = boost_name_to_point_currency[boost_name]
+            point_currency = currency_objs.get(point_cur_name)
+            if point_currency is not None:
+                currency.converts_to_points = True
+                currency.converts_to_currency_id = point_currency.id
+                await session.flush()
 
         existing = await session.execute(
             select(Card).where(Card.name == card_data["name"])
@@ -467,7 +456,6 @@ async def seed(session: AsyncSession) -> None:
             card = Card(
                 issuer_id=issuer.id,
                 currency_id=currency.id,
-                ecosystem_boost_id=boost.id if boost else None,
                 **card_data,
             )
             session.add(card)
@@ -475,7 +463,6 @@ async def seed(session: AsyncSession) -> None:
         else:
             card.issuer_id = issuer.id
             card.currency_id = currency.id
-            card.ecosystem_boost_id = boost.id if boost else None
             for k, v in card_data.items():
                 setattr(card, k, v)
             await session.flush()
@@ -504,26 +491,63 @@ async def seed(session: AsyncSession) -> None:
 
     print(f"  Cards: {len(card_objs)}")
 
-    # 6. Ecosystem boost anchors (requires cards to exist)
-    for boost_name, anchor_card_names in BOOST_ANCHORS.items():
-        boost = boost_objs[boost_name]
-        for anchor_name in anchor_card_names:
-            anchor_card = card_objs.get(anchor_name)
-            if anchor_card is None:
-                print(f"  WARNING: anchor card '{anchor_name}' not found for boost '{boost_name}'")
+    # 5. Ecosystems and card memberships (from boosts + anchors)
+    # Build one Ecosystem per boost; link beneficiary cards and key (anchor) cards
+    if boosts_list and boost_name_to_point_currency:
+        ecosystem_objs: dict[str, Ecosystem] = {}
+        for issuer_name, boost_name, boosted_cur_name, _ in boosts_list:
+            if not boost_name or boost_name not in boost_name_to_point_currency:
                 continue
-            existing = await session.execute(
-                select(EcosystemBoostAnchor).where(
-                    EcosystemBoostAnchor.boost_id == boost.id,
-                    EcosystemBoostAnchor.card_id == anchor_card.id,
-                )
+            point_cur_name = boost_name_to_point_currency[boost_name]
+            point_currency = currency_objs.get(point_cur_name)
+            if point_currency is None:
+                continue
+            cash_currency = currency_objs.get("Cash")
+            cashback_currency_id = cash_currency.id if cash_currency else None
+            if boost_name in ecosystem_objs:
+                continue
+            eco = Ecosystem(
+                name=boost_name,
+                points_currency_id=point_currency.id,
+                cashback_currency_id=cashback_currency_id,
             )
-            if existing.scalar_one_or_none() is None:
+            session.add(eco)
+            await session.flush()
+            ecosystem_objs[boost_name] = eco
+
+        # Beneficiaries: cards with this ecosystem_boost_name -> key_card=False
+        for card_name, card in card_objs.items():
+            boost_name = all_cards_raw.get(card_name, {}).get("ecosystem_boost_name")
+            if boost_name and boost_name in ecosystem_objs:
                 session.add(
-                    EcosystemBoostAnchor(boost_id=boost.id, card_id=anchor_card.id)
+                    CardEcosystem(
+                        card_id=card.id,
+                        ecosystem_id=ecosystem_objs[boost_name].id,
+                        key_card=False,
+                    )
                 )
-    await session.flush()
-    print(f"  EcosystemBoostAnchors: seeded")
+        # Key cards: from Anchors sheet -> key_card=True (ecosystem = one where points_currency == card's currency)
+        if not anchors_df.empty and "card_name" in anchors_df.columns:
+            for _, row in anchors_df.iterrows():
+                anchor_name = row.get("card_name")
+                if pd.isna(anchor_name):
+                    continue
+                anchor_name = str(anchor_name).strip()
+                anchor_card = card_objs.get(anchor_name)
+                if anchor_card is None:
+                    continue
+                for eco in ecosystem_objs.values():
+                    if eco.points_currency_id == anchor_card.currency_id:
+                        session.add(
+                            CardEcosystem(
+                                card_id=anchor_card.id,
+                                ecosystem_id=eco.id,
+                                key_card=True,
+                            )
+                        )
+                        break
+        await session.flush()
+        print(f"  Ecosystems: {len(ecosystem_objs)}; card memberships set")
 
     await session.commit()
     print("Seed complete.")

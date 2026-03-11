@@ -4,7 +4,7 @@
 #
 # First-time setup (run once, in order):
 #   1. cp .env.example .env && fill in DATABASE_URL
-#   2. python3 -m pip install openpyxl && cd backend && python3 -m app.seed_data
+#   2. cd backend && python3 -m app.seed_data
 #   3. ./scripts/dev.sh
 
 set -euo pipefail
