@@ -86,10 +86,10 @@ class CardData:
     # Wallet-specific date context (None = active for the full calculation window)
     wallet_added_date: Optional[date] = None
     wallet_closed_date: Optional[date] = None
-    # sub_earned_date: manually confirmed by user (None if pending)
-    sub_earned_date: Optional[date] = None
     # sub_projected_earn_date: auto-calculated from spend profile
     sub_projected_earn_date: Optional[date] = None
+    # sub_already_earned: True when user has confirmed SUB earned (no projection needed)
+    sub_already_earned: bool = False
     # sub_earnable: False when spend rate is too low to hit the SUB min within the SUB window
     sub_earnable: bool = True
 
@@ -711,10 +711,6 @@ def _average_annual_net_dollars(
 # ---------------------------------------------------------------------------
 
 
-def _effective_sub_earned_date(card: CardData) -> Optional[date]:
-    """Return the effective SUB earned date: manual override first, then projected."""
-    return card.sub_earned_date or card.sub_projected_earn_date
-
 
 def _build_segments(
     window_start: date,
@@ -733,12 +729,13 @@ def _build_segments(
         for d in (card.wallet_added_date, card.wallet_closed_date):
             if d is not None and window_start < d < window_end:
                 change_dates.add(d)
-        earned = _effective_sub_earned_date(card)
-        if earned is not None and window_start < earned < window_end:
-            change_dates.add(earned)
+        if not card.sub_already_earned:
+            earned = card.sub_projected_earn_date
+            if earned is not None and window_start < earned < window_end:
+                change_dates.add(earned)
         # SUB window expiry: ensures boost never bleeds past sub_window_end even if
         # sub_projected_earn_date is None or falls outside the calc window.
-        if card.wallet_added_date is not None and card.sub_months is not None:
+        if not card.sub_already_earned and card.wallet_added_date is not None and card.sub_months is not None:
             sub_window_end = add_months(card.wallet_added_date, card.sub_months)
             if window_start < sub_window_end < window_end:
                 change_dates.add(sub_window_end)
@@ -775,12 +772,13 @@ def _sub_ros_for_segment(
         or not card.sub_min_spend
         or not card.sub_earnable
         or not card.wallet_added_date
+        or card.sub_already_earned
     ):
         return 0.0
     # Safety: boost must never apply before the card's wallet opening date
     if seg_start < card.wallet_added_date:
         return 0.0
-    earned = _effective_sub_earned_date(card)
+    earned = card.sub_projected_earn_date
     if earned is not None and earned <= seg_start:
         return 0.0  # SUB already earned before this segment
     sub_window_end = (
@@ -922,7 +920,7 @@ def _segmented_card_net_per_year(
     # would double-count the cost already reflected in other cards' reduced
     # segment earn.
     if card.sub_earnable and card.sub:
-        earned = _effective_sub_earned_date(card)
+        earned = card.sub_projected_earn_date
         if earned is None or window_start <= earned <= window_end:
             eff_currency = _effective_currency(card, active_wallet_currency_ids)
             total_earn_dollars += card.sub * eff_currency.cents_per_point / 100.0

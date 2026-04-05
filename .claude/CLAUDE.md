@@ -36,9 +36,10 @@ amount. This replaced the legacy two-table structure (`WalletSpendCategory` +
 **Wallet**
 A named collection of cards to evaluate together. Each `WalletCard` has `added_date`,
 optional `closed_date`, `acquisition_type` (opened/product_change), optional SUB overrides,
-and `sub_earned_date`. Cards must be active (added ≤ reference date, not closed) to count
-in calculations. Wallet stores its own calc config: `calc_start_date`, `calc_end_date`,
-`calc_duration_years`, `calc_duration_months`, `calc_window_mode`.
+`sub_earned_date` (UI toggle), and `sub_projected_earn_date` (auto-calculated). Cards must
+be active (added ≤ reference date, not closed) to count in calculations. Wallet stores its
+own calc config: `calc_start_date`, `calc_end_date`, `calc_duration_years`,
+`calc_duration_months`, `calc_window_mode`.
 
 **EV Calculation**
 `calculator.py` is a pure engine (no DB access). It uses two calculation paths depending on
@@ -89,9 +90,25 @@ currency units (conversion rate not applied), while `annual_point_earn` is in **
 currency units (conversion rate applied). For wallets with currency upgrades, the two are
 in different units — the category breakdown will sum to more than `annual_point_earn`.
 
-**SUB tracking**: `sub_earnable` is set false when the user's annual spend rate cannot hit
-`sub_min_spend` within `sub_months`. When false, the SUB bonus, sub_spend_earn, and their
-opportunity cost are all excluded from calculations.
+**SUB tracking**: Two separate concepts control SUB handling:
+
+- `sub_earned_date` (DB/UI only): a toggle on owned cards in the cards panel. Purely for
+  user tracking — indicates the user has confirmed the SUB was earned. When set, the backend
+  clears `sub_projected_earn_date` (no projection needed). Does **not** flow into the
+  calculator's `CardData`.
+- `sub_projected_earn_date` (DB + calculator): auto-calculated from the wallet's daily spend
+  rate and the card's SUB minimum/window. Used by the segmented calculation path for segment
+  boundaries and SUB ROS boost timing. Cleared when `sub_earned_date` is set.
+- `sub_already_earned` (calculator only, `CardData`): set True when `sub_earned_date` is
+  present. Tells the calculator to skip SUB ROS boost and segment boundaries for this card
+  while still including the SUB bonus in the total.
+- `sub_earnable`: set false when the user's annual spend rate cannot hit `sub_min_spend`
+  within `sub_months`. When false, the SUB bonus, sub_spend_earn, and their opportunity cost
+  are all excluded. Forced true when `sub_already_earned` is true.
+
+Future cards (added_date > today) show projected SUB status via roadmap badges. Owned cards
+show a manual "SUB earned" toggle instead. The projected earn date is displayed on both
+Future and Owned cards (hidden when the toggle is on for Owned cards).
 
 **SUB opportunity cost** (`calc_sub_opportunity_cost`): models the value lost on competing
 wallet cards by diverting extra spend to hit the SUB minimum. Deducted from `total_points`

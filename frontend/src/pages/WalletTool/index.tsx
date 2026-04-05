@@ -10,6 +10,7 @@ import {
   type WalletResultResponse,
 } from '../../api/client'
 import { today } from '../../utils/format'
+import { ModalBackdrop } from '../../components/ModalBackdrop'
 import { AnnualSpendPanel } from './components/spend/AnnualSpendPanel'
 import { WalletCardModal } from './components/cards/WalletCardModal'
 import { CreateWalletModal } from './components/wallet/CreateWalletModal'
@@ -34,6 +35,7 @@ export default function WalletToolPage() {
   const [result, setResult] = useState<WalletResultResponse | null>(null)
   const [closeCardId, setCloseCardId] = useState<number | null>(null)
   const [closeDateInput, setCloseDateInput] = useState('')
+  const [showSpendModal, setShowSpendModal] = useState(false)
   const [applicationRuleWarnings, setApplicationRuleWarnings] = useState<RoadmapRuleStatus[] | null>(
     null
   )
@@ -236,9 +238,29 @@ export default function WalletToolPage() {
         ) : (
           <>
             <div
-              className="grid flex-1 min-h-0 gap-6 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)_minmax(0,1fr)] xl:grid-rows-1"
+              className="grid flex-1 min-h-0 gap-6 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-2 xl:grid-rows-1"
             >
-              <AnnualSpendPanel walletId={selectedWalletId} onSpendChange={() => runCalculation()} />
+              <WalletResultsAndCurrenciesPanel
+                walletId={selectedWalletId}
+                result={result?.wallet ?? null}
+                resultsError={
+                  resultsMutation.isError
+                    ? resultsMutation.error instanceof Error
+                      ? resultsMutation.error
+                      : new Error(String(resultsMutation.error))
+                    : null
+                }
+                isCalculating={resultsMutation.isPending}
+                durationYears={durationYears}
+                durationMonths={durationMonths}
+                onDurationChange={(y, m) => {
+                  setDurationYears(y)
+                  setDurationMonths(m)
+                }}
+                onDurationCommit={(y, m) => runCalculation(y, m)}
+                onCppChange={() => runCalculation()}
+                onOpenSpend={() => setShowSpendModal(true)}
+              />
 
               <CardsListPanel
                 wallet={selectedWallet}
@@ -266,32 +288,24 @@ export default function WalletToolPage() {
                 onEditCard={(wc) => setWalletCardModal({ mode: 'edit', walletCard: wc })}
                 onAddCard={() => setWalletCardModal({ mode: 'add' })}
               />
-
-              <WalletResultsAndCurrenciesPanel
-                walletId={selectedWalletId}
-                result={result?.wallet ?? null}
-                resultsError={
-                  resultsMutation.isError
-                    ? resultsMutation.error instanceof Error
-                      ? resultsMutation.error
-                      : new Error(String(resultsMutation.error))
-                    : null
-                }
-                isCalculating={resultsMutation.isPending}
-                durationYears={durationYears}
-                durationMonths={durationMonths}
-                onDurationChange={(y, m) => {
-                  setDurationYears(y)
-                  setDurationMonths(m)
-                }}
-                onDurationCommit={(y, m) => runCalculation(y, m)}
-                onCppChange={() => runCalculation()}
-              />
             </div>
 
           </>
         )}
       </div>
+
+      {showSpendModal && selectedWalletId != null && (
+        <ModalBackdrop
+          onClose={() => setShowSpendModal(false)}
+          label="Annual Spend"
+          className="w-full max-w-md h-[80vh]"
+        >
+          <AnnualSpendPanel
+            walletId={selectedWalletId}
+            onSpendChange={() => runCalculation()}
+          />
+        </ModalBackdrop>
+      )}
 
       {showCreateModal && (
         <CreateWalletModal

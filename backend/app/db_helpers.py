@@ -373,7 +373,6 @@ def apply_wallet_card_overrides(
                 credit_lines=merged_lines,
                 wallet_added_date=wc.added_date,
                 wallet_closed_date=wc.closed_date,
-                sub_earned_date=wc.sub_earned_date,
                 sub_projected_earn_date=wc.sub_projected_earn_date,
             )
         )

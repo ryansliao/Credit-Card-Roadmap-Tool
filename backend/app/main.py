@@ -1034,8 +1034,31 @@ async def update_wallet_card(
         raise HTTPException(
             status_code=404, detail=f"Card {card_id} not in wallet {wallet_id}"
         )
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
         setattr(wc, field, value)
+
+    # Sync sub_projected_earn_date when sub_earned_date changes
+    if "sub_earned_date" in updates:
+        if wc.sub_earned_date:
+            # SUB confirmed earned — clear projection
+            wc.sub_projected_earn_date = None
+        else:
+            # SUB toggled off — recalculate projection from spend rate
+            card_result = await db.execute(select(Card).where(Card.id == wc.card_id))
+            card = card_result.scalar_one()
+            spend = await load_wallet_spend_items(db, wallet_id)
+            daily_rate = sum(spend.values()) / 365.0
+            eff_min = wc.sub_min_spend if wc.sub_min_spend is not None else card.sub_min_spend
+            eff_months = wc.sub_months if wc.sub_months is not None else card.sub_months
+            eff_sub = wc.sub if wc.sub is not None else card.sub
+            if not eff_sub or not eff_min:
+                wc.sub_projected_earn_date = None
+            else:
+                wc.sub_projected_earn_date = _projected_sub_earn_date(
+                    wc.added_date, eff_min, eff_months, daily_rate
+                )
+
     await db.commit()
     await db.refresh(wc)
     card_result = await db.execute(select(Card).where(Card.id == wc.card_id))
@@ -1354,10 +1377,13 @@ async def wallet_results(
     total_annual_spend = sum(spend.values())
     daily_rate = total_annual_spend / 365.0
 
-    # Auto-project SUB earn dates for pending cards (preserving any manual sub_earned_date)
+    # Auto-project SUB earn dates for pending cards.
+    # When the user has confirmed SUB earned, clear any stale projection.
     for wc in active_wallet_cards:
         if wc.sub_earned_date:
-            continue  # Manual confirmed date — preserve it
+            if wc.sub_projected_earn_date is not None:
+                wc.sub_projected_earn_date = None
+            continue
         lib = library_cards_by_id.get(wc.card_id)
         eff_min = wc.sub_min_spend if wc.sub_min_spend is not None else (lib.sub_min_spend if lib else None)
         eff_months = wc.sub_months if wc.sub_months is not None else (lib.sub_months if lib else None)
@@ -1369,11 +1395,15 @@ async def wallet_results(
         if wc.sub_projected_earn_date != proj:
             wc.sub_projected_earn_date = proj
 
-    # Patch sub_earnable onto each CardData before calculation
+    # Build a set of card IDs whose SUB has been manually confirmed as earned
+    earned_card_ids = {wc.card_id for wc in active_wallet_cards if wc.sub_earned_date}
+
+    # Patch sub_earnable and sub_already_earned onto each CardData before calculation
     modified_cards = [
         dataclasses.replace(
             c,
-            sub_earnable=_is_sub_earnable(c.sub_min_spend, c.sub_months, daily_rate),
+            sub_already_earned=c.id in earned_card_ids,
+            sub_earnable=True if c.id in earned_card_ids else _is_sub_earnable(c.sub_min_spend, c.sub_months, daily_rate),
         )
         for c in modified_cards
     ]

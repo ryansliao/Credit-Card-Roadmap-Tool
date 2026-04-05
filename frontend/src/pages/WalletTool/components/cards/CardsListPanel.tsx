@@ -138,7 +138,7 @@ export function CardsListPanel({
               key={wc.id}
               className={`bg-slate-800 rounded-lg px-3 py-2 ${isClosed ? 'opacity-50' : ''}`}
             >
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span
@@ -158,21 +158,63 @@ export function CardsListPanel({
                   <p className="text-xs text-slate-400 mt-0.5">
                     {wc.acquisition_type === 'product_change' ? 'PC date' : 'Opened'} {wc.added_date}
                   </p>
-                  {/* Quick actions */}
-                  <div className="flex items-center gap-3 mt-1.5">
-                    {rm?.sub_status === 'earned' && (
-                      <button
-                        className="text-xs text-slate-500 hover:text-slate-400"
-                        disabled={isUpdating}
-                        onClick={() => onUpdateCard(wc.card_id, { sub_earned_date: null })}
+                  {wc.sub_projected_earn_date && (
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      SUB projected earned {wc.sub_projected_earn_date}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-col items-end justify-between gap-1 shrink-0 self-stretch">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className="p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700"
+                      aria-label="Edit card"
+                      title="Edit"
+                      onClick={() => onEditCard(wc)}
+                    >
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       >
-                        ✕ Clear earned
-                      </button>
-                    )}
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="p-1 rounded text-slate-600 hover:text-red-400 hover:bg-red-950/40 disabled:opacity-50"
+                      aria-label="Remove card from wallet"
+                      title="Remove"
+                      onClick={() => onRemoveCard(wc.card_id)}
+                      disabled={isRemoving}
+                    >
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="flex justify-end items-center gap-2 flex-wrap max-w-[min(100%,18rem)]">
                     {!isClosed && (
                       <>
                         {closeCardId === wc.card_id ? (
-                          <span className="flex items-center gap-1">
+                          <span className="flex items-center gap-1 flex-wrap justify-end">
                             <input
                               type="date"
                               value={closeDateInput}
@@ -219,51 +261,6 @@ export function CardsListPanel({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    className="p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700"
-                    aria-label="Edit card"
-                    title="Edit"
-                    onClick={() => onEditCard(wc)}
-                  >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    className="p-1 rounded text-slate-600 hover:text-red-400 hover:bg-red-950/40 disabled:opacity-50"
-                    aria-label="Remove card from wallet"
-                    title="Remove"
-                    onClick={() => onRemoveCard(wc.card_id)}
-                    disabled={isRemoving}
-                  >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                  </button>
-                </div>
               </div>
             </li>
           )
@@ -286,7 +283,7 @@ export function CardsListPanel({
                     key={wc.id}
                     className={`bg-slate-800 rounded-lg px-3 py-2 ${isClosed ? 'opacity-50' : ''}`}
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span
@@ -306,30 +303,88 @@ export function CardsListPanel({
                         <p className="text-xs text-slate-400 mt-0.5">
                           {wc.acquisition_type === 'product_change' ? 'PC date' : 'Opened'} {wc.added_date}
                         </p>
-                        {/* Quick actions */}
-                        <div className="flex items-center gap-3 mt-1.5">
-                          {rm?.sub_status === 'pending' && (
+                        {wc.sub_projected_earn_date && !wc.sub_earned_date && (
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            SUB projected earned {wc.sub_projected_earn_date}
+                          </p>
+                        )}
+                        {wc.sub != null && (
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <span className="text-xs text-slate-400">SUB earned</span>
                             <button
-                              className="text-xs text-emerald-400/80 hover:text-emerald-400"
+                              type="button"
+                              role="switch"
+                              aria-checked={!!wc.sub_earned_date}
                               disabled={isUpdating}
-                              onClick={() => onUpdateCard(wc.card_id, { sub_earned_date: today() })}
+                              className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors cursor-pointer disabled:opacity-50 ${
+                                wc.sub_earned_date ? 'bg-emerald-600' : 'bg-slate-600'
+                              }`}
+                              onClick={() =>
+                                onUpdateCard(wc.card_id, {
+                                  sub_earned_date: wc.sub_earned_date ? null : today(),
+                                })
+                              }
                             >
-                              ✓ Mark SUB earned
+                              <span
+                                className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${
+                                  wc.sub_earned_date ? 'translate-x-3.5' : 'translate-x-0.5'
+                                }`}
+                              />
                             </button>
-                          )}
-                          {rm?.sub_status === 'earned' && (
-                            <button
-                              className="text-xs text-slate-500 hover:text-slate-400"
-                              disabled={isUpdating}
-                              onClick={() => onUpdateCard(wc.card_id, { sub_earned_date: null })}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end justify-between gap-1 shrink-0 self-stretch">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700"
+                            aria-label="Edit card"
+                            title="Edit"
+                            onClick={() => onEditCard(wc)}
+                          >
+                            <svg
+                              width="13"
+                              height="13"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
                             >
-                              ✕ Clear earned
-                            </button>
-                          )}
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className="p-1 rounded text-slate-600 hover:text-red-400 hover:bg-red-950/40 disabled:opacity-50"
+                            aria-label="Remove card from wallet"
+                            title="Remove"
+                            onClick={() => onRemoveCard(wc.card_id)}
+                            disabled={isRemoving}
+                          >
+                            <svg
+                              width="13"
+                              height="13"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="flex justify-end items-center gap-2 flex-wrap max-w-[min(100%,18rem)]">
                           {!isClosed && (
                             <>
                               {closeCardId === wc.card_id ? (
-                                <span className="flex items-center gap-1">
+                                <span className="flex items-center gap-1 flex-wrap justify-end">
                                   <input
                                     type="date"
                                     value={closeDateInput}
@@ -375,51 +430,6 @@ export function CardsListPanel({
                             </button>
                           )}
                         </div>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          className="p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700"
-                          aria-label="Edit card"
-                          title="Edit"
-                          onClick={() => onEditCard(wc)}
-                        >
-                          <svg
-                            width="13"
-                            height="13"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          className="p-1 rounded text-slate-600 hover:text-red-400 hover:bg-red-950/40 disabled:opacity-50"
-                          aria-label="Remove card from wallet"
-                          title="Remove"
-                          onClick={() => onRemoveCard(wc.card_id)}
-                          disabled={isRemoving}
-                        >
-                          <svg
-                            width="13"
-                            height="13"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          </svg>
-                        </button>
                       </div>
                     </div>
                   </li>

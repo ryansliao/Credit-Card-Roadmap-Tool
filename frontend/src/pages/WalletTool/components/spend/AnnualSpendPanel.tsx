@@ -1,7 +1,8 @@
-import type { WalletSpendItem } from '../../../../api/client'
+import { useState } from 'react'
+import type { SpendCategory, WalletSpendItem } from '../../../../api/client'
 import { formatMoney } from '../../../../utils/format'
+import { useAppSpendCategories } from '../../hooks/useAppSpendCategories'
 import { useWalletSpendCategoriesTable } from '../../hooks/useWalletSpendCategoriesTable'
-import AddSpendCategoryPicker from './AddSpendCategoryPicker'
 
 type SpendItemRowProps = {
   item: WalletSpendItem
@@ -85,6 +86,117 @@ function SpendItemRow({
   )
 }
 
+function InlineCategoryDropdown({
+  existingCategoryIds,
+  onSelect,
+}: {
+  existingCategoryIds: Set<number>
+  onSelect: (category: SpendCategory) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
+  const { data: categories = [], isLoading } = useAppSpendCategories()
+
+  const visible = categories.filter((c) => !c.is_system)
+  const searchLower = search.toLowerCase()
+  const filtered = search
+    ? visible.filter(
+        (c) =>
+          c.category.toLowerCase().includes(searchLower) ||
+          c.children.some((ch) => ch.category.toLowerCase().includes(searchLower))
+      )
+    : visible
+
+  return (
+    <div className="border-t border-slate-700 mt-2 pt-2">
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search categories…"
+        autoFocus
+        className="w-full bg-slate-800 border border-slate-600 text-white text-xs px-2.5 py-1.5 rounded-lg outline-none focus:border-indigo-500 mb-1"
+      />
+      <div className="max-h-48 overflow-y-auto">
+        {isLoading && <p className="text-slate-500 text-xs px-2 py-1">Loading…</p>}
+        {!isLoading && filtered.length === 0 && (
+          <p className="text-slate-500 text-xs px-2 py-1">No categories match.</p>
+        )}
+        {filtered.map((cat) => {
+          const alreadyAdded = existingCategoryIds.has(cat.id)
+          const hasChildren = cat.children.length > 0
+          const isExpanded = expandedIds.has(cat.id)
+          return (
+            <div key={cat.id}>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => !alreadyAdded && onSelect(cat)}
+                  disabled={alreadyAdded}
+                  className={`flex-1 text-left px-2 py-1 text-xs rounded transition-colors ${
+                    alreadyAdded
+                      ? 'text-slate-600 cursor-default'
+                      : 'text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  {cat.category}
+                </button>
+                {hasChildren && (
+                  <button
+                    onClick={() =>
+                      setExpandedIds((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(cat.id)) next.delete(cat.id)
+                        else next.add(cat.id)
+                        return next
+                      })
+                    }
+                    className="px-1 py-1 text-slate-500 hover:text-slate-300"
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                    >
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {hasChildren && isExpanded && (
+                <div className="ml-4 border-l border-slate-700">
+                  {cat.children.map((child) => {
+                    const childAdded = existingCategoryIds.has(child.id)
+                    return (
+                      <button
+                        key={child.id}
+                        onClick={() => !childAdded && onSelect(child)}
+                        disabled={childAdded}
+                        className={`block w-full text-left px-2 py-1 text-xs rounded transition-colors ${
+                          childAdded
+                            ? 'text-slate-600 cursor-default'
+                            : 'text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        {child.category}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function AnnualSpendPanel({
   walletId,
   onSpendChange,
@@ -116,29 +228,6 @@ export function AnnualSpendPanel({
     <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
       <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
         <h2 className="text-sm font-semibold text-slate-200">Annual Spend</h2>
-        {walletId != null && (
-          <button
-            type="button"
-            onClick={openPicker}
-            className="p-1 rounded text-slate-500 hover:text-indigo-400 hover:bg-slate-800 transition-colors shrink-0"
-            aria-label="Add spend category"
-            title="Add spend category"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-        )}
       </div>
       <div className="min-h-0 overflow-y-auto flex-1">
         {isLoading ? (
@@ -174,12 +263,31 @@ export function AnnualSpendPanel({
         )}
       </div>
 
+      {walletId != null && !showPicker && (
+        <button
+          type="button"
+          onClick={openPicker}
+          className="shrink-0 mt-2 w-full text-sm text-slate-500 hover:text-indigo-400 hover:bg-slate-800 rounded-lg py-2 transition-colors"
+        >
+          + Add Spend Category
+        </button>
+      )}
+
       {showPicker && (
-        <AddSpendCategoryPicker
-          existingCategoryIds={existingCategoryIds}
-          onSelect={handlePickCategory}
-          onClose={closePicker}
-        />
+        <div className="shrink-0">
+          <InlineCategoryDropdown
+            existingCategoryIds={existingCategoryIds}
+            onSelect={(cat) => {
+              handlePickCategory(cat)
+            }}
+          />
+          <button
+            onClick={closePicker}
+            className="mt-1 w-full text-xs text-slate-500 hover:text-slate-300 py-1"
+          >
+            Cancel
+          </button>
+        </div>
       )}
     </div>
   )

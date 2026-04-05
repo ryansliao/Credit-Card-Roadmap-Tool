@@ -25,6 +25,7 @@ interface Props {
   onDurationChange: (years: number, months: number) => void
   onDurationCommit: (years: number, months: number) => void
   onCppChange: () => void
+  onOpenSpend: () => void
 }
 
 export function WalletResultsAndCurrenciesPanel({
@@ -37,6 +38,7 @@ export function WalletResultsAndCurrenciesPanel({
   onDurationChange,
   onDurationCommit,
   onCppChange,
+  onOpenSpend,
 }: Props) {
   const [editingCurrencyId, setEditingCurrencyId] = useState<number | null>(null)
   const [showDurationSlider, setShowDurationSlider] = useState(false)
@@ -109,22 +111,36 @@ export function WalletResultsAndCurrenciesPanel({
       <div className="shrink-0 flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-slate-200">Wallet Summary</h2>
         {walletId != null && (
-          <button
-            type="button"
-            onClick={() => setShowDurationSlider((v) => !v)}
-            className={`p-1 rounded transition-colors ${showDurationSlider ? 'text-indigo-400 bg-slate-700' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-700'}`}
-            title="Duration"
-            aria-label="Toggle duration setting"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="4" y1="6" x2="20" y2="6"/>
-              <circle cx="8" cy="6" r="2.5" fill="currentColor" stroke="none"/>
-              <line x1="4" y1="12" x2="20" y2="12"/>
-              <circle cx="16" cy="12" r="2.5" fill="currentColor" stroke="none"/>
-              <line x1="4" y1="18" x2="20" y2="18"/>
-              <circle cx="10" cy="18" r="2.5" fill="currentColor" stroke="none"/>
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onOpenSpend}
+              className="p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700 transition-colors"
+              title="Annual Spend"
+              aria-label="Edit annual spend"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23" />
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDurationSlider((v) => !v)}
+              className={`p-1 rounded transition-colors ${showDurationSlider ? 'text-indigo-400 bg-slate-700' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-700'}`}
+              title="Duration"
+              aria-label="Toggle duration setting"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="6" x2="20" y2="6"/>
+                <circle cx="8" cy="6" r="2.5" fill="currentColor" stroke="none"/>
+                <line x1="4" y1="12" x2="20" y2="12"/>
+                <circle cx="16" cy="12" r="2.5" fill="currentColor" stroke="none"/>
+                <line x1="4" y1="18" x2="20" y2="18"/>
+                <circle cx="10" cy="18" r="2.5" fill="currentColor" stroke="none"/>
+              </svg>
+            </button>
+          </div>
         )}
       </div>
       {showDurationSlider && walletId != null && (
@@ -387,6 +403,7 @@ export function WalletResultsAndCurrenciesPanel({
           }}
         />
       )}
+
     </div>
   )
 }
