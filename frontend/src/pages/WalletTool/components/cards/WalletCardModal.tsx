@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 // Note: useRef is used here to track which data has been hydrated into the form,
 // preventing re-runs when the card library re-fetches without the user changing selection.
@@ -9,11 +9,12 @@ import {
   type WalletCard,
   type WalletCardAcquisitionType,
   cardsApi,
+  walletCardCreditApi,
 } from '../../../../api/client'
 import { ModalBackdrop } from '../../../../components/ModalBackdrop'
 import { formatMoney, today } from '../../../../utils/format'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
-import { initialCreditOverridesForEdit, buildWalletCardFields, walletFormToUpdatePayload } from '../../lib/walletCardForm'
+import { buildWalletCardFields, walletFormToUpdatePayload } from '../../lib/walletCardForm'
 import { queryKeys } from '../../lib/queryKeys'
 
 // ---------------------------------------------------------------------------
@@ -167,6 +168,13 @@ export function WalletCardModal({
   const effectiveCardId =
     mode === 'add' ? (typeof cardId === 'number' ? cardId : null) : (walletCard?.card_id ?? null)
 
+  // Fetch existing per-wallet credit overrides (edit mode only)
+  const { data: existingCreditOverrides } = useQuery({
+    queryKey: queryKeys.walletCardCredits(walletCard?.wallet_id ?? null, walletCard?.card_id ?? null),
+    queryFn: () => walletCardCreditApi.list(walletCard!.wallet_id, walletCard!.card_id),
+    enabled: mode === 'edit' && walletCard != null,
+  })
+
   // Cards already in the wallet — shown in the "changing from" picker
   const walletCards = useMemo(() => {
     if (!cards) return []
@@ -256,10 +264,21 @@ export function WalletCardModal({
       setAnnualFee(String(effAf))
       const effFy = walletCard.first_year_fee ?? lib.first_year_fee
       setFirstYearFee(effFy != null ? String(effFy) : '')
-      setCreditOverrides(initialCreditOverridesForEdit(walletCard, lib))
+      setCreditOverrides({})
       setFormError(null)
     }
   }, [mode, cardId, lib, walletCard])
+
+  // Populate credit override state from the wallet-specific API data (edit mode).
+  useEffect(() => {
+    if (mode !== 'edit' || !lib || existingCreditOverrides === undefined) return
+    const m: Record<number, number> = {}
+    for (const cr of lib.credits) {
+      const existing = existingCreditOverrides.find((o) => o.library_credit_id === cr.id)
+      m[cr.id] = existing !== undefined ? existing.value : cr.credit_value
+    }
+    setCreditOverrides(m)
+  }, [mode, lib, existingCreditOverrides])
 
   function selectPcFromCard(id: number) {
     setPcFromCardId(id)
@@ -280,7 +299,7 @@ export function WalletCardModal({
     setCardDropdownOpen(true)
   }
 
-  function handlePrimary() {
+  async function handlePrimary() {
     setFormError(null)
     const built = buildWalletCardFields(
       subPoints,
@@ -297,12 +316,6 @@ export function WalletCardModal({
 
     if (mode === 'add') {
       if (typeof cardId !== 'number') return
-      const credit_overrides =
-        Object.keys(creditOverrides).length > 0
-          ? Object.fromEntries(
-              Object.entries(creditOverrides).map(([k, v]) => [String(k), v])
-            )
-          : undefined
       onAdd({
         card_id: cardId,
         added_date: addedDate,
@@ -313,7 +326,6 @@ export function WalletCardModal({
         annual_bonus: built.annual_bonus,
         annual_fee: built.annual_fee,
         first_year_fee: built.first_year_fee,
-        credit_overrides,
       })
       return
     }
@@ -322,6 +334,26 @@ export function WalletCardModal({
       setFormError('Card library data is still loading.')
       return
     }
+
+    // Save credit overrides via the dedicated API before patching the card row.
+    const creditOps: Promise<unknown>[] = []
+    for (const cr of lib.credits) {
+      const v = creditOverrides[cr.id] ?? cr.credit_value
+      const hasExisting = existingCreditOverrides?.some((o) => o.library_credit_id === cr.id)
+      if (Math.abs(v - cr.credit_value) > 1e-6) {
+        creditOps.push(walletCardCreditApi.upsert(walletCard.wallet_id, walletCard.card_id, cr.id, { value: v }))
+      } else if (hasExisting) {
+        // Override was reset to library default — remove the stored row.
+        creditOps.push(walletCardCreditApi.delete(walletCard.wallet_id, walletCard.card_id, cr.id))
+      }
+    }
+    try {
+      await Promise.all(creditOps)
+    } catch {
+      setFormError('Failed to save credit valuations.')
+      return
+    }
+
     onSaveEdit(walletFormToUpdatePayload(built, lib, creditOverrides, addedDate, acquisitionType))
   }
 

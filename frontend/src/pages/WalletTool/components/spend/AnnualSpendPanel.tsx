@@ -2,7 +2,6 @@ import type { WalletSpendItem } from '../../../../api/client'
 import { formatMoney } from '../../../../utils/format'
 import { useWalletSpendCategoriesTable } from '../../hooks/useWalletSpendCategoriesTable'
 import AddSpendCategoryPicker from './AddSpendCategoryPicker'
-import SpendItemModal from './SpendCategoryMappingModal'
 
 type SpendItemRowProps = {
   item: WalletSpendItem
@@ -12,7 +11,6 @@ type SpendItemRowProps = {
   onStartEditAmount: () => void
   onCommitAmount: () => void
   onCancelEditAmount: () => void
-  onOpenEdit: () => void
   onRequestDelete: () => void
   deletePending: boolean
 }
@@ -25,7 +23,6 @@ function SpendItemRow({
   onStartEditAmount,
   onCommitAmount,
   onCancelEditAmount,
-  onOpenEdit,
   onRequestDelete,
   deletePending,
 }: SpendItemRowProps) {
@@ -61,28 +58,6 @@ function SpendItemRow({
           )}
           {!isSystem && (
             <button
-              onClick={onOpenEdit}
-              className="p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700"
-              aria-label="Edit spend"
-              title="Edit"
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-            </button>
-          )}
-          {!isSystem && (
-            <button
               onClick={onRequestDelete}
               disabled={deletePending}
               className="p-1 rounded text-slate-600 hover:text-red-400 hover:bg-red-950/40 disabled:opacity-50"
@@ -110,7 +85,13 @@ function SpendItemRow({
   )
 }
 
-export function AnnualSpendPanel({ walletId }: { walletId: number | null }) {
+export function AnnualSpendPanel({
+  walletId,
+  onSpendChange,
+}: {
+  walletId: number | null
+  onSpendChange?: () => void
+}) {
   const {
     spendItems,
     isLoading,
@@ -124,22 +105,41 @@ export function AnnualSpendPanel({ walletId }: { walletId: number | null }) {
     closePicker,
     openPicker,
     handlePickCategory,
-    modal,
-    openEdit,
-    handleSave,
-    closeModal,
     mutationError,
-    isSaving,
     deleteMutationIsPending,
     requestDeleteItem,
-  } = useWalletSpendCategoriesTable(walletId)
+  } = useWalletSpendCategoriesTable(walletId, onSpendChange)
 
   const existingCategoryIds = new Set(spendItems.map((i) => i.spend_category_id))
 
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 min-w-0 flex flex-col max-h-[min(72vh,820px)]">
-      <h2 className="text-sm font-semibold text-slate-200 mb-3">Annual Spend</h2>
-      <p className="text-xs text-slate-500 mb-3">Click an amount to edit inline.</p>
+    <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
+        <h2 className="text-sm font-semibold text-slate-200">Annual Spend</h2>
+        {walletId != null && (
+          <button
+            type="button"
+            onClick={openPicker}
+            className="p-1 rounded text-slate-500 hover:text-indigo-400 hover:bg-slate-800 transition-colors shrink-0"
+            aria-label="Add spend category"
+            title="Add spend category"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        )}
+      </div>
       <div className="min-h-0 overflow-y-auto flex-1">
         {isLoading ? (
           <div className="text-slate-500 text-sm">Loading…</div>
@@ -160,39 +160,27 @@ export function AnnualSpendPanel({ walletId }: { walletId: number | null }) {
                 onStartEditAmount={() => startEditAmount(item)}
                 onCommitAmount={() => commitAmount(item)}
                 onCancelEditAmount={cancelEditAmount}
-                onOpenEdit={() => openEdit(item)}
                 onRequestDelete={() => requestDeleteItem(item)}
                 deletePending={deleteMutationIsPending}
               />
             ))}
 
-            <button
-              onClick={openPicker}
-              className="w-full mt-2 text-sm text-indigo-400 hover:text-indigo-300 py-1.5 rounded-lg hover:bg-slate-800 border border-dashed border-slate-700 hover:border-indigo-600 transition-colors"
-            >
-              + Add Spend Category
-            </button>
-
-            {showPicker && (
-              <AddSpendCategoryPicker
-                existingCategoryIds={existingCategoryIds}
-                onSelect={handlePickCategory}
-                onClose={closePicker}
-              />
-            )}
-
-            {modal && (
-              <SpendItemModal
-                initial={modal}
-                onSave={handleSave}
-                onClose={closeModal}
-                isSaving={isSaving}
-                error={mutationError}
-              />
+            {mutationError && (
+              <p className="text-red-400 text-xs mt-2" role="alert">
+                {mutationError}
+              </p>
             )}
           </div>
         )}
       </div>
+
+      {showPicker && (
+        <AddSpendCategoryPicker
+          existingCategoryIds={existingCategoryIds}
+          onSelect={handlePickCategory}
+          onClose={closePicker}
+        />
+      )}
     </div>
   )
 }

@@ -32,8 +32,6 @@ export default function WalletToolPage() {
   const [durationYears, setDurationYears] = useState(2)
   const [durationMonths, setDurationMonths] = useState(0)
   const [result, setResult] = useState<WalletResultResponse | null>(null)
-  const [markEarnedCardId, setMarkEarnedCardId] = useState<number | null>(null)
-  const [earnedDateInput, setEarnedDateInput] = useState('')
   const [closeCardId, setCloseCardId] = useState<number | null>(null)
   const [closeDateInput, setCloseDateInput] = useState('')
   const [applicationRuleWarnings, setApplicationRuleWarnings] = useState<RoadmapRuleStatus[] | null>(
@@ -73,6 +71,8 @@ export default function WalletToolPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
       setWalletCardModal(null)
 
+      runCalculation()
+
       try {
         await queryClient.invalidateQueries({ queryKey: queryKeys.roadmap(walletId) })
         const fresh = await queryClient.fetchQuery({
@@ -98,6 +98,7 @@ export default function WalletToolPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.wallets() })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
+      runCalculation()
     },
   })
 
@@ -137,6 +138,7 @@ export default function WalletToolPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.roadmap(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
+      runCalculation()
     },
   })
 
@@ -167,34 +169,30 @@ export default function WalletToolPage() {
     }
   }, [selectedWalletId])
 
-  function buildResultsParams() {
-    return { start_date: today(), duration_years: durationYears, duration_months: durationMonths }
-  }
-
-  const durationTotalMonths = durationYears * 12 + durationMonths
-  const windowParamsValid = durationTotalMonths > 0
-
-  function calculate() {
-    if (selectedWalletId == null || !windowParamsValid) return
-    resultsMutation.mutate({ walletId: selectedWalletId, params: buildResultsParams() })
+  function runCalculation(years = durationYears, months = durationMonths) {
+    if (selectedWalletId == null) return
+    if (years * 12 + months === 0) return
+    resultsMutation.mutate({
+      walletId: selectedWalletId,
+      params: { start_date: today(), duration_years: years, duration_months: months },
+    })
   }
 
   if (walletsLoading) {
     return (
-      <div className="max-w-screen-xl mx-auto">
+      <div className="max-w-screen-xl mx-auto w-full shrink-0">
         <div className="text-center text-slate-400 py-20">Loading wallets…</div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-screen-xl mx-auto">
-      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+    <div className="max-w-screen-xl mx-auto w-full flex flex-col flex-1 min-h-0">
+      <header className="mb-6 shrink-0 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-white">Wallet Tool</h1>
           <p className="text-slate-400 text-sm mt-1">
-            Manage wallets, add cards with sign-up bonus and min spend, and run calculations
-            (fees, points, opportunity cost) over your chosen time frame.
+            Manage wallets, add cards with sign-up bonus and min spend. Calculations update automatically.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -203,7 +201,7 @@ export default function WalletToolPage() {
             className="text-indigo-400 hover:text-indigo-300 text-sm font-medium px-2 py-2"
             onClick={() => setShowCreateModal(true)}
           >
-            + New wallet
+            + New Wallet
           </button>
           <label htmlFor="wallet-select" className="sr-only">
             Wallet
@@ -230,68 +228,25 @@ export default function WalletToolPage() {
         </div>
       </header>
 
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1 min-h-0 flex flex-col">
         {!selectedWallet ? (
-          <div className="bg-slate-900 border border-slate-700 rounded-xl p-8 text-center text-slate-500">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-8 text-center text-slate-500 shrink-0">
             Select a wallet or create one to get started.
           </div>
         ) : (
           <>
-            {/* Duration & Calculate */}
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-              <span className="text-sm text-slate-400">Duration</span>
-              <select
-                className="bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2"
-                value={durationYears}
-                onChange={(e) => setDurationYears(Number(e.target.value))}
-                aria-label="Duration years"
-              >
-                {[0, 1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>
-                    {n} yr
-                  </option>
-                ))}
-              </select>
-              <select
-                className="bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2"
-                value={durationMonths}
-                onChange={(e) => setDurationMonths(Number(e.target.value))}
-                aria-label="Duration months"
-              >
-                {Array.from({ length: 12 }, (_, i) => (
-                  <option key={i} value={i}>
-                    {i} mo
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={calculate}
-                disabled={
-                  resultsMutation.isPending ||
-                  (selectedWallet?.wallet_cards?.length ?? 0) === 0 ||
-                  !windowParamsValid
-                }
-                className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-sm px-5 py-2 rounded-lg transition-colors"
-              >
-                {resultsMutation.isPending ? 'Calculating…' : 'Calculate'}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)_minmax(0,1fr)] gap-6">
-              <AnnualSpendPanel walletId={selectedWalletId} />
+            <div
+              className="grid flex-1 min-h-0 gap-6 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)_minmax(0,1fr)] xl:grid-rows-1"
+            >
+              <AnnualSpendPanel walletId={selectedWalletId} onSpendChange={() => runCalculation()} />
 
               <CardsListPanel
                 wallet={selectedWallet}
                 roadmap={roadmap}
-                markEarnedCardId={markEarnedCardId}
-                earnedDateInput={earnedDateInput}
                 closeCardId={closeCardId}
                 closeDateInput={closeDateInput}
                 isUpdating={updateWalletCardMutation.isPending}
                 isRemoving={removeCardMutation.isPending}
-                onSetMarkEarned={setMarkEarnedCardId}
-                onSetEarnedDateInput={setEarnedDateInput}
                 onSetCloseCard={setCloseCardId}
                 onSetCloseDateInput={setCloseDateInput}
                 onUpdateCard={(cardId, payload) => {
@@ -299,8 +254,6 @@ export default function WalletToolPage() {
                     { walletId: selectedWallet.id, cardId, payload },
                     {
                       onSuccess: () => {
-                        setMarkEarnedCardId(null)
-                        setEarnedDateInput('')
                         setCloseCardId(null)
                         setCloseDateInput('')
                       },
@@ -324,7 +277,15 @@ export default function WalletToolPage() {
                       : new Error(String(resultsMutation.error))
                     : null
                 }
-                onCppChangeClearResult={() => setResult(null)}
+                isCalculating={resultsMutation.isPending}
+                durationYears={durationYears}
+                durationMonths={durationMonths}
+                onDurationChange={(y, m) => {
+                  setDurationYears(y)
+                  setDurationMonths(m)
+                }}
+                onDurationCommit={(y, m) => runCalculation(y, m)}
+                onCppChange={() => runCalculation()}
               />
             </div>
 
@@ -372,7 +333,6 @@ export default function WalletToolPage() {
               {
                 onSuccess: () => {
                   setWalletCardModal(null)
-                  setResult(null)
                 },
               }
             )

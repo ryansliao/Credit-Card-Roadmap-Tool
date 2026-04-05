@@ -125,6 +125,11 @@ export interface UpdateWalletSpendItemPayload {
   amount: number
 }
 
+export interface CategoryEarnItem {
+  category: string
+  points: number
+}
+
 export interface CardResult {
   card_id: number
   card_name: string
@@ -146,6 +151,7 @@ export interface CardResult {
   effective_currency_name: string
   effective_currency_id?: number
   effective_reward_kind?: 'points' | 'cash'
+  category_earn: CategoryEarnItem[]
 }
 
 export interface WalletResult {
@@ -183,6 +189,8 @@ export interface WalletCard {
   /** Library CardCredit id (string) -> valuation ($) for this wallet row */
   credit_overrides: Record<string, number> | null
   sub_earned_date: string | null
+  /** Auto-calculated projected SUB earn date based on wallet spend profile */
+  sub_projected_earn_date: string | null
   closed_date: string | null
   acquisition_type: WalletCardAcquisitionType
 }
@@ -360,6 +368,8 @@ export interface RoadmapCardStatus {
   closed_date: string | null
   is_active: boolean
   sub_earned_date: string | null
+  /** Auto-calculated projected SUB earn date based on wallet spend profile */
+  sub_projected_earn_date: string | null
   /** "no_sub" | "pending" | "earned" | "expired" */
   sub_status: string
   sub_window_end: string | null

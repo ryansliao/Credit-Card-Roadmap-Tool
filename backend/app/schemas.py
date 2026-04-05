@@ -498,6 +498,7 @@ class WalletCardBase(BaseModel):
     annual_fee: Optional[float] = Field(default=None, ge=0)
     first_year_fee: Optional[float] = Field(default=None, ge=0)
     sub_earned_date: Optional[date] = None
+    sub_projected_earn_date: Optional[date] = None
     closed_date: Optional[date] = None
     acquisition_type: Literal["opened", "product_change"] = "opened"
 
@@ -585,6 +586,11 @@ class WalletResultResponseSchema(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class CategoryEarnItem(BaseModel):
+    category: str
+    points: float
+
+
 class CardResultSchema(BaseModel):
     card_id: int
     card_name: str
@@ -609,6 +615,7 @@ class CardResultSchema(BaseModel):
     effective_currency_name: str = ""
     effective_currency_id: int = 0
     effective_reward_kind: str = "points"
+    category_earn: list[CategoryEarnItem] = []
 
 
 class WalletResultSchema(BaseModel):
@@ -722,6 +729,7 @@ class RoadmapCardStatus(BaseModel):
     closed_date: Optional[date] = None
     is_active: bool
     sub_earned_date: Optional[date] = None
+    sub_projected_earn_date: Optional[date] = None
     # "no_sub" | "pending" | "earned" | "expired"
     sub_status: str
     sub_window_end: Optional[date] = None

@@ -427,6 +427,7 @@ class WalletCard(Base):
 
     # Roadmap tracking
     sub_earned_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    sub_projected_earn_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     closed_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     # Acquisition tracking: "opened" = new application, "product_change" = PC from same issuer

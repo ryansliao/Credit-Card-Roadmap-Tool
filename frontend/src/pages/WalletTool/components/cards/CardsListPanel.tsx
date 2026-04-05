@@ -1,4 +1,3 @@
-import type { ReactElement } from 'react'
 import type {
   RoadmapCardStatus,
   RoadmapResponse,
@@ -8,43 +7,49 @@ import type {
 } from '../../../../api/client'
 import { today } from '../../../../utils/format'
 
-function SubStatusBadge({ status, daysRemaining }: { status: string; daysRemaining: number | null }) {
-  if (status === 'earned') {
+/** Newest opening / PC date first; cards with no date sort last. */
+function compareWalletCardsByOpeningNewestFirst(a: WalletCard, b: WalletCard): number {
+  const da = a.added_date?.trim() ?? ''
+  const db = b.added_date?.trim() ?? ''
+  if (!da && !db) return 0
+  if (!da) return 1
+  if (!db) return -1
+  return db.localeCompare(da)
+}
+
+function SubRoadmapBadge({ rm }: { rm: RoadmapCardStatus | undefined }) {
+  if (!rm || rm.sub_status === 'no_sub') return null
+  if (rm.sub_status === 'earned') {
     return (
       <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-900/50 text-emerald-300 border border-emerald-700/50">
         SUB Earned
       </span>
     )
   }
-  if (status === 'pending') {
+  if (rm.sub_status === 'pending') {
     return (
-      <span className="text-xs px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-300 border border-amber-700/50">
-        {daysRemaining != null ? `SUB: ${daysRemaining}d left` : 'SUB Pending'}
+      <span className="text-xs px-1.5 py-0.5 rounded bg-orange-900/50 text-orange-300 border border-orange-700/50">
+        SUB Pending
       </span>
     )
   }
-  if (status === 'expired') {
+  if (rm.sub_status === 'expired') {
     return (
       <span className="text-xs px-1.5 py-0.5 rounded bg-red-900/50 text-red-300 border border-red-700/50">
-        SUB Expired
+        SUB Missed
       </span>
     )
   }
-  // 'no_sub' and any unknown status: render nothing
   return null
 }
 
 interface Props {
   wallet: Wallet
   roadmap: RoadmapResponse | undefined
-  markEarnedCardId: number | null
-  earnedDateInput: string
   closeCardId: number | null
   closeDateInput: string
   isUpdating: boolean
   isRemoving: boolean
-  onSetMarkEarned: (cardId: number | null) => void
-  onSetEarnedDateInput: (v: string) => void
   onSetCloseCard: (cardId: number | null) => void
   onSetCloseDateInput: (v: string) => void
   onUpdateCard: (cardId: number, payload: UpdateWalletCardPayload) => void
@@ -56,14 +61,10 @@ interface Props {
 export function CardsListPanel({
   wallet,
   roadmap,
-  markEarnedCardId,
-  earnedDateInput,
   closeCardId,
   closeDateInput,
   isUpdating,
   isRemoving,
-  onSetMarkEarned,
-  onSetEarnedDateInput,
   onSetCloseCard,
   onSetCloseDateInput,
   onUpdateCard,
@@ -72,19 +73,16 @@ export function CardsListPanel({
   onAddCard,
 }: Props) {
   const todayIso = today()
-  const cardsSortedByOpening = [...(wallet.wallet_cards ?? [])].sort((a, b) => {
-    const da = a.added_date?.trim() ?? ''
-    const db = b.added_date?.trim() ?? ''
-    if (!da && !db) return 0
-    if (!da) return 1
-    if (!db) return -1
-    return db.localeCompare(da)
-  })
-  const ownedCards = cardsSortedByOpening.filter((wc) => (wc.added_date?.trim() ?? '') <= todayIso)
-  const prospectiveCards = cardsSortedByOpening.filter((wc) => (wc.added_date?.trim() ?? '') > todayIso)
+  const walletCards = wallet.wallet_cards ?? []
+  const ownedCards = walletCards
+    .filter((wc) => (wc.added_date?.trim() ?? '') <= todayIso)
+    .sort(compareWalletCardsByOpeningNewestFirst)
+  const prospectiveCards = walletCards
+    .filter((wc) => (wc.added_date?.trim() ?? '') > todayIso)
+    .sort(compareWalletCardsByOpeningNewestFirst)
 
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 min-w-0 flex flex-col max-h-[min(72vh,820px)]">
+    <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
       <div className="flex items-center justify-between mb-3 shrink-0">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-slate-200">Cards</h2>
@@ -102,58 +100,39 @@ export function CardsListPanel({
           )}
         </div>
         <button
-          className="text-indigo-400 hover:text-indigo-300 text-sm"
+          type="button"
           onClick={onAddCard}
+          className="p-1 rounded text-slate-500 hover:text-indigo-400 hover:bg-slate-800 transition-colors shrink-0"
+          aria-label="Add card"
+          title="Add card"
         >
-          + Add card
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
         </button>
       </div>
       <div className="min-h-0 overflow-y-auto flex-1 flex flex-col gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Owned</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Future</p>
           <ul className="space-y-2">
-            {ownedCards.length === 0 && (
+            {prospectiveCards.length === 0 && (
               <li className="text-slate-600 text-xs py-2 text-center">No Cards Added</li>
             )}
-            {ownedCards.map((wc) => {
+            {prospectiveCards.map((wc) => {
           const rm: RoadmapCardStatus | undefined = roadmap?.cards.find(
             (c) => c.wallet_card_id === wc.id
           )
           const isClosed = !!wc.closed_date
-          const hasSubOffer = wc.sub != null || wc.sub_min_spend != null
-          const metaRow2: ReactElement[] = []
-          if (hasSubOffer) {
-            metaRow2.push(
-              <span key="sub">
-                SUB:{' '}
-                {wc.sub != null ? `${(wc.sub / 1000).toFixed(0)}k` : '—'}
-                {wc.sub_min_spend != null && ` / $${wc.sub_min_spend.toLocaleString()}`}
-                {wc.sub_months != null && ` in ${wc.sub_months} mo`}
-              </span>
-            )
-          }
-          if (wc.sub_earned_date) {
-            metaRow2.push(
-              <span key="earned" className="text-emerald-400">
-                Earned {wc.sub_earned_date}
-              </span>
-            )
-          }
-          if (rm?.next_sub_eligible_date) {
-            metaRow2.push(
-              <span key="next" className="text-slate-500">
-                Next eligible: {rm.next_sub_eligible_date}
-              </span>
-            )
-          }
-          metaRow2.push(
-            <span key="af">
-              AF:{' '}
-              {wc.annual_fee != null
-                ? `$${wc.annual_fee.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-                : '—'}
-            </span>
-          )
           return (
             <li
               key={wc.id}
@@ -169,9 +148,7 @@ export function CardsListPanel({
                     <p className={`text-sm font-medium ${isClosed ? 'text-slate-400 line-through' : 'text-white'}`}>
                       {wc.card_name ?? `Card #${wc.card_id}`}
                     </p>
-                    {rm && rm.sub_status !== 'no_sub' && (
-                      <SubStatusBadge status={rm.sub_status} daysRemaining={rm.sub_days_remaining} />
-                    )}
+                    <SubRoadmapBadge rm={rm} />
                     {wc.acquisition_type === 'product_change' && (
                       <span className="text-[10px] font-medium bg-violet-900/60 text-violet-300 border border-violet-700/50 rounded px-1.5 py-0.5">
                         PC
@@ -181,59 +158,8 @@ export function CardsListPanel({
                   <p className="text-xs text-slate-400 mt-0.5">
                     {wc.acquisition_type === 'product_change' ? 'PC date' : 'Opened'} {wc.added_date}
                   </p>
-                  <p className="text-xs text-slate-400 mt-0.5 flex flex-wrap items-baseline gap-x-0">
-                    {metaRow2.flatMap((el, i) =>
-                      i === 0
-                        ? [el]
-                        : [
-                            <span key={`sep-${i}`} className="text-slate-600 px-1" aria-hidden>
-                              ·
-                            </span>,
-                            el,
-                          ]
-                    )}
-                  </p>
                   {/* Quick actions */}
                   <div className="flex items-center gap-3 mt-1.5">
-                    {rm?.sub_status === 'pending' && (
-                      <>
-                        {markEarnedCardId === wc.card_id ? (
-                          <span className="flex items-center gap-1">
-                            <input
-                              type="date"
-                              value={earnedDateInput}
-                              onChange={(e) => onSetEarnedDateInput(e.target.value)}
-                              className="bg-slate-700 border border-slate-500 text-white text-xs rounded px-1.5 py-0.5"
-                            />
-                            <button
-                              className="text-xs text-emerald-400 hover:text-emerald-300"
-                              disabled={isUpdating}
-                              onClick={() =>
-                                onUpdateCard(wc.card_id, { sub_earned_date: earnedDateInput || today() })
-                              }
-                            >
-                              Save
-                            </button>
-                            <button
-                              className="text-xs text-slate-500 hover:text-slate-300"
-                              onClick={() => { onSetMarkEarned(null); onSetEarnedDateInput('') }}
-                            >
-                              Cancel
-                            </button>
-                          </span>
-                        ) : (
-                          <button
-                            className="text-xs text-emerald-400/80 hover:text-emerald-400"
-                            onClick={() => {
-                              onSetMarkEarned(wc.card_id)
-                              onSetEarnedDateInput(today())
-                            }}
-                          >
-                            ✓ Mark SUB earned
-                          </button>
-                        )}
-                      </>
-                    )}
                     {rm?.sub_status === 'earned' && (
                       <button
                         className="text-xs text-slate-500 hover:text-slate-400"
@@ -345,50 +271,16 @@ export function CardsListPanel({
           </ul>
         </div>
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Future</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Owned</p>
           <ul className="space-y-2">
-            {prospectiveCards.length === 0 && (
+            {ownedCards.length === 0 && (
               <li className="text-slate-600 text-xs py-2 text-center">No Cards Added</li>
             )}
-            {prospectiveCards.map((wc) => {
+            {ownedCards.map((wc) => {
                 const rm: RoadmapCardStatus | undefined = roadmap?.cards.find(
                   (c) => c.wallet_card_id === wc.id
                 )
                 const isClosed = !!wc.closed_date
-                const hasSubOffer = wc.sub != null || wc.sub_min_spend != null
-                const metaRow2: ReactElement[] = []
-                if (hasSubOffer) {
-                  metaRow2.push(
-                    <span key="sub">
-                      SUB:{' '}
-                      {wc.sub != null ? `${(wc.sub / 1000).toFixed(0)}k` : '—'}
-                      {wc.sub_min_spend != null && ` / $${wc.sub_min_spend.toLocaleString()}`}
-                      {wc.sub_months != null && ` in ${wc.sub_months} mo`}
-                    </span>
-                  )
-                }
-                if (wc.sub_earned_date) {
-                  metaRow2.push(
-                    <span key="earned" className="text-emerald-400">
-                      Earned {wc.sub_earned_date}
-                    </span>
-                  )
-                }
-                if (rm?.next_sub_eligible_date) {
-                  metaRow2.push(
-                    <span key="next" className="text-slate-500">
-                      Next eligible: {rm.next_sub_eligible_date}
-                    </span>
-                  )
-                }
-                metaRow2.push(
-                  <span key="af">
-                    AF:{' '}
-                    {wc.annual_fee != null
-                      ? `$${wc.annual_fee.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-                      : '—'}
-                  </span>
-                )
                 return (
                   <li
                     key={wc.id}
@@ -404,9 +296,7 @@ export function CardsListPanel({
                           <p className={`text-sm font-medium ${isClosed ? 'text-slate-400 line-through' : 'text-white'}`}>
                             {wc.card_name ?? `Card #${wc.card_id}`}
                           </p>
-                          {rm && rm.sub_status !== 'no_sub' && (
-                            <SubStatusBadge status={rm.sub_status} daysRemaining={rm.sub_days_remaining} />
-                          )}
+                          <SubRoadmapBadge rm={rm} />
                           {wc.acquisition_type === 'product_change' && (
                             <span className="text-[10px] font-medium bg-violet-900/60 text-violet-300 border border-violet-700/50 rounded px-1.5 py-0.5">
                               PC
@@ -416,58 +306,16 @@ export function CardsListPanel({
                         <p className="text-xs text-slate-400 mt-0.5">
                           {wc.acquisition_type === 'product_change' ? 'PC date' : 'Opened'} {wc.added_date}
                         </p>
-                        <p className="text-xs text-slate-400 mt-0.5 flex flex-wrap items-baseline gap-x-0">
-                          {metaRow2.flatMap((el, i) =>
-                            i === 0
-                              ? [el]
-                              : [
-                                  <span key={`sep-${i}`} className="text-slate-600 px-1" aria-hidden>
-                                    ·
-                                  </span>,
-                                  el,
-                                ]
-                          )}
-                        </p>
                         {/* Quick actions */}
                         <div className="flex items-center gap-3 mt-1.5">
                           {rm?.sub_status === 'pending' && (
-                            <>
-                              {markEarnedCardId === wc.card_id ? (
-                                <span className="flex items-center gap-1">
-                                  <input
-                                    type="date"
-                                    value={earnedDateInput}
-                                    onChange={(e) => onSetEarnedDateInput(e.target.value)}
-                                    className="bg-slate-700 border border-slate-500 text-white text-xs rounded px-1.5 py-0.5"
-                                  />
-                                  <button
-                                    className="text-xs text-emerald-400 hover:text-emerald-300"
-                                    disabled={isUpdating}
-                                    onClick={() =>
-                                      onUpdateCard(wc.card_id, { sub_earned_date: earnedDateInput || today() })
-                                    }
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    className="text-xs text-slate-500 hover:text-slate-300"
-                                    onClick={() => { onSetMarkEarned(null); onSetEarnedDateInput('') }}
-                                  >
-                                    Cancel
-                                  </button>
-                                </span>
-                              ) : (
-                                <button
-                                  className="text-xs text-emerald-400/80 hover:text-emerald-400"
-                                  onClick={() => {
-                                    onSetMarkEarned(wc.card_id)
-                                    onSetEarnedDateInput(today())
-                                  }}
-                                >
-                                  ✓ Mark SUB earned
-                                </button>
-                              )}
-                            </>
+                            <button
+                              className="text-xs text-emerald-400/80 hover:text-emerald-400"
+                              disabled={isUpdating}
+                              onClick={() => onUpdateCard(wc.card_id, { sub_earned_date: today() })}
+                            >
+                              ✓ Mark SUB earned
+                            </button>
                           )}
                           {rm?.sub_status === 'earned' && (
                             <button

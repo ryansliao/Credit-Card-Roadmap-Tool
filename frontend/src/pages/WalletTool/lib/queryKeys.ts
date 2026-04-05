@@ -16,4 +16,6 @@ export const queryKeys = {
   walletSpendItems: (walletId: number | null) =>
     ['wallet-spend-items', walletId] as const,
   roadmap: (walletId: number) => ['roadmap', walletId] as const,
+  walletCardCredits: (walletId: number | null, cardId: number | null) =>
+    ['wallet-card-credits', walletId, cardId] as const,
 } as const

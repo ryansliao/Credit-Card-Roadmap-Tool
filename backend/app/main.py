@@ -63,7 +63,9 @@ DELETE /admin/cards/{id}/credits/{credit_id}                Remove a card statem
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import json
+import math
 import os
 from calendar import monthrange
 from datetime import date, timedelta
@@ -125,6 +127,7 @@ from .schemas import (
     CardCreditRead,
     CardRead,
     CardResultSchema,
+    CategoryEarnItem,
     CurrencyRead,
     IssuerApplicationRuleRead,
     IssuerRead,
@@ -172,6 +175,43 @@ def _add_months(d: date, months: int) -> date:
     month = (month - 1) % 12 + 1
     day = min(d.day, monthrange(year, month)[1])
     return date(year, month, day)
+
+
+def _is_sub_earnable(
+    sub_min_spend: Optional[int],
+    sub_months: Optional[int],
+    daily_spend_rate: float,
+) -> bool:
+    """Return True if the SUB min spend can be reached within the SUB window."""
+    if not sub_min_spend:
+        return True  # No min spend = always earnable
+    if daily_spend_rate <= 0:
+        return False
+    if not sub_months:
+        return True  # No time limit = earnable given enough time
+    reachable = daily_spend_rate * (sub_months * 30.44)
+    return reachable >= sub_min_spend
+
+
+def _projected_sub_earn_date(
+    added_date: date,
+    sub_min_spend: Optional[int],
+    sub_months: Optional[int],
+    daily_spend_rate: float,
+) -> Optional[date]:
+    """
+    Project the date when the SUB will be earned based on daily spend rate.
+    Returns None if not earnable within the SUB window or spend is zero.
+    """
+    if not sub_min_spend or daily_spend_rate <= 0:
+        return None
+    days_to_earn = math.ceil(sub_min_spend / daily_spend_rate)
+    projected = added_date + timedelta(days=days_to_earn)
+    if sub_months:
+        window_end = _add_months(added_date, sub_months)
+        if projected > window_end:
+            return None  # Not earnable within the window
+    return projected
 
 
 def _months_in_half_open_interval(start: date, end: date) -> int:
@@ -270,6 +310,7 @@ def _wc_read(wc: WalletCard, card: Card) -> WalletCardRead:
         annual_fee=_inh(wc.annual_fee, card.annual_fee),
         first_year_fee=_inh(wc.first_year_fee, card.first_year_fee),
         sub_earned_date=wc.sub_earned_date,
+        sub_projected_earn_date=wc.sub_projected_earn_date,
         closed_date=wc.closed_date,
         acquisition_type=cast(Literal["opened", "product_change"], wc.acquisition_type),
     )
@@ -1212,8 +1253,8 @@ async def wallet_results(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="start_date and reference_date disagree; send only one.",
         )
-    ref_date = start_date if start_date is not None else reference_date
-    ref_date = ref_date or wallet.as_of_date or date.today()
+    user_provided_start = start_date if start_date is not None else reference_date
+    ref_date = user_provided_start or date.today()
 
     duration_span = duration_years * 12 + duration_months
     if end_date is not None and duration_span > 0:
@@ -1225,6 +1266,7 @@ async def wallet_results(
     resp_end: Optional[date] = None
     resp_dur_y, resp_dur_m = 0, 0
     total_months: int
+    today_dt = date.today()
 
     if end_date is not None:
         try:
@@ -1236,19 +1278,22 @@ async def wallet_results(
             ) from None
         years_counted = _years_counted_from_total_months(total_months)
         resp_end = end_date
+        window_end = end_date
     elif duration_span > 0:
-        total_months = duration_span
+        # Duration is forward-looking from today; window_start anchors at oldest card date.
+        window_end = _add_months(today_dt, duration_span)
+        total_months = _months_in_half_open_interval(ref_date, window_end)
         years_counted = _years_counted_from_total_months(total_months)
         resp_dur_y, resp_dur_m = duration_years, duration_months
     else:
-        total_months = projection_years * 12 + projection_months
+        window_end = _add_months(today_dt, projection_years * 12 + projection_months)
+        total_months = _months_in_half_open_interval(ref_date, window_end)
         years_counted = max(1, projection_years + (1 if projection_months >= 6 else 0))
 
     # Include cards that overlap the selected calculation window.
     # The calculator still models the chosen window at wallet level, but cards opened
     # later in that window must not be excluded entirely or only the earliest card(s)
     # contribute to projected balances and value.
-    window_end = resp_end if resp_end is not None else _add_months(ref_date, total_months)
     active_wallet_cards = [
         wc
         for wc in wallet.wallet_cards
@@ -1305,11 +1350,41 @@ async def wallet_results(
     if overrides:
         spend.update(overrides)
 
+    # Compute per-day spend rate for SUB projections
+    total_annual_spend = sum(spend.values())
+    daily_rate = total_annual_spend / 365.0
+
+    # Auto-project SUB earn dates for pending cards (preserving any manual sub_earned_date)
+    for wc in active_wallet_cards:
+        if wc.sub_earned_date:
+            continue  # Manual confirmed date — preserve it
+        lib = library_cards_by_id.get(wc.card_id)
+        eff_min = wc.sub_min_spend if wc.sub_min_spend is not None else (lib.sub_min_spend if lib else None)
+        eff_months = wc.sub_months if wc.sub_months is not None else (lib.sub_months if lib else None)
+        eff_sub = wc.sub if wc.sub is not None else (lib.sub if lib else None)
+        if not eff_sub or not eff_min:
+            proj = None
+        else:
+            proj = _projected_sub_earn_date(wc.added_date, eff_min, eff_months, daily_rate)
+        if wc.sub_projected_earn_date != proj:
+            wc.sub_projected_earn_date = proj
+
+    # Patch sub_earnable onto each CardData before calculation
+    modified_cards = [
+        dataclasses.replace(
+            c,
+            sub_earnable=_is_sub_earnable(c.sub_min_spend, c.sub_months, daily_rate),
+        )
+        for c in modified_cards
+    ]
+
     wallet_result = compute_wallet(
         all_cards=modified_cards,
         selected_ids=selected_ids,
         spend=spend,
         years=years_counted,
+        window_start=ref_date,
+        window_end=window_end,
     )
 
     await _sync_wallet_balances_from_currency_pts(
@@ -1367,6 +1442,10 @@ async def wallet_roadmap(
     )
     rules = rules_result.scalars().all()
 
+    # Load spend items to compute daily spend rate for SUB projections
+    roadmap_spend = await load_wallet_spend_items(db, wallet_id)
+    roadmap_daily_rate = sum(roadmap_spend.values()) / 365.0
+
     # ── Per-card status ──────────────────────────────────────────────────────
     card_statuses: list[RoadmapCardStatus] = []
     personal_cards_24mo: list[str] = []
@@ -1383,6 +1462,12 @@ async def wallet_roadmap(
         # Effective SUB value and months (wallet override takes precedence)
         eff_sub = wc.sub if wc.sub is not None else (card.sub or 0)
         eff_sub_months = wc.sub_months if wc.sub_months is not None else card.sub_months
+        eff_sub_min = wc.sub_min_spend if wc.sub_min_spend is not None else card.sub_min_spend
+
+        # Auto-compute projected earn date for display (uses stored value if already set)
+        sub_projected = wc.sub_projected_earn_date
+        if sub_projected is None and eff_sub and eff_sub_min and not wc.sub_earned_date:
+            sub_projected = _projected_sub_earn_date(wc.added_date, eff_sub_min, eff_sub_months, roadmap_daily_rate)
 
         # Determine SUB status
         if not eff_sub:
@@ -1390,6 +1475,11 @@ async def wallet_roadmap(
             sub_window_end = None
             sub_days_remaining = None
         elif wc.sub_earned_date:
+            sub_status = "earned"
+            sub_window_end = None
+            sub_days_remaining = None
+        elif sub_projected is not None and sub_projected <= today:
+            # Projected earn date has passed — treat as earned
             sub_status = "earned"
             sub_window_end = None
             sub_days_remaining = None
@@ -1411,8 +1501,9 @@ async def wallet_roadmap(
         recurrence = card.sub_recurrence_months
         next_eligible: Optional[date] = None
         if recurrence:
-            if wc.sub_earned_date:
-                next_eligible = _add_months(wc.sub_earned_date, recurrence)
+            effective_earned = wc.sub_earned_date or (sub_projected if sub_projected and sub_projected <= today else None)
+            if effective_earned:
+                next_eligible = _add_months(effective_earned, recurrence)
             else:
                 # No earned date: next eligible is opening date + recurrence (conservative)
                 next_eligible = _add_months(wc.added_date, recurrence)
@@ -1428,6 +1519,7 @@ async def wallet_roadmap(
                 closed_date=wc.closed_date,
                 is_active=is_active,
                 sub_earned_date=wc.sub_earned_date,
+                sub_projected_earn_date=sub_projected,
                 sub_status=sub_status,
                 sub_window_end=sub_window_end,
                 next_sub_eligible_date=next_eligible,
@@ -2312,6 +2404,10 @@ def _wallet_to_schema(wallet) -> WalletResultSchema:
             effective_currency_name=cr.effective_currency_name,
             effective_currency_id=cr.effective_currency_id,
             effective_reward_kind=cr.effective_reward_kind,
+            category_earn=[
+                CategoryEarnItem(category=cat, points=pts)
+                for cat, pts in cr.category_earn
+            ],
         )
         for cr in wallet.card_results
     ]

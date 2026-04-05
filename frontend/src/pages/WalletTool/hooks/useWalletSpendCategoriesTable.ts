@@ -7,19 +7,14 @@ import {
 } from '../../../api/client'
 import { queryKeys } from '../lib/queryKeys'
 
-export interface SpendItemModalState {
-  mode: 'add' | 'edit'
-  itemId?: number
-  category: SpendCategory
-  amount: string
-}
-
-export function useWalletSpendCategoriesTable(walletId: number | null) {
+export function useWalletSpendCategoriesTable(
+  walletId: number | null,
+  onSpendChange?: () => void
+) {
   const queryClient = useQueryClient()
   const [editingAmountId, setEditingAmountId] = useState<number | null>(null)
   const [amountDraft, setAmountDraft] = useState('')
   const [showPicker, setShowPicker] = useState(false)
-  const [modal, setModal] = useState<SpendItemModalState | null>(null)
   const [mutationError, setMutationError] = useState<string | undefined>()
 
   const { data: spendItems = [], isLoading } = useQuery({
@@ -36,8 +31,8 @@ export function useWalletSpendCategoriesTable(walletId: number | null) {
       walletSpendItemsApi.create(walletId!, payload),
     onSuccess: () => {
       invalidate()
-      setModal(null)
       setMutationError(undefined)
+      onSpendChange?.()
     },
     onError: (e: Error) => setMutationError(e.message),
   })
@@ -47,15 +42,18 @@ export function useWalletSpendCategoriesTable(walletId: number | null) {
       walletSpendItemsApi.update(walletId!, id, { amount }),
     onSuccess: () => {
       invalidate()
-      setModal(null)
       setMutationError(undefined)
+      onSpendChange?.()
     },
     onError: (e: Error) => setMutationError(e.message),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => walletSpendItemsApi.delete(walletId!, id),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate()
+      onSpendChange?.()
+    },
   })
 
   function startEditAmount(item: WalletSpendItem) {
@@ -79,31 +77,7 @@ export function useWalletSpendCategoriesTable(walletId: number | null) {
   function handlePickCategory(category: SpendCategory) {
     setShowPicker(false)
     setMutationError(undefined)
-    setModal({ mode: 'add', category, amount: '' })
-  }
-
-  function openEdit(item: WalletSpendItem) {
-    setMutationError(undefined)
-    setModal({
-      mode: 'edit',
-      itemId: item.id,
-      category: item.spend_category,
-      amount: String(Math.round(item.amount)),
-    })
-  }
-
-  function handleSave(amount: number) {
-    if (!modal) return
-    if (modal.mode === 'add') {
-      createMutation.mutate({ spend_category_id: modal.category.id, amount })
-    } else if (modal.itemId != null) {
-      updateMutation.mutate({ id: modal.itemId, amount })
-    }
-  }
-
-  function closeModal() {
-    setModal(null)
-    setMutationError(undefined)
+    createMutation.mutate({ spend_category_id: category.id, amount: 0 })
   }
 
   function requestDeleteItem(item: WalletSpendItem) {
@@ -111,8 +85,6 @@ export function useWalletSpendCategoriesTable(walletId: number | null) {
       deleteMutation.mutate(item.id)
     }
   }
-
-  const isSaving = createMutation.isPending || updateMutation.isPending
 
   return {
     spendItems,
@@ -127,12 +99,7 @@ export function useWalletSpendCategoriesTable(walletId: number | null) {
     closePicker: () => setShowPicker(false),
     openPicker,
     handlePickCategory,
-    modal,
-    openEdit,
-    handleSave,
-    closeModal,
     mutationError,
-    isSaving,
     deleteMutationIsPending: deleteMutation.isPending,
     requestDeleteItem,
   }

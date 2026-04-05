@@ -54,13 +54,15 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <div className="min-h-screen bg-slate-950 text-slate-100">
+        <div className="h-dvh min-h-0 flex flex-col overflow-hidden bg-slate-950 text-slate-100">
           <Nav />
-          <main className="p-6">
+          <main className="flex-1 min-h-0 p-6 flex flex-col overflow-hidden">
             <ErrorBoundary>
-              <Routes>
-                <Route path="/" element={<WalletTool />} />
-              </Routes>
+              <div className="flex-1 min-h-0 min-w-0 flex flex-col">
+                <Routes>
+                  <Route path="/" element={<WalletTool />} />
+                </Routes>
+              </div>
             </ErrorBoundary>
           </main>
         </div>
