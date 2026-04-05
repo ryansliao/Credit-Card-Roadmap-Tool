@@ -41,14 +41,61 @@ in calculations. Wallet stores its own calc config: `calc_start_date`, `calc_end
 `calc_duration_years`, `calc_duration_months`, `calc_window_mode`.
 
 **EV Calculation**
-`calculator.py` computes per-card and wallet-level expected value:
-- Annual points earned via category multipliers (including top-N group logic and portal multipliers)
-- SUB value amortized over the projection timeframe
-- SUB opportunity cost: value lost on other cards by concentrating spend to hit SUB minimum
-- Annual credits applied at face value (with per-wallet override support)
-- Annual fee deducted (first-year fee for year 1, standard fee thereafter)
-- Currency upgrade: cashback currencies auto-convert to points when the target currency is
-  also present in the wallet (e.g., UR Cash → Chase UR)
+`calculator.py` is a pure engine (no DB access). It uses two calculation paths depending on
+whether the wallet has explicit date bounds (`calc_start_date` / `calc_end_date`) and any
+card has a `wallet_added_date`:
+
+- **Simple path** (`_average_annual_net_dollars`): used when no window dates are set or no
+  card has date context. Treats all selected cards as active for the full `years` period.
+- **Segmented path** (`_segmented_card_net_per_year`): used when window dates are provided
+  and at least one card has `wallet_added_date`. Splits the window into contiguous segments
+  at every card open/close/SUB-earn boundary; each segment uses its own active-card set and
+  SUB ROS boosts, prorated by days.
+
+**`effective_annual_fee` semantics**: this field is `-(net_annual_value)` — the negative of
+the average annual net dollar benefit (points + credits − fees). A negative value means the
+card returns more value than it costs. It is **not** simply `annual_fee − credits`.
+
+**Simple-path formula** (average annual net dollars over `years`):
+```
+( effective_earn * cpp/100 * years        # recurring annual earn (in effective currency)
+  + sub_spend_earn * cpp/100              # one-time SUB-spend earn (amortised by ÷years)
+  + sub_pts * cpp/100                     # one-time SUB bonus (amortised by ÷years)
+  + annual_credits * years
+  + one_time_credits                      # one-time credits (amortised by ÷years)
+  - first_year_fee - (years-1)*annual_fee
+) / years
+```
+Where:
+- `effective_earn` = `calc_annual_point_earn_allocated * _conversion_rate` (effective currency pts/yr)
+- `cpp` = effective currency's cents-per-point (after upgrade if applicable)
+- `sub_spend_earn` / `sub_pts` are zero when `sub_earnable = False`
+- `first_year_fee` defaults to `annual_fee` when not explicitly set
+
+**Category allocation**: each spend category is awarded to the card(s) with the highest
+`multiplier × effective_CPP` score. Tied cards split the category spend evenly and each
+earns on their allocated share. Cash currencies compete at 1¢/pt regardless of actual CPP.
+
+**Top-N group logic**: `CardMultiplierGroup` rows can restrict a group of categories to the
+top-N by spend; categories outside the top-N fall back to the "All Other" multiplier.
+
+**Currency upgrade**: if a card's currency has `converts_to_currency_id` pointing to a
+currency earned directly by another selected card, the card's earn is converted at
+`converts_at_rate` and valued at the target currency's CPP. This affects both category
+allocation scores and earn dollar valuation (e.g., UR Cash → Chase UR).
+
+**Display note**: `CardResult.category_earn` (the per-category breakdown) is in **raw**
+currency units (conversion rate not applied), while `annual_point_earn` is in **effective**
+currency units (conversion rate applied). For wallets with currency upgrades, the two are
+in different units — the category breakdown will sum to more than `annual_point_earn`.
+
+**SUB tracking**: `sub_earnable` is set false when the user's annual spend rate cannot hit
+`sub_min_spend` within `sub_months`. When false, the SUB bonus, sub_spend_earn, and their
+opportunity cost are all excluded from calculations.
+
+**SUB opportunity cost** (`calc_sub_opportunity_cost`): models the value lost on competing
+wallet cards by diverting extra spend to hit the SUB minimum. Deducted from `total_points`
+and surfaced as `sub_opp_cost_dollars` / `sub_opp_cost_gross_dollars` on `CardResult`.
 
 **Roadmap Tracking**
 `/wallets/{id}/roadmap` returns:

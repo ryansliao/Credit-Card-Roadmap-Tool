@@ -50,13 +50,14 @@ def _currency_data(
     oid = orm_currency.id
     cpp_override = cpp_overrides.get(oid) if cpp_overrides else None
     rk = getattr(orm_currency, "reward_kind", None) or "points"
+    default_cpp = float(orm_currency.cents_per_point)
     if rk == "cash":
-        cpp = float(orm_currency.cents_per_point)
+        cpp = default_cpp
     else:
         cpp = (
             float(cpp_override)
             if cpp_override is not None
-            else float(orm_currency.cents_per_point)
+            else default_cpp
         )
     converts_to: CurrencyData | None = None
     if orm_currency.converts_to_currency is not None:
@@ -67,6 +68,7 @@ def _currency_data(
         name=orm_currency.name,
         reward_kind=rk,
         cents_per_point=cpp,
+        comparison_cpp=default_cpp,
         cash_transfer_rate=orm_currency.cash_transfer_rate if orm_currency.cash_transfer_rate is not None else 1.0,
         partner_transfer_rate=orm_currency.partner_transfer_rate,
         converts_to_currency=converts_to,
