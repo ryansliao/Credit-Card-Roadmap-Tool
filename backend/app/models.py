@@ -433,6 +433,9 @@ class WalletCard(Base):
     # Acquisition tracking: "opened" = new application, "product_change" = PC from same issuer
     acquisition_type: Mapped[str] = mapped_column(String(20), nullable=False, default="opened")
 
+    # Panel placement: "on_deck" = not included in calculations, "in_wallet" = included
+    panel: Mapped[str] = mapped_column(String(10), nullable=False, default="on_deck")
+
     wallet: Mapped["Wallet"] = relationship(back_populates="wallet_cards")
     card: Mapped["Card"] = relationship(back_populates="wallet_cards")
     credit_overrides_rows: Mapped[list["WalletCardCredit"]] = relationship(

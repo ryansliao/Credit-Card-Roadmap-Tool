@@ -119,6 +119,7 @@ export default function WalletToolPage() {
     }) => walletsApi.results(walletId, params),
     onSuccess: (data) => {
       setResult(data)
+      queryClient.invalidateQueries({ queryKey: queryKeys.wallets() })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(data.wallet_id) })
     },
   })
@@ -140,6 +141,7 @@ export default function WalletToolPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.roadmap(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
+      queryClient.invalidateQueries({ queryKey: ['wallet-card-credits'] })
       runCalculation()
     },
   })

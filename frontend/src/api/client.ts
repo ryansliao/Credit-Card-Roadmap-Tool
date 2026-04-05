@@ -193,6 +193,7 @@ export interface WalletCard {
   sub_projected_earn_date: string | null
   closed_date: string | null
   acquisition_type: WalletCardAcquisitionType
+  panel: 'on_deck' | 'in_wallet'
 }
 
 export interface Wallet {
@@ -246,6 +247,7 @@ export interface AddCardToWalletPayload {
   sub_earned_date?: string | null
   closed_date?: string | null
   acquisition_type?: WalletCardAcquisitionType
+  panel?: 'on_deck' | 'in_wallet'
 }
 
 export interface WalletCurrencyBalance {
@@ -279,6 +281,7 @@ export interface UpdateWalletCardPayload {
   sub_earned_date?: string | null
   closed_date?: string | null
   acquisition_type?: WalletCardAcquisitionType | null
+  panel?: 'on_deck' | 'in_wallet'
 }
 
 export const walletsApi = {

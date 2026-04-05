@@ -280,7 +280,7 @@ def _tied_cards_for_category(
     spend: dict[str, float],
     category: str,
     wallet_currency_ids: set[int],
-    sub_ros_by_card_id: dict[int, float] | None = None,
+    sub_priority_card_ids: set[int] | None = None,
     for_balance: bool = False,
 ) -> list[CardData]:
     """
@@ -288,20 +288,26 @@ def _tied_cards_for_category(
     Category dollars are split evenly across them; each card applies its own multiplier
     to its share (see calc_annual_point_earn_allocated).
 
-    sub_ros_by_card_id: optional per-card SUB return-on-spend boost (dollars per dollar),
-    added to the score so SUB cards naturally attract spend during their SUB window.
+    sub_priority_card_ids: when provided, cards with IDs in this set get absolute
+    priority — they are the only candidates unless none are present. When multiple
+    SUB-priority cards compete, they use normal multiplier × CPP scoring against
+    each other.
 
     for_balance: when True, uses default (non-overridden) CPP for scoring so that
     balance point totals are independent of wallet CPP overrides.
     """
+    # SUB priority: if any selected cards are in the priority set, only they compete
+    candidates = selected_cards
+    if sub_priority_card_ids:
+        priority = [c for c in selected_cards if c.id in sub_priority_card_ids]
+        if priority:
+            candidates = priority
+
     scored: list[tuple[float, CardData]] = []
-    for c in selected_cards:
+    for c in candidates:
         m = _multiplier_for_category(c, category, spend)
         cpp = _comparison_cpp(c, wallet_currency_ids, for_balance=for_balance)
-        base_score = m * cpp
-        # SUB ROS boost: convert $/$ to cents/$ to match base_score units (cpp is in cents)
-        sub_boost = (sub_ros_by_card_id.get(c.id, 0.0) * 100.0) if sub_ros_by_card_id else 0.0
-        scored.append((base_score + sub_boost, c))
+        scored.append((m * cpp, c))
     if not scored:
         return []
     best = max(t[0] for t in scored)
@@ -315,7 +321,7 @@ def calc_annual_point_earn_allocated(
     selected_cards: list[CardData],
     spend: dict[str, float],
     wallet_currency_ids: set[int],
-    sub_ros_by_card_id: dict[int, float] | None = None,
+    sub_priority_card_ids: set[int] | None = None,
     for_balance: bool = False,
 ) -> float:
     """
@@ -323,7 +329,8 @@ def calc_annual_point_earn_allocated(
     multiplier × effective CPP; tied cards split category dollars evenly, each
     earning (share × own multiplier). Annual bonus still applies in full to every card.
 
-    sub_ros_by_card_id: optional SUB ROS boosts passed to the category scorer.
+    sub_priority_card_ids: optional set of card IDs with active SUBs that get
+    absolute priority in category allocation.
 
     for_balance: when True, uses default (non-overridden) CPP for scoring so that
     balance point totals are independent of wallet CPP overrides.
@@ -334,7 +341,7 @@ def calc_annual_point_earn_allocated(
     for cat, s in spend.items():
         if s <= 0:
             continue
-        tied = _tied_cards_for_category(selected_cards, spend, cat, wallet_currency_ids, sub_ros_by_card_id, for_balance=for_balance)
+        tied = _tied_cards_for_category(selected_cards, spend, cat, wallet_currency_ids, sub_priority_card_ids, for_balance=for_balance)
         if not tied or card.id not in {c.id for c in tied}:
             continue
         n = len(tied)
@@ -343,19 +350,43 @@ def calc_annual_point_earn_allocated(
     return total
 
 
+def calc_annual_allocated_spend(
+    card: CardData,
+    selected_cards: list[CardData],
+    spend: dict[str, float],
+    wallet_currency_ids: set[int],
+    sub_priority_card_ids: set[int] | None = None,
+) -> float:
+    """
+    Total annual spend dollars allocated to this card by the category allocation logic.
+    Mirrors calc_annual_point_earn_allocated but sums dollars instead of points.
+    """
+    if len(selected_cards) <= 1:
+        return sum(s for s in spend.values() if s > 0)
+    total = 0.0
+    for cat, s in spend.items():
+        if s <= 0:
+            continue
+        tied = _tied_cards_for_category(selected_cards, spend, cat, wallet_currency_ids, sub_priority_card_ids)
+        if not tied or card.id not in {c.id for c in tied}:
+            continue
+        total += s / len(tied)
+    return total
+
+
 def calc_category_earn_breakdown(
     card: CardData,
     selected_cards: list[CardData],
     spend: dict[str, float],
     wallet_currency_ids: set[int],
-    sub_ros_by_card_id: dict[int, float] | None = None,
+    sub_priority_card_ids: set[int] | None = None,
 ) -> list[tuple[str, float]]:
     """
     Per-category annual earn breakdown: list of (category_name, points) sorted by points desc.
     Mirrors the allocation logic in calc_annual_point_earn_allocated.
     Includes spend categories with positive earn, plus annual bonus.
     Points are in raw (pre-conversion) currency units, consistent with category spend items.
-    sub_ros_by_card_id: optional SUB ROS boosts, passed through to _tied_cards_for_category.
+    sub_priority_card_ids: optional set of card IDs with active SUBs for priority allocation.
     """
     result: list[tuple[str, float]] = []
     if len(selected_cards) <= 1:
@@ -370,7 +401,7 @@ def calc_category_earn_breakdown(
         for cat, s in spend.items():
             if s <= 0:
                 continue
-            tied = _tied_cards_for_category(selected_cards, spend, cat, wallet_currency_ids, sub_ros_by_card_id)
+            tied = _tied_cards_for_category(selected_cards, spend, cat, wallet_currency_ids, sub_priority_card_ids)
             if not tied or card.id not in {c.id for c in tied}:
                 continue
             n = len(tied)
@@ -413,7 +444,7 @@ def _segmented_category_earn_breakdown(
         seg_days = (seg_end - seg_start).days
         seg_fraction = seg_days / total_days
         seg_currency_ids = {c.currency.id for c in active}
-        sub_ros = {c.id: _sub_ros_for_segment(c, seg_start, seg_currency_ids) for c in active}
+        sub_prio = _sub_priority_ids_for_segment(active, seg_start)
 
         if len(active) <= 1:
             for cat, s in spend.items():
@@ -427,7 +458,7 @@ def _segmented_category_earn_breakdown(
             for cat, s in spend.items():
                 if s <= 0:
                     continue
-                tied = _tied_cards_for_category(active, spend, cat, seg_currency_ids, sub_ros)
+                tied = _tied_cards_for_category(active, spend, cat, seg_currency_ids, sub_prio)
                 if not tied or card.id not in {c.id for c in tied}:
                     continue
                 n = len(tied)
@@ -450,7 +481,7 @@ def _effective_annual_earn_allocated(
     spend: dict[str, float],
     selected_cards: list[CardData],
     wallet_currency_ids: set[int],
-    sub_ros_by_card_id: dict[int, float] | None = None,
+    sub_priority_card_ids: set[int] | None = None,
     for_balance: bool = False,
 ) -> float:
     """Like _effective_annual_earn but category spend is wallet-allocated (see above).
@@ -459,7 +490,7 @@ def _effective_annual_earn_allocated(
     that point totals used for balance display are independent of wallet CPP overrides.
     """
     return (
-        calc_annual_point_earn_allocated(card, selected_cards, spend, wallet_currency_ids, sub_ros_by_card_id, for_balance=for_balance)
+        calc_annual_point_earn_allocated(card, selected_cards, spend, wallet_currency_ids, sub_priority_card_ids, for_balance=for_balance)
         * _conversion_rate(card, wallet_currency_ids)
     )
 
@@ -753,19 +784,11 @@ def _build_segments(
     return segments
 
 
-def _sub_ros_for_segment(
-    card: CardData,
-    seg_start: date,
-    wallet_currency_ids: set[int],
-    for_balance: bool = False,
-) -> float:
+def _is_sub_active_in_segment(card: CardData, seg_start: date) -> bool:
     """
-    Dollar-per-dollar SUB return-on-spend bonus for this card in the given segment.
-    Non-zero only when: card has an earnable SUB, is in its SUB window,
+    Whether this card has an active SUB window at the given segment start.
+    True when: card has an earnable SUB, is in its SUB window,
     and the SUB has not yet been earned before this segment starts.
-
-    for_balance: when True, uses comparison_cpp (default, non-overridden CPP) so that
-    point totals used for balance display are independent of wallet CPP overrides.
     """
     if (
         not card.sub
@@ -774,25 +797,31 @@ def _sub_ros_for_segment(
         or not card.wallet_added_date
         or card.sub_already_earned
     ):
-        return 0.0
-    # Safety: boost must never apply before the card's wallet opening date
+        return False
     if seg_start < card.wallet_added_date:
-        return 0.0
+        return False
     earned = card.sub_projected_earn_date
     if earned is not None and earned <= seg_start:
-        return 0.0  # SUB already earned before this segment
+        return False
     sub_window_end = (
         add_months(card.wallet_added_date, card.sub_months)
         if card.sub_months
         else None
     )
     if sub_window_end is not None and seg_start >= sub_window_end:
-        return 0.0  # Past the SUB spending window
-    if for_balance:
-        sub_value_dollars = card.sub * _effective_currency(card, wallet_currency_ids).comparison_cpp / 100.0
-    else:
-        sub_value_dollars = card.sub * _effective_cpp(card, wallet_currency_ids) / 100.0
-    return sub_value_dollars / card.sub_min_spend
+        return False
+    return True
+
+
+def _sub_priority_ids_for_segment(
+    active_cards: list[CardData],
+    seg_start: date,
+) -> set[int]:
+    """
+    Return the set of card IDs that have active SUB windows in this segment.
+    These cards get absolute priority in category allocation.
+    """
+    return {c.id for c in active_cards if _is_sub_active_in_segment(c, seg_start)}
 
 
 def _time_weighted_annual_earn(
@@ -807,11 +836,11 @@ def _time_weighted_annual_earn(
     """
     Time-weighted annual earn for `card` across the calculation window.
 
-    For each segment, the active card set and their SUB ROS boosts may differ.
+    For each segment, the active card set and SUB priority may differ.
     Cards only contribute earn for segments where they are active.
 
-    for_balance: when True, uses default (non-overridden) CPP for allocation scoring and
-    SUB ROS computation so that point totals used for balance display are CPP-independent.
+    for_balance: when True, uses default (non-overridden) CPP for allocation scoring so
+    that point totals used for balance display are CPP-independent.
     """
     total_days = (window_end - window_start).days
     if total_days <= 0:
@@ -824,9 +853,9 @@ def _time_weighted_annual_earn(
             continue
         seg_fraction = (seg_end - seg_start).days / total_days
         seg_currency_ids = {c.currency.id for c in active}
-        sub_ros = {c.id: _sub_ros_for_segment(c, seg_start, seg_currency_ids, for_balance=for_balance) for c in active}
+        sub_prio = _sub_priority_ids_for_segment(active, seg_start)
         earn = _effective_annual_earn_allocated(
-            card, spend, active, seg_currency_ids, sub_ros_by_card_id=sub_ros, for_balance=for_balance
+            card, spend, active, seg_currency_ids, sub_priority_card_ids=sub_prio, for_balance=for_balance
         )
         weighted += earn * seg_fraction
     return weighted
@@ -891,13 +920,12 @@ def _segmented_card_net_per_year(
         card_ever_active = True
         seg_days = (seg_end - seg_start).days
         seg_currency_ids = {c.currency.id for c in active}
-        sub_ros = {c.id: _sub_ros_for_segment(c, seg_start, seg_currency_ids) for c in active}
-        sub_ros_for_balance = {c.id: _sub_ros_for_segment(c, seg_start, seg_currency_ids, for_balance=True) for c in active}
+        sub_prio = _sub_priority_ids_for_segment(active, seg_start)
         annual_pts = _effective_annual_earn_allocated(
-            card, spend, active, seg_currency_ids, sub_ros_by_card_id=sub_ros
+            card, spend, active, seg_currency_ids, sub_priority_card_ids=sub_prio
         )
         annual_pts_for_balance = _effective_annual_earn_allocated(
-            card, spend, active, seg_currency_ids, sub_ros_by_card_id=sub_ros_for_balance, for_balance=True
+            card, spend, active, seg_currency_ids, sub_priority_card_ids=sub_prio, for_balance=True
         )
         eff_currency = _effective_currency(card, seg_currency_ids)
         total_earn_dollars += annual_pts * eff_currency.cents_per_point / 100.0 * seg_days / 365.25
@@ -960,6 +988,7 @@ def compute_wallet(
     years: int,
     window_start: Optional[date] = None,
     window_end: Optional[date] = None,
+    sub_priority_card_ids: set[int] | None = None,
 ) -> WalletResult:
     """
     Compute results for every card in `all_cards`.
@@ -1020,10 +1049,12 @@ def compute_wallet(
             total_points = annual_point_earn_for_balance * total_years_window + sub_earnable_pts
         else:
             annual_point_earn = _effective_annual_earn_allocated(
-                card, spend, selected_cards, active_wallet_currency_ids
+                card, spend, selected_cards, active_wallet_currency_ids,
+                sub_priority_card_ids=sub_priority_card_ids,
             )
             annual_point_earn_for_balance = _effective_annual_earn_allocated(
-                card, spend, selected_cards, active_wallet_currency_ids, for_balance=True
+                card, spend, selected_cards, active_wallet_currency_ids,
+                sub_priority_card_ids=sub_priority_card_ids, for_balance=True,
             )
             net_annual = _average_annual_net_dollars(
                 card, spend, years, active_wallet_currency_ids, selected_cards,
@@ -1039,16 +1070,19 @@ def compute_wallet(
         gross_opp, net_opp = calc_sub_opportunity_cost(card, selected_cards, spend, active_wallet_currency_ids)
         avg_mult = calc_avg_spend_multiplier(card, spend)
         if use_segmentation:
-            # Time-weighted breakdown: uses the same segment/active-card/SUB-ROS logic as
+            # Time-weighted breakdown: uses the same segment/active-card/SUB priority logic as
             # annual_point_earn so categories reflect what the card actually wins per period.
             cat_earn = _segmented_category_earn_breakdown(
                 card, selected_cards, spend, window_start, window_end  # type: ignore[arg-type]
             )
         else:
-            cat_earn = calc_category_earn_breakdown(card, selected_cards, spend, active_wallet_currency_ids)
+            cat_earn = calc_category_earn_breakdown(
+                card, selected_cards, spend, active_wallet_currency_ids,
+                sub_priority_card_ids=sub_priority_card_ids,
+            )
             # sub_spend_earn is a separate one-time contribution not captured in annual_point_earn
             # on the simple path; add it explicitly. On the segmented path it is already embedded
-            # in segment category earn via the SUB ROS boost.
+            # in segment earn via SUB priority allocation.
             if card.sub_earnable and card.sub_spend_earn > 0:
                 cat_earn = list(cat_earn) + [("SUB Spend", float(card.sub_spend_earn))]
                 cat_earn.sort(key=lambda x: x[1], reverse=True)

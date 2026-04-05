@@ -43,6 +43,7 @@ export function WalletResultsAndCurrenciesPanel({
   const [editingCurrencyId, setEditingCurrencyId] = useState<number | null>(null)
   const [showDurationSlider, setShowDurationSlider] = useState(false)
   const [expandedCardIds, setExpandedCardIds] = useState<Set<number>>(new Set())
+  const [includeSubs, setIncludeSubs] = useState(true)
 
   function toggleCardExpand(cardId: number) {
     setExpandedCardIds((prev) => {
@@ -114,6 +115,15 @@ export function WalletResultsAndCurrenciesPanel({
           <div className="flex items-center gap-1">
             <button
               type="button"
+              onClick={() => setIncludeSubs((v) => !v)}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${includeSubs ? 'text-emerald-300 bg-emerald-900/60 border border-emerald-700/50' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-700 border border-transparent'}`}
+              title={includeSubs ? 'SUBs included in totals' : 'SUBs excluded from totals'}
+              aria-label="Toggle SUB inclusion"
+            >
+              Include SUBs
+            </button>
+            <button
+              type="button"
               onClick={onOpenSpend}
               className="p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700 transition-colors"
               title="Annual Spend"
@@ -181,13 +191,13 @@ export function WalletResultsAndCurrenciesPanel({
         </div>
       )}
 
-      <div className="flex flex-col flex-1 min-h-0 min-w-0">
+      <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-y-auto pr-0.5 -mr-0.5">
         {walletId == null ? (
           <div className="text-slate-500 text-sm py-4">Select a wallet.</div>
         ) : (
           <>
             {/* Top stats */}
-            <div className="shrink-0 space-y-3">
+            <div className="space-y-3">
               {resultsError && (
                 <div className="text-red-400 text-sm bg-red-950 border border-red-700 rounded-lg p-3">
                   {resultsError.message}
@@ -219,7 +229,7 @@ export function WalletResultsAndCurrenciesPanel({
                 Loading…
               </div>
             ) : (
-              <div className="flex flex-col flex-1 min-h-0 overflow-y-auto pr-0.5 -mr-0.5 pt-3">
+              <div className="flex flex-col flex-1 min-h-0 pt-3">
                 <ul className="space-y-2">
                   {sortedBalances.map((b) => {
                   const cpp = cppForName(b.currency_name)
@@ -227,12 +237,17 @@ export function WalletResultsAndCurrenciesPanel({
                   const isCash = rk === 'cash'
                   const estValue = b.balance > 0 ? (b.balance * cpp) / 100 : 0
                   const cards = cardsByCurrency[b.currency_name] ?? []
-                  const currencyAnnualPoints = cards.reduce((s, c) => s + c.annual_point_earn, 0)
-                  const currencyAnnualCashDollars = cards.reduce(
-                    (s, c) => s + (c.annual_point_earn * c.cents_per_point) / 100,
-                    0
-                  )
+                  const currencyTotalPoints = cards.reduce((s, c) => {
+                    const subPts = includeSubs ? 0 : (c.sub + c.sub_spend_earn)
+                    return s + c.total_points - subPts
+                  }, 0)
+                  const currencyTotalCashDollars = cards.reduce((s, c) => {
+                    const subPts = includeSubs ? 0 : (c.sub + c.sub_spend_earn)
+                    return s + ((c.total_points - subPts) * c.cents_per_point) / 100
+                  }, 0)
                   const hasResultData = result != null && cards.length > 0
+                  const combinedPoints = b.balance + currencyTotalPoints
+                  const combinedCashDollars = (b.balance * cpp) / 100 + currencyTotalCashDollars
 
                   return (
                     <li key={b.id} className="bg-slate-800/80 rounded-lg overflow-hidden">
@@ -247,9 +262,13 @@ export function WalletResultsAndCurrenciesPanel({
                           </span>
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-sm font-semibold text-slate-300 tabular-nums">
-                              {isCash
-                                ? formatCashRewardUnits(b.balance, cpp)
-                                : `${formatPoints(b.balance)} pts`}
+                              {hasResultData
+                                ? isCash
+                                  ? formatMoney(combinedCashDollars)
+                                  : `${formatPoints(Math.round(combinedPoints))} Pts`
+                                : isCash
+                                  ? formatCashRewardUnits(b.balance, cpp)
+                                  : `${formatPoints(b.balance)} Pts`}
                             </span>
                             <button
                               type="button"
@@ -274,22 +293,11 @@ export function WalletResultsAndCurrenciesPanel({
                             </button>
                           </div>
                         </div>
-                        {hasResultData ? (
-                          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-slate-400">
-                            <span>
-                              {isCash ? 'Annual cash back: ' : 'Annual pts earn: '}
-                              <span className="text-slate-200 tabular-nums">
-                                {isCash
-                                  ? formatMoney(currencyAnnualCashDollars)
-                                  : formatPoints(currencyAnnualPoints)}
-                              </span>
-                            </span>
-                          </div>
-                        ) : !isCash && estValue > 0 ? (
+                        {!hasResultData && !isCash && estValue > 0 ? (
                           <div className="text-xs text-slate-500 mt-0.5 tabular-nums">
                             ≈ {formatMoney(estValue)}
                           </div>
-                        ) : isCash && estValue > 0 ? (
+                        ) : !hasResultData && isCash && estValue > 0 ? (
                           <div className="text-xs text-slate-500 mt-0.5 tabular-nums">
                             {formatMoney(estValue)} face value
                           </div>
@@ -303,9 +311,11 @@ export function WalletResultsAndCurrenciesPanel({
                             const cardEffectiveAF = card.effective_annual_fee
                             const isLast = idx === cards.length - 1
                             const cardIsCash = (card.effective_reward_kind ?? 'points') === 'cash'
-                            const annualEarnLabel = cardIsCash
-                              ? `${formatMoney((card.annual_point_earn * card.cents_per_point) / 100)} cash back`
-                              : `${formatPoints(card.annual_point_earn)} pts`
+                            const subPts = includeSubs ? 0 : (card.sub + card.sub_spend_earn)
+                            const cardTotalPts = card.total_points - subPts
+                            const totalEarnLabel = cardIsCash
+                              ? `${formatMoney((cardTotalPts * card.cents_per_point) / 100)} Total Cash Back`
+                              : `${formatPoints(Math.round(cardTotalPts))} Points`
                             const isExpanded = expandedCardIds.has(card.card_id)
                             const hasCategoryBreakdown = card.category_earn && card.category_earn.length > 0
                             return (
@@ -323,7 +333,10 @@ export function WalletResultsAndCurrenciesPanel({
                                       {card.card_name}
                                     </p>
                                     <p className="text-xs text-slate-500 mt-0.5">
-                                      {annualEarnLabel} · {formatMoney(card.credit_valuation)} credits
+                                      {totalEarnLabel}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                      {formatMoney(card.credit_valuation)} Credit Value
                                     </p>
                                   </div>
                                   <div className="text-right shrink-0">
@@ -334,28 +347,27 @@ export function WalletResultsAndCurrenciesPanel({
                                     </p>
                                     <p className="text-xs text-slate-500">Eff. Annual Fee</p>
                                   </div>
-                                  {hasCategoryBreakdown && (
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleCardExpand(card.card_id)}
-                                      className="shrink-0 p-1 rounded text-slate-600 hover:text-slate-300 hover:bg-slate-700 transition-colors"
-                                      aria-label={isExpanded ? 'Collapse category breakdown' : 'Expand category breakdown'}
+                                  <button
+                                    type="button"
+                                    onClick={() => hasCategoryBreakdown && toggleCardExpand(card.card_id)}
+                                    disabled={!hasCategoryBreakdown}
+                                    className={`shrink-0 p-1 rounded transition-colors ${hasCategoryBreakdown ? 'text-slate-600 hover:text-slate-300 hover:bg-slate-700' : 'text-slate-800 cursor-default'}`}
+                                    aria-label={isExpanded ? 'Collapse category breakdown' : 'Expand category breakdown'}
+                                  >
+                                    <svg
+                                      width="12"
+                                      height="12"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.5"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}
                                     >
-                                      <svg
-                                        width="12"
-                                        height="12"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2.5"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}
-                                      >
-                                        <polyline points="6 9 12 15 18 9" />
-                                      </svg>
-                                    </button>
-                                  )}
+                                      <polyline points="6 9 12 15 18 9" />
+                                    </svg>
+                                  </button>
                                 </div>
                                 {/* Category earn breakdown */}
                                 {isExpanded && hasCategoryBreakdown && (
@@ -366,7 +378,7 @@ export function WalletResultsAndCurrenciesPanel({
                                         <span className="text-xs text-slate-300 tabular-nums shrink-0">
                                           {cardIsCash
                                             ? formatMoney((item.points * card.cents_per_point) / 100)
-                                            : `${formatPoints(item.points)} pts`}
+                                            : `${formatPoints(item.points)} Pts`}
                                         </span>
                                       </div>
                                     ))}
