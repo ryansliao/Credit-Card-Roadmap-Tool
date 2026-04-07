@@ -7,6 +7,7 @@ import {
 } from '../../../../api/client'
 import { ModalBackdrop } from '../../../../components/ModalBackdrop'
 import { queryKeys } from '../../lib/queryKeys'
+import { WalletPortalSharesEditor } from './WalletPortalSharesEditor'
 
 interface CurrencySettingsModalProps {
   walletId: number | null
@@ -77,26 +78,42 @@ export function CurrencySettingsModal({
   return (
     <ModalBackdrop
       onClose={onClose}
-      className="bg-slate-800 border border-slate-600 rounded-xl p-5 w-full max-w-sm shadow-xl"
+      className="bg-slate-800 border border-slate-600 rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto"
     >
-      <h2 className="text-base font-semibold text-white mb-4">{currency.name}</h2>
+      <h2 className="text-lg font-semibold text-white mb-4">{currency.name}</h2>
 
       <div className="space-y-4">
         {/* CPP — not applicable for cash (face value in stored units) */}
         {!isCash ? (
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">¢ per point</label>
-            <input
-              type="number"
-              min={0.01}
-              step={0.01}
-              key={`cpp-${currency.id}-${currency.user_cents_per_point ?? 'd'}-${currency.cents_per_point}`}
-              defaultValue={myCpp}
-              disabled={busy}
-              onBlur={(e) => handleCppBlur(Number(e.target.value))}
-              className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500"
-            />
-          </div>
+          <>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">¢ per point</label>
+              <input
+                type="number"
+                min={0.01}
+                step={0.01}
+                key={`cpp-${currency.id}-${currency.user_cents_per_point ?? 'd'}-${currency.cents_per_point}`}
+                defaultValue={myCpp}
+                disabled={busy}
+                onBlur={(e) => handleCppBlur(Number(e.target.value))}
+                className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            {(currency.no_transfer_rate != null || currency.no_transfer_cpp != null) && (
+              <div className="bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2">
+                <p className="text-xs text-slate-400">
+                  {currency.no_transfer_rate != null ? (
+                    <>Without transfer enabler: <span className="text-amber-300 font-medium">{Math.round(currency.no_transfer_rate * 100)}%</span> of CPP ({(myCpp * currency.no_transfer_rate).toFixed(2)}¢)</>
+                  ) : (
+                    <>Without transfer enabler: <span className="text-amber-300 font-medium">{currency.no_transfer_cpp}¢</span> per point</>
+                  )}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Full CPP requires a transfer-enabling card in the wallet.
+                </p>
+              </div>
+            )}
+          </>
         ) : (
           <p className="text-xs text-slate-500">
             Cash back is valued at face value (no cents-per-point override).
@@ -127,6 +144,16 @@ export function CurrencySettingsModal({
             />
           </div>
         )}
+
+        {/* Travel portal shares — only renders when at least one in-wallet card
+            earning this currency has portal-only multipliers (e.g., the Chase
+            UR modal shows the Chase Travel slider when Freedom Flex is in the
+            wallet, but the Cash modal does not). */}
+        <WalletPortalSharesEditor
+          walletId={walletId}
+          filterByCurrencyId={currency.id}
+          onChange={onCppChange}
+        />
       </div>
 
       <div className="mt-6 pt-4 border-t border-slate-600 flex items-center justify-between gap-3">

@@ -65,6 +65,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import json
+import logging
 import math
 import os
 from calendar import monthrange
@@ -82,18 +83,24 @@ from sqlalchemy.orm import selectinload
 
 from .calculator import calc_annual_allocated_spend, compute_wallet, plan_sub_targeting
 from .constants import ALLOCATION_SUM_TOLERANCE, ALL_OTHER_CATEGORY as ALL_OTHER_SPEND_NAME, DEFAULT_USER_ID
-from .database import create_tables, get_db
+from .database import AsyncSessionLocal, create_tables, get_db
+
+logger = logging.getLogger(__name__)
 from .db_helpers import (
     apply_wallet_card_group_selections,
     apply_wallet_card_multiplier_overrides,
     apply_wallet_card_overrides,
+    apply_wallet_card_rotation_overrides,
+    apply_wallet_portal_shares,
     ensure_all_other_wallet_spend_category,
     ensure_all_other_wallet_spend_item,
     load_card_data,
     load_wallet_card_credits,
     load_wallet_card_group_selections,
     load_wallet_card_multipliers,
+    load_wallet_card_rotation_overrides,
     load_wallet_cpp_overrides,
+    load_wallet_portal_shares,
     load_wallet_spend,
     load_wallet_spend_items,
 )
@@ -102,6 +109,7 @@ from .models import (
     CardCategoryMultiplier,
     CardCredit,
     CardMultiplierGroup,
+    CardRotatingHistory,
     CoBrand,
     Currency,
     Issuer,
@@ -114,8 +122,10 @@ from .models import (
     WalletCardCredit,
     WalletCardGroupSelection,
     WalletCardMultiplier,
+    WalletCardRotationOverride,
     WalletCurrencyBalance,
     WalletCurrencyCpp,
+    WalletPortalShare,
     WalletSpendCategory,
     WalletSpendCategoryMapping,
     WalletSpendItem,
@@ -123,6 +133,7 @@ from .models import (
 from .schemas import (
     AdminAddCardCreditPayload,
     AdminAddCardMultiplierPayload,
+    AdminAddRotatingHistoryPayload,
     AdminCreateCardMultiplierGroupPayload,
     AdminCreateCardPayload,
     AdminCreateCurrencyPayload,
@@ -130,8 +141,13 @@ from .schemas import (
     AdminCreateSpendCategoryPayload,
     AdminUpdateCardMultiplierGroupPayload,
     CardMultiplierGroupRead,
+    CardRotatingHistoryRead,
     CardCreditRead,
     CardRead,
+    WalletPortalSharePayload,
+    WalletPortalShareRead,
+    WalletRotationOverridePayload,
+    WalletRotationOverrideRead,
     CardResultSchema,
     CategoryEarnItem,
     CurrencyRead,
@@ -241,9 +257,420 @@ def _years_counted_from_total_months(total_months: int) -> int:
     return max(1, full + (1 if rem >= 6 else 0))
 
 
+# ---------------------------------------------------------------------------
+# Rotating-bonus card + history seed
+# ---------------------------------------------------------------------------
+#
+# Hardcoded structure for the major rotating-category cards (Discover IT,
+# Chase Freedom Flex, Chase Freedom). The seed runs on every startup and is
+# idempotent — existing rows are left alone. The seed creates, in order:
+#
+#   1. Issuers ("Discover", "Chase") if missing
+#   2. Currencies ("Discover Cashback Bonus" cash, "Chase UR" points) if missing
+#   3. Spend categories referenced by the historical rotation (Wholesale Clubs,
+#      Drug Stores, Public Transit, EV Charging, Streaming Services, …) if missing
+#   4. Card rows for each rotating card if missing
+#   5. A CardMultiplierGroup per card with cap_per_billing_cycle=1500,
+#      cap_period_months=3, is_rotating=True, multiplier=5.0, top_n_categories=None
+#   6. CardCategoryMultiplier rows linking the group to every category that
+#      has ever appeared in that card's historical rotation
+#   7. CardRotatingHistory rows for every (year, quarter, category) tuple
+#
+# Sources: Bankrate, The Points Guy, Reddit summaries linked in commit history.
+
+_DISCOVER_IT_HISTORY: list[tuple[int, int, list[str]]] = [
+    # 2023
+    (2023, 1, ["Grocery Stores", "Drug Stores", "Streaming Services"]),
+    (2023, 2, ["Gas", "Wholesale Clubs"]),
+    (2023, 3, ["Restaurants"]),
+    (2023, 4, ["Amazon", "Target"]),
+    # 2024
+    (2024, 1, ["Restaurants", "Drug Stores"]),
+    (2024, 2, ["Gas", "Public Transit", "Utilities"]),
+    (2024, 3, ["Restaurants"]),
+    (2024, 4, ["Amazon", "Target"]),
+    # 2025
+    (2025, 1, ["Restaurants", "Home Improvement", "Streaming Services"]),
+    (2025, 2, ["Gas", "Public Transit", "EV Charging"]),
+    (2025, 3, ["Restaurants"]),
+    (2025, 4, ["Amazon", "Target"]),
+]
+
+_CHASE_FREEDOM_FLEX_HISTORY: list[tuple[int, int, list[str]]] = [
+    # 2023
+    (2023, 1, ["Grocery Stores", "Fitness Clubs"]),
+    (2023, 2, ["Amazon", "Lowe's"]),
+    (2023, 3, ["Gas", "EV Charging", "Movies"]),
+    (2023, 4, ["PayPal", "Wholesale Clubs"]),
+    # 2024
+    (2024, 1, ["Grocery Stores", "Fitness Clubs"]),
+    (2024, 2, ["Hotels", "Restaurants"]),
+    (2024, 3, ["Gas", "EV Charging", "Movies"]),
+    (2024, 4, ["PayPal", "McDonald's"]),
+    # 2025
+    (2025, 1, ["Grocery Stores", "Fitness Clubs"]),
+    (2025, 2, ["Hotels", "Amazon"]),
+    (2025, 3, ["Gas", "EV Charging", "Restaurants"]),
+    (2025, 4, ["PayPal", "Wholesale Clubs"]),
+]
+
+# Chase Freedom (legacy, no longer issued) shared rotations with Freedom Flex
+# pre-2021. Anyone still holding one would use the same recent rotations.
+_CHASE_FREEDOM_HISTORY = _CHASE_FREEDOM_FLEX_HISTORY
+
+
+# Static card definitions. Currencies are looked up by exact name first, then
+# fall back through the alias list — adapts to whatever the user named their
+# Chase UR / Discover Cashback currency rows.
+#
+# rotating_group_multiplier and rotating_is_additive control how the rotating
+# group is materialized. For non-additive cards (Discover IT, legacy Freedom)
+# the multiplier is the *full* rate (5x). For additive cards (Freedom Flex)
+# the multiplier is a *premium* (4x) that stacks onto the card's base + any
+# always-on premiums on the same category, so dining-during-restaurants-Q
+# earns 1 (base) + 2 (always-on dining premium) + 4 (rotating premium) = 7x.
+#
+# always_on_premiums is a list of (category_name, premium_value, is_portal)
+# tuples that get materialized as STANDALONE additive CardCategoryMultiplier
+# rows on the card. Each premium adds onto the card's base for the matching
+# category. Categories that don't yet exist as SpendCategory rows are
+# auto-created.
+_ROTATING_CARD_SPECS: list[dict] = [
+    {
+        "name": "Discover it Cash Back",
+        "issuer": "Discover",
+        "currency_aliases": ["Discover Cashback Bonus", "Discover Cashback", "Cash"],
+        "currency_default_kind": "cash",
+        "currency_default_cpp": 1.0,
+        "annual_fee": 0.0,
+        "first_year_fee": None,
+        "business": False,
+        "history": _DISCOVER_IT_HISTORY,
+        "rotating_group_multiplier": 5.0,
+        "rotating_is_additive": False,
+        "always_on_premiums": [],
+    },
+    {
+        "name": "Chase Freedom Flex",
+        "issuer": "Chase",
+        "currency_aliases": ["Chase Ultimate Rewards", "Chase UR", "Chase Cash", "Cash"],
+        "currency_default_kind": "points",
+        "currency_default_cpp": 1.0,
+        "annual_fee": 0.0,
+        "first_year_fee": None,
+        "business": False,
+        "history": _CHASE_FREEDOM_FLEX_HISTORY,
+        # Rotating premium = 4x (advertised 5x = 1 base + 4 premium).
+        "rotating_group_multiplier": 4.0,
+        "rotating_is_additive": True,
+        # Permanent additive premiums on top of the 1x base:
+        #   Restaurants +2x → 3x always-on (advertised "3% on dining")
+        #   Drug Stores +2x → 3x always-on (advertised "3% on drugstores")
+        #   Travel      +4x → 5x portal-only (advertised "5% on Chase Travel")
+        # Travel is_portal=True so the calculator's portal-share path
+        # (Phase B) gates the +4 to the configured Chase Travel share.
+        "always_on_premiums": [
+            ("Restaurants", 2.0, False),
+            ("Drug Stores", 2.0, False),
+            ("Travel", 4.0, True),
+        ],
+    },
+    {
+        "name": "Chase Freedom",
+        "issuer": "Chase",
+        "currency_aliases": ["Chase Ultimate Rewards", "Chase UR", "Chase Cash", "Cash"],
+        "currency_default_kind": "points",
+        "currency_default_cpp": 1.0,
+        "annual_fee": 0.0,
+        "first_year_fee": None,
+        "business": False,
+        "history": _CHASE_FREEDOM_HISTORY,
+        "rotating_group_multiplier": 5.0,
+        "rotating_is_additive": False,
+        "always_on_premiums": [],
+    },
+]
+
+
+async def _ensure_issuer(session, name: str) -> Issuer:
+    from sqlalchemy import func
+
+    row = await session.execute(
+        select(Issuer).where(func.lower(Issuer.name) == name.lower())
+    )
+    obj = row.scalar_one_or_none()
+    if obj is not None:
+        return obj
+    obj = Issuer(name=name)
+    session.add(obj)
+    await session.flush()
+    logger.info("rotating seed: created issuer %r", name)
+    return obj
+
+
+async def _ensure_currency(
+    session,
+    aliases: list[str],
+    default_kind: str,
+    default_cpp: float,
+) -> Currency:
+    from sqlalchemy import func
+
+    for alias in aliases:
+        row = await session.execute(
+            select(Currency).where(func.lower(Currency.name) == alias.lower())
+        )
+        obj = row.scalar_one_or_none()
+        if obj is not None:
+            return obj
+    # None of the aliases exist; create the canonical (first alias).
+    canonical = aliases[0]
+    obj = Currency(
+        name=canonical,
+        reward_kind=default_kind,
+        cents_per_point=default_cpp,
+        cash_transfer_rate=1.0 if default_kind == "cash" else None,
+    )
+    session.add(obj)
+    await session.flush()
+    logger.info("rotating seed: created currency %r (%s)", canonical, default_kind)
+    return obj
+
+
+async def _ensure_spend_category(session, name: str) -> SpendCategory:
+    from sqlalchemy import func
+
+    row = await session.execute(
+        select(SpendCategory).where(func.lower(SpendCategory.category) == name.lower())
+    )
+    obj = row.scalar_one_or_none()
+    if obj is not None:
+        return obj
+    obj = SpendCategory(category=name, is_system=False)
+    session.add(obj)
+    await session.flush()
+    logger.info("rotating seed: created spend category %r", name)
+    return obj
+
+
+async def _seed_rotating_cards_and_history() -> None:
+    """
+    Idempotently materialize the rotating-card universe: issuers, currencies,
+    spend categories, the Card rows themselves, their rotating multiplier
+    groups, and the (year, quarter, category) history rows.
+
+    Every step skips work that's already been done. Safe to run on every
+    startup. Each card's seed runs in its own transaction so a failure on one
+    card doesn't roll back the others.
+    """
+    async with AsyncSessionLocal() as session:
+        for spec in _ROTATING_CARD_SPECS:
+            try:
+                await _seed_one_rotating_card(session, spec)
+                await session.commit()
+            except Exception:
+                logger.exception(
+                    "rotating seed: failed to seed %r — rolling back this card",
+                    spec["name"],
+                )
+                await session.rollback()
+                continue
+
+
+async def _seed_one_rotating_card(session, spec: dict) -> None:
+    from sqlalchemy import func
+
+    # 1. Issuer
+    issuer = await _ensure_issuer(session, spec["issuer"])
+
+    # 2. Currency
+    currency = await _ensure_currency(
+        session,
+        spec["currency_aliases"],
+        spec["currency_default_kind"],
+        spec["currency_default_cpp"],
+    )
+
+    # 3. Spend categories — collect the universe from the history.
+    universe_names: list[str] = []
+    seen: set[str] = set()
+    for _y, _q, cats in spec["history"]:
+        for cat_name in cats:
+            key = cat_name.strip().lower()
+            if key not in seen:
+                seen.add(key)
+                universe_names.append(cat_name)
+
+    universe_categories: list[SpendCategory] = []
+    for cat_name in universe_names:
+        sc = await _ensure_spend_category(session, cat_name)
+        universe_categories.append(sc)
+
+    # 4. Card row
+    card_row = await session.execute(
+        select(Card).where(func.lower(Card.name) == spec["name"].lower())
+    )
+    card = card_row.scalar_one_or_none()
+    if card is None:
+        card = Card(
+            name=spec["name"],
+            issuer_id=issuer.id,
+            currency_id=currency.id,
+            annual_fee=spec["annual_fee"],
+            first_year_fee=spec["first_year_fee"],
+            business=spec["business"],
+        )
+        session.add(card)
+        await session.flush()
+        logger.info("rotating seed: created card %r", spec["name"])
+
+    # 5. Rotating multiplier group — find existing or create. Synchronize the
+    # multiplier value and is_additive flag from the spec so existing seeded
+    # groups switch to additive mode on next startup if the spec changes.
+    rotating_group_mult = float(spec.get("rotating_group_multiplier", 5.0))
+    rotating_is_additive = bool(spec.get("rotating_is_additive", False))
+    existing_groups = await session.execute(
+        select(CardMultiplierGroup).where(
+            CardMultiplierGroup.card_id == card.id,
+            CardMultiplierGroup.is_rotating == True,  # noqa: E712
+        )
+    )
+    group = existing_groups.scalars().first()
+    if group is None:
+        group = CardMultiplierGroup(
+            card_id=card.id,
+            multiplier=rotating_group_mult,
+            cap_per_billing_cycle=1500.0,
+            cap_period_months=3,
+            is_rotating=True,
+            is_additive=rotating_is_additive,
+            top_n_categories=None,
+        )
+        session.add(group)
+        await session.flush()
+        logger.info(
+            "rotating seed: created rotating group on %r (%sx, additive=%s)",
+            card.name, rotating_group_mult, rotating_is_additive,
+        )
+    else:
+        # Sync spec → existing row in case the spec changed.
+        if abs(group.multiplier - rotating_group_mult) > 1e-6:
+            group.multiplier = rotating_group_mult
+        if bool(group.is_additive) != rotating_is_additive:
+            group.is_additive = rotating_is_additive
+
+    # 6. Group category memberships — one CardCategoryMultiplier per universe
+    # category, linked to the rotating group. The standalone always-on premium
+    # rows (added in step 6b) live as separate rows on the same (card, category)
+    # pair, allowed by the partial unique indexes from migration 024.
+    existing_grouped = await session.execute(
+        select(CardCategoryMultiplier).where(
+            CardCategoryMultiplier.card_id == card.id,
+            CardCategoryMultiplier.multiplier_group_id == group.id,
+        )
+    )
+    grouped_by_cat_id = {m.category_id: m for m in existing_grouped.scalars()}
+    for sc in universe_categories:
+        existing = grouped_by_cat_id.get(sc.id)
+        if existing is None:
+            session.add(
+                CardCategoryMultiplier(
+                    card_id=card.id,
+                    category_id=sc.id,
+                    multiplier=rotating_group_mult,
+                    multiplier_group_id=group.id,
+                    is_additive=rotating_is_additive,
+                )
+            )
+            logger.info(
+                "rotating seed: linked %r → %r in rotating group",
+                card.name, sc.category,
+            )
+        else:
+            # Sync existing rows so spec changes propagate (e.g., switching
+            # Freedom Flex from non-additive 5x to additive 4x premium).
+            if abs(existing.multiplier - rotating_group_mult) > 1e-6:
+                existing.multiplier = rotating_group_mult
+            if bool(existing.is_additive) != rotating_is_additive:
+                existing.is_additive = rotating_is_additive
+    await session.flush()
+
+    # 6b. Always-on additive premiums — Freedom Flex's permanent +2 dining,
+    # +2 drugstores, +4 portal travel etc. Each row is a STANDALONE
+    # (multiplier_group_id IS NULL) is_additive=True CardCategoryMultiplier.
+    always_on: list[tuple[str, float, bool]] = list(spec.get("always_on_premiums", []))
+    if always_on:
+        # Pull existing standalone rows for this card so we can update or skip.
+        existing_standalone = await session.execute(
+            select(CardCategoryMultiplier).where(
+                CardCategoryMultiplier.card_id == card.id,
+                CardCategoryMultiplier.multiplier_group_id.is_(None),
+            )
+        )
+        standalone_by_cat_id = {m.category_id: m for m in existing_standalone.scalars()}
+        for cat_name, premium, is_portal in always_on:
+            sc = await _ensure_spend_category(session, cat_name)
+            existing = standalone_by_cat_id.get(sc.id)
+            if existing is None:
+                session.add(
+                    CardCategoryMultiplier(
+                        card_id=card.id,
+                        category_id=sc.id,
+                        multiplier=float(premium),
+                        is_additive=True,
+                        is_portal=bool(is_portal),
+                        multiplier_group_id=None,
+                    )
+                )
+                logger.info(
+                    "rotating seed: added always-on +%sx %r on %r%s",
+                    premium, cat_name, card.name, " (portal)" if is_portal else "",
+                )
+            else:
+                # Only sync if the existing row is also additive — never
+                # clobber a user-set non-additive standalone.
+                if existing.is_additive:
+                    if abs(existing.multiplier - float(premium)) > 1e-6:
+                        existing.multiplier = float(premium)
+                    if bool(existing.is_portal) != bool(is_portal):
+                        existing.is_portal = bool(is_portal)
+        await session.flush()
+
+    # 7. History rows
+    sc_by_lower_name = {sc.category.lower(): sc.id for sc in universe_categories}
+    existing_history = await session.execute(
+        select(
+            CardRotatingHistory.year,
+            CardRotatingHistory.quarter,
+            CardRotatingHistory.spend_category_id,
+        ).where(CardRotatingHistory.card_id == card.id)
+    )
+    existing_keys = {(r[0], r[1], r[2]) for r in existing_history.all()}
+    for year, quarter, cat_names in spec["history"]:
+        for cat_name in cat_names:
+            sc_id = sc_by_lower_name.get(cat_name.lower())
+            if sc_id is None:
+                continue
+            key = (year, quarter, sc_id)
+            if key in existing_keys:
+                continue
+            session.add(
+                CardRotatingHistory(
+                    card_id=card.id,
+                    year=year,
+                    quarter=quarter,
+                    spend_category_id=sc_id,
+                )
+            )
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     await create_tables()
+    try:
+        await _seed_rotating_cards_and_history()
+    except Exception:  # pragma: no cover — defensive
+        logger.exception("rotating seed failed")
     yield
 
 
@@ -308,6 +735,7 @@ def _wc_read(wc: WalletCard, card: Card) -> WalletCardRead:
         wallet_id=wc.wallet_id,
         card_id=wc.card_id,
         card_name=card.name,
+        transfer_enabler=bool(getattr(card, "transfer_enabler", False)),
         added_date=wc.added_date,
         sub=_inh(wc.sub, card.sub),
         sub_min_spend=_inh(wc.sub_min_spend, card.sub_min_spend),
@@ -339,6 +767,7 @@ def _card_load_opts():
         selectinload(Card.network_tier),
         selectinload(Card.multipliers).selectinload(CardCategoryMultiplier.spend_category),
         selectinload(Card.multiplier_groups).selectinload(CardMultiplierGroup.categories).selectinload(CardCategoryMultiplier.spend_category),
+        selectinload(Card.rotating_history).selectinload(CardRotatingHistory.spend_category),
         selectinload(Card.credits),
     ]
 
@@ -402,7 +831,7 @@ async def list_cards(db: AsyncSession = Depends(get_db)):
 
 
 _CARD_LIBRARY_PATCH_FIELDS = frozenset(
-    {"sub", "sub_min_spend", "sub_months", "annual_fee", "first_year_fee"}
+    {"sub", "sub_min_spend", "sub_months", "annual_fee", "first_year_fee", "transfer_enabler"}
 )
 
 
@@ -1371,6 +1800,18 @@ async def wallet_results(
     modified_cards = apply_wallet_card_multiplier_overrides(modified_cards, wallet_multiplier_rows)
     group_selections = await load_wallet_card_group_selections(db, wallet_id)
     modified_cards = apply_wallet_card_group_selections(modified_cards, group_selections)
+    rotation_overrides = await load_wallet_card_rotation_overrides(db, wallet_id)
+    modified_cards = apply_wallet_card_rotation_overrides(modified_cards, rotation_overrides)
+    portal_shares = await load_wallet_portal_shares(db, wallet_id)
+    if portal_shares:
+        # Need an issuer_id lookup for each selected card; load minimal Card rows.
+        issuer_lookup = await db.execute(
+            select(Card).where(Card.id.in_(card_ids_sel))
+        )
+        cards_orm_by_id = {c.id: c for c in issuer_lookup.scalars().all()}
+        modified_cards = apply_wallet_portal_shares(
+            modified_cards, portal_shares, cards_orm_by_id
+        )
     selected_ids = card_ids_sel
     spend = await load_wallet_spend_items(db, wallet_id)
     if overrides:
@@ -2231,7 +2672,10 @@ async def set_wallet_card_group_selections(
         .options(
             selectinload(CardMultiplierGroup.categories).selectinload(
                 CardCategoryMultiplier.spend_category
-            )
+            ),
+            selectinload(CardMultiplierGroup.card)
+            .selectinload(Card.rotating_history)
+            .selectinload(CardRotatingHistory.spend_category),
         )
         .where(
             CardMultiplierGroup.id == group_id,
@@ -2251,6 +2695,10 @@ async def set_wallet_card_group_selections(
     )
     for row in existing.scalars().all():
         await db.delete(row)
+    # Flush deletes before inserts so the unique constraint on
+    # (wallet_card_id, multiplier_group_id, spend_category_id) doesn't trip
+    # when the new selection set overlaps the old one.
+    await db.flush()
 
     # If empty list, revert to auto-pick
     if not payload.spend_category_ids:
@@ -2329,6 +2777,215 @@ async def delete_wallet_card_group_selections(
     await db.commit()
 
 
+# ---- Wallet card rotation overrides ----
+
+
+@app.get(
+    "/wallets/{wallet_id}/cards/{card_id}/rotation-overrides",
+    response_model=list[WalletRotationOverrideRead],
+)
+async def list_wallet_card_rotation_overrides(
+    wallet_id: int,
+    card_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    wc = await db.execute(
+        select(WalletCard).where(
+            WalletCard.wallet_id == wallet_id,
+            WalletCard.card_id == card_id,
+        )
+    )
+    wc_row = wc.scalar_one_or_none()
+    if not wc_row:
+        raise HTTPException(status_code=404, detail="Wallet card not found")
+    result = await db.execute(
+        select(WalletCardRotationOverride)
+        .options(selectinload(WalletCardRotationOverride.spend_category))
+        .where(WalletCardRotationOverride.wallet_card_id == wc_row.id)
+        .order_by(
+            WalletCardRotationOverride.year.desc(),
+            WalletCardRotationOverride.quarter.desc(),
+        )
+    )
+    return result.scalars().all()
+
+
+@app.post(
+    "/wallets/{wallet_id}/cards/{card_id}/rotation-overrides",
+    response_model=WalletRotationOverrideRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_wallet_card_rotation_override(
+    wallet_id: int,
+    card_id: int,
+    payload: WalletRotationOverridePayload,
+    db: AsyncSession = Depends(get_db),
+):
+    wc = await db.execute(
+        select(WalletCard).where(
+            WalletCard.wallet_id == wallet_id,
+            WalletCard.card_id == card_id,
+        )
+    )
+    wc_row = wc.scalar_one_or_none()
+    if not wc_row:
+        raise HTTPException(status_code=404, detail="Wallet card not found")
+    sc = await db.execute(
+        select(SpendCategory).where(SpendCategory.id == payload.spend_category_id)
+    )
+    if not sc.scalar_one_or_none():
+        raise HTTPException(
+            status_code=404,
+            detail=f"SpendCategory id={payload.spend_category_id} not found",
+        )
+    existing = await db.execute(
+        select(WalletCardRotationOverride).where(
+            WalletCardRotationOverride.wallet_card_id == wc_row.id,
+            WalletCardRotationOverride.year == payload.year,
+            WalletCardRotationOverride.quarter == payload.quarter,
+            WalletCardRotationOverride.spend_category_id == payload.spend_category_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=409,
+            detail=f"Rotation override already exists for {payload.year}Q{payload.quarter}",
+        )
+    row = WalletCardRotationOverride(
+        wallet_card_id=wc_row.id,
+        year=payload.year,
+        quarter=payload.quarter,
+        spend_category_id=payload.spend_category_id,
+    )
+    db.add(row)
+    await db.commit()
+    result = await db.execute(
+        select(WalletCardRotationOverride)
+        .options(selectinload(WalletCardRotationOverride.spend_category))
+        .where(WalletCardRotationOverride.id == row.id)
+    )
+    return result.scalar_one()
+
+
+@app.delete(
+    "/wallets/{wallet_id}/cards/{card_id}/rotation-overrides/{override_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_wallet_card_rotation_override(
+    wallet_id: int,
+    card_id: int,
+    override_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    wc = await db.execute(
+        select(WalletCard).where(
+            WalletCard.wallet_id == wallet_id,
+            WalletCard.card_id == card_id,
+        )
+    )
+    wc_row = wc.scalar_one_or_none()
+    if not wc_row:
+        raise HTTPException(status_code=404, detail="Wallet card not found")
+    result = await db.execute(
+        select(WalletCardRotationOverride).where(
+            WalletCardRotationOverride.id == override_id,
+            WalletCardRotationOverride.wallet_card_id == wc_row.id,
+        )
+    )
+    row = result.scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Rotation override not found")
+    await db.delete(row)
+    await db.commit()
+
+
+# ---- Wallet portal shares (per-issuer travel-portal share for the wallet) ----
+
+
+@app.get(
+    "/wallets/{wallet_id}/portal-shares",
+    response_model=list[WalletPortalShareRead],
+)
+async def list_wallet_portal_shares(
+    wallet_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    wallet_row = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
+    if not wallet_row.scalar_one_or_none():
+        raise _wallet_404(wallet_id)
+    result = await db.execute(
+        select(WalletPortalShare)
+        .options(selectinload(WalletPortalShare.issuer))
+        .where(WalletPortalShare.wallet_id == wallet_id)
+        .order_by(WalletPortalShare.issuer_id)
+    )
+    return result.scalars().all()
+
+
+@app.put(
+    "/wallets/{wallet_id}/portal-shares",
+    response_model=WalletPortalShareRead,
+)
+async def upsert_wallet_portal_share(
+    wallet_id: int,
+    payload: WalletPortalSharePayload,
+    db: AsyncSession = Depends(get_db),
+):
+    wallet_row = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
+    if not wallet_row.scalar_one_or_none():
+        raise _wallet_404(wallet_id)
+    iss_row = await db.execute(select(Issuer).where(Issuer.id == payload.issuer_id))
+    if not iss_row.scalar_one_or_none():
+        raise HTTPException(
+            status_code=404, detail=f"Issuer id={payload.issuer_id} not found"
+        )
+    existing = await db.execute(
+        select(WalletPortalShare).where(
+            WalletPortalShare.wallet_id == wallet_id,
+            WalletPortalShare.issuer_id == payload.issuer_id,
+        )
+    )
+    row = existing.scalar_one_or_none()
+    if row is None:
+        row = WalletPortalShare(
+            wallet_id=wallet_id,
+            issuer_id=payload.issuer_id,
+            share=payload.share,
+        )
+        db.add(row)
+    else:
+        row.share = payload.share
+    await db.commit()
+    result = await db.execute(
+        select(WalletPortalShare)
+        .options(selectinload(WalletPortalShare.issuer))
+        .where(WalletPortalShare.id == row.id)
+    )
+    return result.scalar_one()
+
+
+@app.delete(
+    "/wallets/{wallet_id}/portal-shares/{issuer_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_wallet_portal_share(
+    wallet_id: int,
+    issuer_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(WalletPortalShare).where(
+            WalletPortalShare.wallet_id == wallet_id,
+            WalletPortalShare.issuer_id == issuer_id,
+        )
+    )
+    row = result.scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Portal share not found")
+    await db.delete(row)
+    await db.commit()
+
+
 # ---------------------------------------------------------------------------
 # Admin: Reference data CRUD
 # ---------------------------------------------------------------------------
@@ -2380,6 +3037,8 @@ async def admin_create_currency(
         cash_transfer_rate=payload.cash_transfer_rate,
         converts_to_currency_id=payload.converts_to_currency_id,
         converts_at_rate=payload.converts_at_rate,
+        no_transfer_cpp=payload.no_transfer_cpp,
+        no_transfer_rate=payload.no_transfer_rate,
     )
     db.add(currency)
     await db.commit()
@@ -2449,6 +3108,7 @@ async def admin_create_card(
         sub_months=payload.sub_months,
         sub_spend_earn=payload.sub_spend_earn,
         annual_bonus=payload.annual_bonus,
+        transfer_enabler=payload.transfer_enabler,
         sub_recurrence_months=payload.sub_recurrence_months,
         sub_family=payload.sub_family,
     )
@@ -2525,8 +3185,9 @@ async def admin_add_card_multiplier(
         category_id=payload.category_id,
         multiplier=payload.multiplier,
         is_portal=payload.is_portal,
+        is_additive=payload.is_additive,
         cap_per_billing_cycle=payload.cap_per_billing_cycle,
-        cap_period=payload.cap_period,
+        cap_period_months=payload.cap_period_months,
         multiplier_group_id=payload.multiplier_group_id,
     )
     db.add(mult)
@@ -2578,7 +3239,10 @@ async def admin_list_card_multiplier_groups(
         .options(
             selectinload(CardMultiplierGroup.categories).selectinload(
                 CardCategoryMultiplier.spend_category
-            )
+            ),
+            selectinload(CardMultiplierGroup.card)
+            .selectinload(Card.rotating_history)
+            .selectinload(CardRotatingHistory.spend_category),
         )
         .where(CardMultiplierGroup.card_id == card_id)
     )
@@ -2604,8 +3268,10 @@ async def admin_create_card_multiplier_group(
         card_id=card_id,
         multiplier=payload.multiplier,
         cap_per_billing_cycle=payload.cap_per_billing_cycle,
-        cap_period=payload.cap_period,
+        cap_period_months=payload.cap_period_months,
         top_n_categories=payload.top_n_categories,
+        is_rotating=payload.is_rotating,
+        is_additive=payload.is_additive,
     )
     db.add(grp)
     await db.flush()
@@ -2647,7 +3313,10 @@ async def admin_create_card_multiplier_group(
         .options(
             selectinload(CardMultiplierGroup.categories).selectinload(
                 CardCategoryMultiplier.spend_category
-            )
+            ),
+            selectinload(CardMultiplierGroup.card)
+            .selectinload(Card.rotating_history)
+            .selectinload(CardRotatingHistory.spend_category),
         )
         .where(CardMultiplierGroup.id == grp.id)
     )
@@ -2682,10 +3351,14 @@ async def admin_update_card_multiplier_group(
         grp.multiplier = payload.multiplier
     if payload.cap_per_billing_cycle is not None:
         grp.cap_per_billing_cycle = payload.cap_per_billing_cycle
-    if payload.cap_period is not None:
-        grp.cap_period = payload.cap_period
+    if payload.cap_period_months is not None:
+        grp.cap_period_months = payload.cap_period_months
     if payload.top_n_categories is not None:
         grp.top_n_categories = payload.top_n_categories
+    if payload.is_rotating is not None:
+        grp.is_rotating = payload.is_rotating
+    if payload.is_additive is not None:
+        grp.is_additive = payload.is_additive
 
     # If category_ids provided, replace the group's category memberships
     if payload.category_ids is not None:
@@ -2744,7 +3417,10 @@ async def admin_update_card_multiplier_group(
         .options(
             selectinload(CardMultiplierGroup.categories).selectinload(
                 CardCategoryMultiplier.spend_category
-            )
+            ),
+            selectinload(CardMultiplierGroup.card)
+            .selectinload(Card.rotating_history)
+            .selectinload(CardRotatingHistory.spend_category),
         )
         .where(CardMultiplierGroup.id == group_id)
     )
@@ -2774,6 +3450,107 @@ async def admin_delete_card_multiplier_group(
             detail=f"MultiplierGroup id={group_id} not found for card {card_id}",
         )
     await db.delete(grp)
+    await db.commit()
+
+
+# ---- Rotating-category history (reference data, drives p_C inference) ----
+
+
+@app.get(
+    "/admin/cards/{card_id}/rotating-history",
+    response_model=list[CardRotatingHistoryRead],
+    tags=["admin"],
+)
+async def admin_list_card_rotating_history(
+    card_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    card_result = await db.execute(select(Card).where(Card.id == card_id))
+    if not card_result.scalar_one_or_none():
+        raise _card_404(card_id)
+    result = await db.execute(
+        select(CardRotatingHistory)
+        .options(selectinload(CardRotatingHistory.spend_category))
+        .where(CardRotatingHistory.card_id == card_id)
+        .order_by(CardRotatingHistory.year.desc(), CardRotatingHistory.quarter.desc())
+    )
+    return result.scalars().all()
+
+
+@app.post(
+    "/admin/cards/{card_id}/rotating-history",
+    response_model=CardRotatingHistoryRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["admin"],
+)
+async def admin_add_card_rotating_history(
+    card_id: int,
+    payload: AdminAddRotatingHistoryPayload,
+    db: AsyncSession = Depends(get_db),
+):
+    card_result = await db.execute(select(Card).where(Card.id == card_id))
+    if not card_result.scalar_one_or_none():
+        raise _card_404(card_id)
+    sc_result = await db.execute(
+        select(SpendCategory).where(SpendCategory.id == payload.spend_category_id)
+    )
+    if not sc_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=404,
+            detail=f"SpendCategory id={payload.spend_category_id} not found",
+        )
+    existing = await db.execute(
+        select(CardRotatingHistory).where(
+            CardRotatingHistory.card_id == card_id,
+            CardRotatingHistory.year == payload.year,
+            CardRotatingHistory.quarter == payload.quarter,
+            CardRotatingHistory.spend_category_id == payload.spend_category_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=409,
+            detail=f"Rotating history already exists for card {card_id} {payload.year}Q{payload.quarter} cat={payload.spend_category_id}",
+        )
+    row = CardRotatingHistory(
+        card_id=card_id,
+        year=payload.year,
+        quarter=payload.quarter,
+        spend_category_id=payload.spend_category_id,
+    )
+    db.add(row)
+    await db.commit()
+    result = await db.execute(
+        select(CardRotatingHistory)
+        .options(selectinload(CardRotatingHistory.spend_category))
+        .where(CardRotatingHistory.id == row.id)
+    )
+    return result.scalar_one()
+
+
+@app.delete(
+    "/admin/cards/{card_id}/rotating-history/{history_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["admin"],
+)
+async def admin_delete_card_rotating_history(
+    card_id: int,
+    history_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(CardRotatingHistory).where(
+            CardRotatingHistory.id == history_id,
+            CardRotatingHistory.card_id == card_id,
+        )
+    )
+    row = result.scalar_one_or_none()
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Rotating history id={history_id} not found for card {card_id}",
+        )
+    await db.delete(row)
     await db.commit()
 
 

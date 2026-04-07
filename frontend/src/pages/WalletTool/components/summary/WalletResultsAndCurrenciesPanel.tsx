@@ -87,6 +87,10 @@ export function WalletResultsAndCurrenciesPanel({
   const selectedCards = result?.card_results.filter((c) => c.selected) ?? []
   const totalAnnualFees = selectedCards.reduce((s, c) => s + c.annual_fee, 0)
   const totalEffectiveAF = selectedCards.reduce((s, c) => s + c.effective_annual_fee, 0)
+  const totalWalletPoints = selectedCards.reduce((s, c) => {
+    const subPts = includeSubs ? 0 : c.sub + c.sub_spend_earn
+    return s + (c.total_points - subPts)
+  }, 0)
 
   const cardsByCurrency = useMemo(() => {
     if (!result) return {} as Record<string, CardResult[]>
@@ -116,7 +120,7 @@ export function WalletResultsAndCurrenciesPanel({
             <button
               type="button"
               onClick={() => setIncludeSubs((v) => !v)}
-              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${includeSubs ? 'text-emerald-300 bg-emerald-900/60 border border-emerald-700/50' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-700 border border-transparent'}`}
+              className={`px-1.5 py-0.5 rounded text-xs transition-colors ${includeSubs ? 'text-emerald-300 bg-emerald-900/50 border border-emerald-700/50' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-700 border border-transparent'}`}
               title={includeSubs ? 'SUBs included in totals' : 'SUBs excluded from totals'}
               aria-label="Toggle SUB inclusion"
             >
@@ -204,10 +208,14 @@ export function WalletResultsAndCurrenciesPanel({
                 </div>
               )}
               {result ? (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="bg-indigo-900/40 border border-indigo-700 rounded-xl p-3 text-center">
                     <p className="text-[10px] text-indigo-300 uppercase tracking-wider">Effective Annual Fee</p>
                     <p className="text-xl font-bold text-indigo-100 mt-0.5">{formatMoney(totalEffectiveAF)}</p>
+                  </div>
+                  <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Points</p>
+                    <p className="text-xl font-bold text-white mt-0.5">{formatPoints(Math.round(totalWalletPoints))}</p>
                   </div>
                   <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
                     <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Annual Fees</p>

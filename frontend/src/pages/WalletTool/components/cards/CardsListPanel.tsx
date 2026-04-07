@@ -103,6 +103,11 @@ function CardItem({
             <p className={`text-sm font-medium ${isClosed ? 'text-slate-400 line-through' : 'text-white'}`}>
               {wc.card_name ?? `Card #${wc.card_id}`}
             </p>
+            {wc.transfer_enabler && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-sky-900/50 text-sky-300 border border-sky-700/50" title="Enables partner transfers for this currency ecosystem">
+                Transfer
+              </span>
+            )}
             {isInWallet && <SubBadge wc={wc} />}
             {wc.acquisition_type === 'product_change' && (
               <span className="text-[10px] font-medium bg-violet-900/60 text-violet-300 border border-violet-700/50 rounded px-1.5 py-0.5">

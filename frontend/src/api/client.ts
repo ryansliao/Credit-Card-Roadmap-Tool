@@ -22,7 +22,8 @@ export interface CardMultiplier {
   category: string
   multiplier: number
   cap_per_billing_cycle?: number | null
-  cap_period?: 'monthly' | 'quarterly' | 'annually' | null
+  /** Length of one cap period in calendar months: 1=monthly, 3=quarterly, 6=semi-annual, 12=annual. */
+  cap_period_months?: number | null
   is_portal?: boolean
 }
 
@@ -31,15 +32,53 @@ export interface GroupCategoryItem {
   name: string
 }
 
+export interface RotationCategoryWeight {
+  spend_category_id: number
+  name: string
+  /** Activation probability in [0, 1] — fraction of historical quarters this category was active. */
+  weight: number
+}
+
 export interface CardMultiplierGroup {
   id: number
   multiplier: number
   cap_per_billing_cycle: number | null
-  cap_period?: 'monthly' | 'quarterly' | 'annually' | null
+  /** Length of one cap period in calendar months: 1=monthly, 3=quarterly, 6=semi-annual, 12=annual. */
+  cap_period_months?: number | null
   top_category_only?: boolean
   /** When set, only the top N spending categories in this group get the rate (1=top 1, 2=top 2, etc.). Null = all get the rate. */
   top_n_categories?: number | null
+  /** When true, the cap is allocated per-category by `rotation_weights` (Discover IT, Chase Freedom Flex). */
+  is_rotating?: boolean
   categories: GroupCategoryItem[]
+  /** Inferred per-category activation probabilities (only populated when is_rotating). */
+  rotation_weights?: RotationCategoryWeight[]
+}
+
+export interface CardRotatingHistoryRow {
+  id: number
+  card_id: number
+  year: number
+  quarter: number
+  spend_category_id: number
+  category_name: string
+}
+
+export interface WalletCardRotationOverride {
+  id: number
+  wallet_card_id: number
+  year: number
+  quarter: number
+  spend_category_id: number
+  category_name: string
+}
+
+export interface WalletPortalShare {
+  id: number
+  wallet_id: number
+  issuer_id: number
+  share: number
+  issuer_name: string
 }
 
 export interface CardCredit {
@@ -70,6 +109,8 @@ export interface CurrencyRead {
   cash_transfer_rate: number | null
   converts_to_currency_id?: number | null
   converts_at_rate?: number | null
+  no_transfer_cpp: number | null
+  no_transfer_rate: number | null
   /** When listing with user_id, effective CPP for that user (override or base). */
   user_cents_per_point?: number | null
 }
@@ -99,6 +140,7 @@ export interface Card {
   sub_months: number | null
   sub_spend_earn: number | null
   annual_bonus: number | null
+  transfer_enabler: boolean
   sub_recurrence_months: number | null
   sub_family: string | null
   multipliers: CardMultiplier[]
@@ -198,6 +240,7 @@ export interface WalletCard {
   /** Auto-calculated projected SUB earn date based on wallet spend profile */
   sub_projected_earn_date: string | null
   closed_date: string | null
+  transfer_enabler: boolean
   acquisition_type: WalletCardAcquisitionType
   panel: 'on_deck' | 'in_wallet'
 }
@@ -635,6 +678,39 @@ export const walletCardGroupSelectionApi = {
     }),
 }
 
+export const walletPortalShareApi = {
+  list: (walletId: number) =>
+    request<WalletPortalShare[]>(`/wallets/${walletId}/portal-shares`),
+  upsert: (walletId: number, payload: { issuer_id: number; share: number }) =>
+    request<WalletPortalShare>(`/wallets/${walletId}/portal-shares`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  delete: (walletId: number, issuerId: number) =>
+    request<void>(`/wallets/${walletId}/portal-shares/${issuerId}`, { method: 'DELETE' }),
+}
+
+export const walletCardRotationOverrideApi = {
+  list: (walletId: number, cardId: number) =>
+    request<WalletCardRotationOverride[]>(
+      `/wallets/${walletId}/cards/${cardId}/rotation-overrides`,
+    ),
+  add: (
+    walletId: number,
+    cardId: number,
+    payload: { year: number; quarter: number; spend_category_id: number },
+  ) =>
+    request<WalletCardRotationOverride>(
+      `/wallets/${walletId}/cards/${cardId}/rotation-overrides`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
+  delete: (walletId: number, cardId: number, overrideId: number) =>
+    request<void>(
+      `/wallets/${walletId}/cards/${cardId}/rotation-overrides/${overrideId}`,
+      { method: 'DELETE' },
+    ),
+}
+
 // ─── Admin: Reference data CRUD ──────────────────────────────────────────────
 
 export const adminApi = {
@@ -651,6 +727,8 @@ export const adminApi = {
     cash_transfer_rate?: number | null
     converts_to_currency_id?: number | null
     converts_at_rate?: number | null
+    no_transfer_cpp?: number | null
+    no_transfer_rate?: number | null
   }) =>
     request<CurrencyRead>('/admin/currencies', {
       method: 'POST',
@@ -675,6 +753,7 @@ export const adminApi = {
     sub_months?: number | null
     sub_spend_earn?: number | null
     annual_bonus?: number | null
+    transfer_enabler?: boolean
     sub_recurrence_months?: number | null
     sub_family?: string | null
   }) =>
@@ -689,7 +768,7 @@ export const adminApi = {
     multiplier: number
     is_portal?: boolean
     cap_per_billing_cycle?: number | null
-    cap_period?: 'monthly' | 'quarterly' | 'annually' | null
+    cap_period_months?: number | null
     multiplier_group_id?: number | null
   }) =>
     request<Card>(`/admin/cards/${cardId}/multipliers`, {
@@ -709,4 +788,17 @@ export const adminApi = {
     }),
   deleteCardCredit: (cardId: number, creditId: number) =>
     request<void>(`/admin/cards/${cardId}/credits/${creditId}`, { method: 'DELETE' }),
+  listCardRotatingHistory: (cardId: number) =>
+    request<CardRotatingHistoryRow[]>(`/admin/cards/${cardId}/rotating-history`),
+  addCardRotatingHistory: (cardId: number, payload: {
+    year: number
+    quarter: number
+    spend_category_id: number
+  }) =>
+    request<CardRotatingHistoryRow>(`/admin/cards/${cardId}/rotating-history`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  deleteCardRotatingHistory: (cardId: number, historyId: number) =>
+    request<void>(`/admin/cards/${cardId}/rotating-history/${historyId}`, { method: 'DELETE' }),
 }

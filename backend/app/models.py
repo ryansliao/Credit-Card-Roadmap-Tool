@@ -124,6 +124,15 @@ class Currency(Base):
     )
     # When converting to target: 1 unit of this currency = converts_at_rate units of target (e.g. 0.7 for 1:0.7)
     converts_at_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # CPP to use when no transfer enabler card is present in the wallet for this currency;
+    # null = no reduction (currency is always valued at cents_per_point).
+    # Used for ecosystems where transfers are completely blocked (e.g. Chase UR without Sapphire).
+    no_transfer_cpp: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Multiplier applied to the wallet's CPP when no transfer enabler is present;
+    # null = no rate-based reduction. Used for ecosystems where transfers are available
+    # but at a reduced rate (e.g. Citi TY 0.7 without Strata Premier).
+    # Takes precedence over no_transfer_cpp when set.
+    no_transfer_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     cards: Mapped[list["Card"]] = relationship(
         back_populates="currency_obj",
@@ -184,6 +193,10 @@ class Card(Base):
     # Recurring annual bonus (e.g. Chase Ink Preferred 10k points/year; can be points or cash)
     annual_bonus: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
 
+    # True if this card enables partner transfers for its currency ecosystem
+    # (e.g. Sapphire Reserve for Chase UR, Strata Premier for Citi TY)
+    transfer_enabler: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # Roadmap: how many months before the SUB can be earned again (e.g. 48 for Sapphire family)
     sub_recurrence_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # Roadmap: SUB eligibility family (cards in same family share a cooldown, e.g. "sapphire")
@@ -208,6 +221,9 @@ class Card(Base):
     multiplier_groups: Mapped[list["CardMultiplierGroup"]] = relationship(
         back_populates="card", cascade="all, delete-orphan"
     )
+    rotating_history: Mapped[list["CardRotatingHistory"]] = relationship(
+        back_populates="card", cascade="all, delete-orphan"
+    )
     credits: Mapped[list["CardCredit"]] = relationship(
         back_populates="card", cascade="all, delete-orphan"
     )
@@ -222,16 +238,20 @@ class Card(Base):
         return f"<Card id={self.id} name={self.name!r}>"
 
 
-# Cap period for spend caps: monthly, quarterly, or annually
-CAP_PERIOD_MONTHLY = "monthly"
-CAP_PERIOD_QUARTERLY = "quarterly"
-CAP_PERIOD_ANNUALLY = "annually"
-
-
 class CardMultiplierGroup(Base):
     """
     A group of categories that share one multiplier, optional cap, and optional
     'top N' behavior (e.g. 5% on top 2 eligible categories by spend, up to $500/month).
+
+    cap_period_months: length of one cap period in calendar months. Common values:
+    1 = monthly, 3 = quarterly, 6 = semi-annual, 12 = annual. NULL = no cap.
+
+    is_rotating: when True, the group's category list is the *universe* of
+    historically-rotated bonus categories, and per-category activation
+    probabilities are inferred from `card_rotating_history` rows on the
+    parent card. The calculator treats each category's per-period cap as
+    `cap_per_billing_cycle × p_C` instead of pooling the full cap across
+    every category in the group.
     """
 
     __tablename__ = "card_multiplier_groups"
@@ -240,9 +260,11 @@ class CardMultiplierGroup(Base):
     card_id: Mapped[int] = mapped_column(ForeignKey("cards.id", ondelete="CASCADE"))
     multiplier: Mapped[float] = mapped_column(Float, default=1.0)
     cap_per_billing_cycle: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    cap_period: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # monthly, quarterly, annually
+    cap_period_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     top_category_only: Mapped[bool] = mapped_column(Boolean, default=False)  # legacy; prefer top_n_categories
     top_n_categories: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 1=top 1, 2=top 2, etc.; None=all
+    is_rotating: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_additive: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     card: Mapped["Card"] = relationship(back_populates="multiplier_groups")
     categories: Mapped[list["CardCategoryMultiplier"]] = relationship(
@@ -256,10 +278,17 @@ class CardCategoryMultiplier(Base):
     Either standalone (multiplier_group_id NULL) or part of a CardMultiplierGroup.
     When in a group, the group's multiplier, cap_per_billing_cycle, and top_n_categories apply.
     is_portal: when True, the multiplier only applies when booking through the card's travel portal.
+    is_additive: when True, the multiplier value is a *premium* that stacks onto
+    the card's base + other applicable premiums (rather than replacing them).
+    Used by cards like Chase Freedom Flex that earn 1x base + 2x dining premium
+    + 4x rotating premium on overlapping categories (= 7x on dining-during-Q2).
+
+    Uniqueness is enforced by two partial indexes (see migration 024):
+        - at most one standalone row per (card, category)
+        - at most one row per (card, category, multiplier_group)
     """
 
     __tablename__ = "card_category_multipliers"
-    __table_args__ = (UniqueConstraint("card_id", "category_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     card_id: Mapped[int] = mapped_column(ForeignKey("cards.id", ondelete="CASCADE"))
@@ -267,9 +296,10 @@ class CardCategoryMultiplier(Base):
         ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=False
     )
     is_portal: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_additive: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     multiplier: Mapped[float] = mapped_column(Float, default=1.0)
     cap_per_billing_cycle: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    cap_period: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # monthly, quarterly, annually
+    cap_period_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     multiplier_group_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("card_multiplier_groups.id", ondelete="CASCADE"), nullable=True
     )
@@ -284,6 +314,45 @@ class CardCategoryMultiplier(Base):
     def category(self) -> str:
         """Convenience accessor: returns the spend category name via the relationship."""
         return self.spend_category.category if self.spend_category else ""
+
+
+class CardRotatingHistory(Base):
+    """
+    One historical (year, quarter) bonus-category activation for a rotating card.
+
+    Multiple rows per (card, year, quarter) are allowed when the issuer ran more
+    than one bonus category in the same quarter (e.g. Chase Freedom Flex's
+    "Gas + Select Streaming" quarters). The calculator collapses these rows
+    into per-category activation probabilities `p_C = active_quarters / total_quarters`.
+    """
+
+    __tablename__ = "card_rotating_history"
+    __table_args__ = (
+        UniqueConstraint("card_id", "year", "quarter", "spend_category_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    card_id: Mapped[int] = mapped_column(
+        ForeignKey("cards.id", ondelete="CASCADE"), nullable=False
+    )
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    quarter: Mapped[int] = mapped_column(Integer, nullable=False)
+    spend_category_id: Mapped[int] = mapped_column(
+        ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    card: Mapped["Card"] = relationship(back_populates="rotating_history")
+    spend_category: Mapped["SpendCategory"] = relationship()
+
+    @property
+    def category_name(self) -> str:
+        return self.spend_category.category if self.spend_category else ""
+
+    def __repr__(self) -> str:
+        return (
+            f"<CardRotatingHistory card={self.card_id} {self.year}Q{self.quarter} "
+            f"cat={self.spend_category_id}>"
+        )
 
 
 class CardCredit(Base):
@@ -444,6 +513,9 @@ class WalletCard(Base):
     group_selections: Mapped[list["WalletCardGroupSelection"]] = relationship(
         back_populates="wallet_card", cascade="all, delete-orphan"
     )
+    rotation_overrides: Mapped[list["WalletCardRotationOverride"]] = relationship(
+        back_populates="wallet_card", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<WalletCard wallet={self.wallet_id} card={self.card_id} added={self.added_date}>"
@@ -580,6 +652,88 @@ class WalletCardGroupSelection(Base):
 
     def __repr__(self) -> str:
         return f"<WalletCardGroupSelection wc={self.wallet_card_id} grp={self.multiplier_group_id} cat={self.spend_category_id}>"
+
+
+class WalletPortalShare(Base):
+    """
+    Per-wallet per-issuer travel-portal share. Determines what fraction of
+    the wallet's spend in portal-eligible categories (e.g., Travel, Hotels)
+    is treated as "booked through this issuer's portal" — and thus eligible
+    for portal-only multipliers like Chase Freedom Flex's 5x on Chase Travel
+    or Chase Sapphire Reserve's 8x on Chase Travel hotels.
+
+    A wallet has at most one row per issuer. share is in [0, 1]. The default
+    behavior when no row exists is share=0, which means portal-only
+    multipliers contribute nothing until the user explicitly opts in.
+
+    Multiple cards from the same issuer (e.g., CSP + CFF, both Chase) share
+    the same portal_share — it's a property of the user's booking habits,
+    not the individual card.
+    """
+
+    __tablename__ = "wallet_portal_shares"
+    __table_args__ = (UniqueConstraint("wallet_id", "issuer_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    wallet_id: Mapped[int] = mapped_column(
+        ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False
+    )
+    issuer_id: Mapped[int] = mapped_column(
+        ForeignKey("issuers.id", ondelete="CASCADE"), nullable=False
+    )
+    share: Mapped[float] = mapped_column(Float, nullable=False)
+
+    wallet: Mapped["Wallet"] = relationship()
+    issuer: Mapped["Issuer"] = relationship()
+
+    def __repr__(self) -> str:
+        return f"<WalletPortalShare w={self.wallet_id} issuer={self.issuer_id} share={self.share}>"
+
+
+class WalletCardRotationOverride(Base):
+    """
+    Per-wallet-card pinned rotating-bonus category for a specific (year, quarter).
+
+    Overrides the inferred per-category activation probabilities for that
+    quarter only. When at least one row exists for a (wallet_card, year, quarter)
+    triple, the calculator treats every pinned category as p_C = 1.0 in that
+    quarter and every other category in the rotating group as p_C = 0.0.
+    Quarters with no override rows continue to use the historical-frequency
+    inference path.
+
+    Multiple rows per (wallet_card, year, quarter) are allowed for cards
+    where multiple categories are typically active in the same quarter
+    (e.g. Chase Freedom Flex's "Gas + Select Streaming" quarters, or
+    Discover Calendar Choice when the user picks more than one).
+    """
+
+    __tablename__ = "wallet_card_rotation_overrides"
+    __table_args__ = (
+        UniqueConstraint("wallet_card_id", "year", "quarter", "spend_category_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    wallet_card_id: Mapped[int] = mapped_column(
+        ForeignKey("wallet_cards.id", ondelete="CASCADE"), nullable=False
+    )
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    quarter: Mapped[int] = mapped_column(Integer, nullable=False)
+    spend_category_id: Mapped[int] = mapped_column(
+        ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    wallet_card: Mapped["WalletCard"] = relationship(back_populates="rotation_overrides")
+    spend_category: Mapped["SpendCategory"] = relationship()
+
+    @property
+    def category_name(self) -> str:
+        return self.spend_category.category if self.spend_category else ""
+
+    def __repr__(self) -> str:
+        return (
+            f"<WalletCardRotationOverride wc={self.wallet_card_id} "
+            f"{self.year}Q{self.quarter} cat={self.spend_category_id}>"
+        )
 
 
 class WalletCurrencyCpp(Base):

@@ -53,6 +53,8 @@ class CurrencyRead(BaseModel):
     cash_transfer_rate: Optional[float] = None
     converts_to_currency_id: Optional[int] = None
     converts_at_rate: Optional[float] = None
+    no_transfer_cpp: Optional[float] = None
+    no_transfer_rate: Optional[float] = None
     # When listing with ?user_id=, effective CPP for that user (override or base)
     user_cents_per_point: Optional[float] = None
 
@@ -86,6 +88,7 @@ class UpdateCardLibraryPayload(BaseModel):
     sub_months: Optional[int] = Field(default=None, ge=0)
     annual_fee: Optional[float] = Field(default=None, ge=0)
     first_year_fee: Optional[float] = Field(default=None, ge=0)
+    transfer_enabler: Optional[bool] = None
 
 
 class UpdateCardCreditPayload(BaseModel):
@@ -112,8 +115,9 @@ class CardMultiplierSchema(BaseModel):
     category: str
     multiplier: float
     cap_per_billing_cycle: Optional[float] = None
-    cap_period: Optional[str] = None  # monthly, quarterly, annually
+    cap_period_months: Optional[int] = None  # 1=monthly, 3=quarterly, 6=semi-annual, 12=annual
     is_portal: bool = False
+    is_additive: bool = False
 
 
 class GroupCategoryItem(BaseModel):
@@ -126,10 +130,65 @@ class CardMultiplierGroupSchema(BaseModel):
 
     multiplier: float
     cap_per_billing_cycle: Optional[float] = None
-    cap_period: Optional[str] = None  # monthly, quarterly, annually
+    cap_period_months: Optional[int] = None  # 1=monthly, 3=quarterly, 6=semi-annual, 12=annual
     top_category_only: bool = False  # legacy; use top_n_categories=1 instead
     top_n_categories: Optional[int] = None  # 1=top 1, 2=top 2, etc.; None=all get the rate
+    is_rotating: bool = False
+    is_additive: bool = False
     categories: list[GroupCategoryItem] = []
+
+
+class RotationCategoryWeight(BaseModel):
+    """Per-category activation probability inferred from card_rotating_history."""
+
+    spend_category_id: int
+    name: str
+    weight: float  # 0..1; fraction of historical quarters this category was active
+
+
+def _build_rotation_weights(group: Any) -> list[dict[str, Any]]:
+    """
+    Compute per-category activation probabilities for a rotating CardMultiplierGroup
+    ORM object from its parent card's loaded `rotating_history` rows.
+
+    Returns [] when the group is not rotating or when the parent card's history
+    is empty / unloaded. Categories present in the group but missing from history
+    receive weight=0.
+    """
+    if not getattr(group, "is_rotating", False):
+        return []
+    card = getattr(group, "card", None)
+    history = getattr(card, "rotating_history", None) if card is not None else None
+    if not history:
+        # Still emit zero-weight rows so the UI can show the universe.
+        return [
+            {
+                "spend_category_id": c.category_id,
+                "name": c.category,
+                "weight": 0.0,
+            }
+            for c in getattr(group, "categories", [])
+        ]
+    # Distinct (year, quarter) pairs across the entire card's history.
+    quarters = {(h.year, h.quarter) for h in history}
+    total_q = len(quarters) or 1
+    # Per-category active quarter counts, scoped to this group's category set.
+    group_cat_ids = {c.category_id for c in getattr(group, "categories", [])}
+    counts: dict[int, int] = {}
+    for h in history:
+        if h.spend_category_id in group_cat_ids:
+            counts[h.spend_category_id] = counts.get(h.spend_category_id, 0) + 1
+    out: list[dict[str, Any]] = []
+    for c in getattr(group, "categories", []):
+        out.append(
+            {
+                "spend_category_id": c.category_id,
+                "name": c.category,
+                "weight": counts.get(c.category_id, 0) / total_q,
+            }
+        )
+    out.sort(key=lambda r: r["weight"], reverse=True)
+    return out
 
 
 class CardMultiplierGroupRead(BaseModel):
@@ -137,10 +196,15 @@ class CardMultiplierGroupRead(BaseModel):
     id: int
     multiplier: float
     cap_per_billing_cycle: Optional[float] = None
-    cap_period: Optional[str] = None
+    cap_period_months: Optional[int] = None
     top_category_only: bool = False  # legacy
     top_n_categories: Optional[int] = None  # 1=top 1, 2=top 2; None=all
+    is_rotating: bool = False
+    is_additive: bool = False
     categories: list[GroupCategoryItem] = []
+    # Populated only for rotating groups; surfaces the inferred per-category
+    # activation probabilities so the frontend can display them.
+    rotation_weights: list[RotationCategoryWeight] = []
 
     @model_validator(mode="wrap")
     @classmethod
@@ -161,7 +225,10 @@ class CardMultiplierGroupRead(BaseModel):
                     "cap_per_billing_cycle": getattr(
                         data, "cap_per_billing_cycle", None
                     ),
-                    "cap_period": getattr(data, "cap_period", None),
+                    "cap_period_months": getattr(data, "cap_period_months", None),
+                    "is_rotating": bool(getattr(data, "is_rotating", False)),
+                    "is_additive": bool(getattr(data, "is_additive", False)),
+                    "rotation_weights": _build_rotation_weights(data),
                     "top_category_only": top_n == 1 if top_n is not None else False,
                     "top_n_categories": top_n,
                     "categories": cats,
@@ -187,6 +254,7 @@ class CardRead(BaseModel):
     sub_months: Optional[int] = None
     sub_spend_earn: Optional[int] = None
     annual_bonus: Optional[int] = None
+    transfer_enabler: bool = False
     sub_recurrence_months: Optional[int] = None
     sub_family: Optional[str] = None
 
@@ -212,7 +280,8 @@ class CardRead(BaseModel):
                     "category": m.category,
                     "multiplier": m.multiplier,
                     "cap_per_billing_cycle": getattr(m, "cap_per_billing_cycle", None),
-                    "cap_period": getattr(m, "cap_period", None),
+                    "cap_period_months": getattr(m, "cap_period_months", None),
+                    "is_additive": bool(getattr(m, "is_additive", False)),
                     "is_portal": getattr(m, "is_portal", False),
                 }
                 for m in data.multipliers
@@ -229,7 +298,8 @@ class CardRead(BaseModel):
                         "category": ALL_OTHER,
                         "multiplier": 1.0,
                         "cap_per_billing_cycle": None,
-                        "cap_period": None,
+                        "cap_period_months": None,
+                        "is_additive": False,
                         "is_portal": False,
                     },
                 )
@@ -455,6 +525,8 @@ class AdminCreateCurrencyPayload(BaseModel):
     cash_transfer_rate: Optional[float] = Field(default=None, gt=0)
     converts_to_currency_id: Optional[int] = None
     converts_at_rate: Optional[float] = Field(default=None, gt=0)
+    no_transfer_cpp: Optional[float] = Field(default=None, gt=0)
+    no_transfer_rate: Optional[float] = Field(default=None, gt=0, le=1)
 
 
 class AdminCreateCardPayload(BaseModel):
@@ -466,6 +538,7 @@ class AdminCreateCardPayload(BaseModel):
     first_year_fee: Optional[float] = Field(default=None, ge=0)
     business: bool = False
     network_tier_id: Optional[int] = None
+    transfer_enabler: bool = False
     sub: Optional[int] = Field(default=None, ge=0)
     sub_min_spend: Optional[int] = Field(default=None, ge=0)
     sub_months: Optional[int] = Field(default=None, ge=1)
@@ -479,25 +552,126 @@ class AdminAddCardMultiplierPayload(BaseModel):
     category_id: int
     multiplier: float = Field(..., gt=0)
     is_portal: bool = False
+    is_additive: bool = False
     cap_per_billing_cycle: Optional[float] = Field(default=None, gt=0)
-    cap_period: Optional[str] = Field(default=None, pattern="^(monthly|quarterly|annually)$")
+    cap_period_months: Optional[int] = Field(default=None, ge=1)
     multiplier_group_id: Optional[int] = None
 
 
 class AdminCreateCardMultiplierGroupPayload(BaseModel):
     multiplier: float = Field(..., gt=0)
     cap_per_billing_cycle: Optional[float] = Field(default=None, gt=0)
-    cap_period: Optional[str] = Field(default=None, pattern="^(monthly|quarterly|annually)$")
+    cap_period_months: Optional[int] = Field(default=None, ge=1)
     top_n_categories: Optional[int] = Field(default=None, ge=1)
+    is_rotating: bool = False
+    is_additive: bool = False
     category_ids: list[int] = Field(default_factory=list)
 
 
 class AdminUpdateCardMultiplierGroupPayload(BaseModel):
     multiplier: Optional[float] = Field(default=None, gt=0)
     cap_per_billing_cycle: Optional[float] = None
-    cap_period: Optional[str] = Field(default=None, pattern="^(monthly|quarterly|annually)$")
+    cap_period_months: Optional[int] = Field(default=None, ge=1)
     top_n_categories: Optional[int] = None
+    is_rotating: Optional[bool] = None
+    is_additive: Optional[bool] = None
     category_ids: Optional[list[int]] = None
+
+
+class AdminAddRotatingHistoryPayload(BaseModel):
+    year: int = Field(..., ge=2000, le=2100)
+    quarter: int = Field(..., ge=1, le=4)
+    spend_category_id: int
+
+
+class WalletPortalSharePayload(BaseModel):
+    issuer_id: int
+    share: float = Field(..., ge=0.0, le=1.0)
+
+
+class WalletPortalShareRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    wallet_id: int
+    issuer_id: int
+    share: float
+    issuer_name: str = ""
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def populate_issuer_name(cls, data: Any, handler: Any) -> Any:
+        if not isinstance(data, dict):
+            iss = getattr(data, "issuer", None)
+            return handler(
+                {
+                    "id": data.id,
+                    "wallet_id": data.wallet_id,
+                    "issuer_id": data.issuer_id,
+                    "share": data.share,
+                    "issuer_name": iss.name if iss is not None else "",
+                }
+            )
+        return handler(data)
+
+
+class WalletRotationOverridePayload(BaseModel):
+    year: int = Field(..., ge=2000, le=2100)
+    quarter: int = Field(..., ge=1, le=4)
+    spend_category_id: int
+
+
+class WalletRotationOverrideRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    wallet_card_id: int
+    year: int
+    quarter: int
+    spend_category_id: int
+    category_name: str = ""
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def populate_category_name(cls, data: Any, handler: Any) -> Any:
+        if not isinstance(data, dict):
+            sc = getattr(data, "spend_category", None)
+            return handler(
+                {
+                    "id": data.id,
+                    "wallet_card_id": data.wallet_card_id,
+                    "year": data.year,
+                    "quarter": data.quarter,
+                    "spend_category_id": data.spend_category_id,
+                    "category_name": sc.category if sc is not None else "",
+                }
+            )
+        return handler(data)
+
+
+class CardRotatingHistoryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    card_id: int
+    year: int
+    quarter: int
+    spend_category_id: int
+    category_name: str = ""
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def populate_category_name(cls, data: Any, handler: Any) -> Any:
+        if not isinstance(data, dict):
+            sc = getattr(data, "spend_category", None)
+            return handler(
+                {
+                    "id": data.id,
+                    "card_id": data.card_id,
+                    "year": data.year,
+                    "quarter": data.quarter,
+                    "spend_category_id": data.spend_category_id,
+                    "category_name": sc.category if sc is not None else "",
+                }
+            )
+        return handler(data)
 
 
 class AdminAddCardCreditPayload(BaseModel):
@@ -588,6 +762,7 @@ class WalletCardRead(WalletCardBase):
     id: int
     wallet_id: int
     card_name: Optional[str] = None  # populated by the API layer
+    transfer_enabler: bool = False  # from library Card, populated by the API layer
 
 
 class WalletBase(BaseModel):

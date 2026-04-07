@@ -18,6 +18,11 @@ psycopg2-binary>=2.9.9         # Sync PostgreSQL driver — required by Alembic 
 pydantic>=2.7.0                # Request/response schema validation
 pydantic-settings>=2.2.1       # Typed settings/config from env vars (BaseSettings)
 
+# ── Optimization ──────────────────────────────────────────────────────────────
+scipy>=1.13.0                  # linprog: optimal cross-card allocation when capped
+                               # multiplier groups bind (overflow reallocation in
+                               # the calculator's segmented earn path)
+
 # ── Serialization ─────────────────────────────────────────────────────────────
 orjson>=3.10.0                 # Fast JSON serializer; FastAPI uses it automatically
                                # when installed (significant speedup for large responses)
