@@ -131,7 +131,6 @@ from .models import (
     WalletSpendItem,
 )
 from .schemas import (
-    AdminAddCardCreditPayload,
     AdminAddCardMultiplierPayload,
     AdminAddRotatingHistoryPayload,
     AdminCreateCardMultiplierGroupPayload,
@@ -157,7 +156,8 @@ from .schemas import (
     RoadmapResponse,
     RoadmapRuleStatus,
     SpendCategoryRead,
-    UpdateCardCreditPayload,
+    CreateCreditPayload,
+    UpdateCreditPayload,
     UpdateCardLibraryPayload,
     WalletCardCreditRead,
     WalletCardCreditUpsert,
@@ -766,9 +766,49 @@ async def _seed_one_rotating_card(session, spec: dict) -> None:
             )
 
 
+# Default standardized statement credits seeded on startup. Each (name, default_value)
+# pair is upserted by name only — existing rows keep whatever value they have.
+_STANDARDIZED_CREDIT_SPECS: list[tuple[str, float]] = [
+    ("Priority Pass", 469.0),
+    ("Global Entry / TSA PreCheck", 100.0),
+    ("Free Checked Bags", 60.0),
+    ("Uber Cash", 200.0),
+    ("DoorDash Credit", 120.0),
+    ("CLEAR Plus", 199.0),
+    ("Marriott Free Night Award", 300.0),
+    ("Hilton Free Night Award", 200.0),
+    ("Hotel Credit", 300.0),
+    ("Airline Incidental Credit", 200.0),
+    ("Streaming Credit", 84.0),
+    ("Walmart+ Membership", 155.0),
+    ("Equinox Credit", 300.0),
+    ("Saks Fifth Avenue Credit", 100.0),
+    ("Resy Dining Credit", 120.0),
+]
+
+
+async def _seed_standardized_credits() -> None:
+    """Idempotently seed the global credit library with common defaults."""
+    async with AsyncSessionLocal() as session:
+        existing_rows = await session.execute(select(CardCredit.credit_name))
+        existing_names = {n for (n,) in existing_rows.all()}
+        added = False
+        for name, default_value in _STANDARDIZED_CREDIT_SPECS:
+            if name in existing_names:
+                continue
+            session.add(CardCredit(credit_name=name, credit_value=default_value))
+            added = True
+        if added:
+            await session.commit()
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     await create_tables()
+    try:
+        await _seed_standardized_credits()
+    except Exception:  # pragma: no cover — defensive
+        logger.exception("standardized credit seed failed")
     try:
         await _seed_rotating_cards_and_history()
     except Exception:  # pragma: no cover — defensive
@@ -874,7 +914,6 @@ def _card_load_opts():
         selectinload(Card.multipliers).selectinload(CardCategoryMultiplier.spend_category),
         selectinload(Card.multiplier_groups).selectinload(CardMultiplierGroup.categories).selectinload(CardCategoryMultiplier.spend_category),
         selectinload(Card.rotating_history).selectinload(CardRotatingHistory.spend_category),
-        selectinload(Card.credits),
     ]
 
 
@@ -969,58 +1008,95 @@ async def update_card_library(
     return refreshed.scalar_one()
 
 
-@app.patch(
-    "/cards/{card_id}/credits/{credit_id}",
+# ---------------------------------------------------------------------------
+# Standardized credit library
+# ---------------------------------------------------------------------------
+
+
+@app.get("/credits", response_model=list[CardCreditRead], tags=["credits"])
+async def list_credits(db: AsyncSession = Depends(get_db)):
+    """List the global standardized statement credit library."""
+    result = await db.execute(select(CardCredit).order_by(CardCredit.credit_name))
+    return list(result.scalars().all())
+
+
+@app.post(
+    "/admin/credits",
     response_model=CardCreditRead,
-    tags=["cards"],
+    status_code=status.HTTP_201_CREATED,
+    tags=["admin"],
 )
-async def update_card_credit(
-    card_id: int,
-    credit_id: int,
-    payload: UpdateCardCreditPayload,
+async def admin_create_credit(
+    payload: CreateCreditPayload,
     db: AsyncSession = Depends(get_db),
 ):
-    """Update statement credit value, label, and/or one-time vs annual flag (library-wide)."""
-    result = await db.execute(
-        select(CardCredit).where(
-            CardCredit.id == credit_id,
-            CardCredit.card_id == card_id,
-        )
-    )
+    name = payload.credit_name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="credit_name cannot be empty")
+    existing = await db.execute(select(CardCredit).where(CardCredit.credit_name == name))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail=f"Credit '{name}' already exists")
+    credit = CardCredit(credit_name=name, credit_value=payload.credit_value)
+    db.add(credit)
+    await db.commit()
+    await db.refresh(credit)
+    return credit
+
+
+@app.patch(
+    "/admin/credits/{credit_id}",
+    response_model=CardCreditRead,
+    tags=["admin"],
+)
+async def admin_update_credit(
+    credit_id: int,
+    payload: UpdateCreditPayload,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update default value or rename a global library credit."""
+    result = await db.execute(select(CardCredit).where(CardCredit.id == credit_id))
     row = result.scalar_one_or_none()
     if not row:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Credit not found for this card",
-        )
+        raise HTTPException(status_code=404, detail=f"Credit {credit_id} not found")
     if payload.credit_value is not None:
         row.credit_value = payload.credit_value
-    if payload.is_one_time is not None:
-        row.is_one_time = payload.is_one_time
     if payload.credit_name is not None:
         new_name = payload.credit_name.strip()
         if not new_name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="credit_name cannot be empty",
-            )
+            raise HTTPException(status_code=400, detail="credit_name cannot be empty")
         if new_name != row.credit_name:
             clash = await db.execute(
                 select(CardCredit).where(
-                    CardCredit.card_id == card_id,
                     CardCredit.credit_name == new_name,
                     CardCredit.id != credit_id,
                 )
             )
             if clash.scalar_one_or_none():
                 raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Credit name {new_name!r} already exists on this card",
+                    status_code=409,
+                    detail=f"Credit name {new_name!r} already exists",
                 )
         row.credit_name = new_name
     await db.commit()
     await db.refresh(row)
     return row
+
+
+@app.delete(
+    "/admin/credits/{credit_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["admin"],
+)
+async def admin_delete_credit(
+    credit_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(CardCredit).where(CardCredit.id == credit_id))
+    row = result.scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Credit {credit_id} not found")
+    await db.delete(row)
+    await db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -1546,6 +1622,26 @@ async def add_card_to_wallet(
     )
     db.add(wc)
     await db.flush()
+
+    # Attach the initial standardized credits, if any.
+    if payload.credits:
+        lib_ids = {c.library_credit_id for c in payload.credits}
+        lib_rows = await db.execute(select(CardCredit).where(CardCredit.id.in_(lib_ids)))
+        valid_ids = {row.id for row in lib_rows.scalars()}
+        for entry in payload.credits:
+            if entry.library_credit_id not in valid_ids:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"CardCredit id={entry.library_credit_id} not found in library",
+                )
+            db.add(
+                WalletCardCredit(
+                    wallet_card_id=wc.id,
+                    library_credit_id=entry.library_credit_id,
+                    value=entry.value,
+                )
+            )
+
     await _ensure_wallet_currency_rows_for_earning_currencies(db, wallet_id)
     await db.commit()
     await db.refresh(wc)
@@ -1900,7 +1996,7 @@ async def wallet_results(
     all_cards = await load_card_data(db, cpp_overrides=cpp_overrides)
     card_ids_sel = {wc.card_id for wc in active_wallet_cards}
     lib_for_overrides = await db.execute(
-        select(Card).options(selectinload(Card.credits)).where(Card.id.in_(card_ids_sel))
+        select(Card).where(Card.id.in_(card_ids_sel))
     )
     library_cards_by_id = {c.id: c for c in lib_for_overrides.scalars().all()}
     wallet_credit_rows = await load_wallet_card_credits(db, wallet_id)
@@ -2568,7 +2664,7 @@ async def upsert_wallet_card_credit(
     payload: WalletCardCreditUpsert,
     db: AsyncSession = Depends(get_db),
 ):
-    """Set or update a credit override for a card in this wallet."""
+    """Attach a standardized credit to this wallet card with a user-set value."""
     wc_result = await db.execute(
         select(WalletCard).where(
             WalletCard.wallet_id == wallet_id,
@@ -2580,14 +2676,14 @@ async def upsert_wallet_card_credit(
         raise HTTPException(status_code=404, detail="Wallet card not found")
 
     lib_result = await db.execute(
-        select(CardCredit).where(
-            CardCredit.id == library_credit_id,
-            CardCredit.card_id == card_id,
-        )
+        select(CardCredit).where(CardCredit.id == library_credit_id)
     )
     lib_credit = lib_result.scalar_one_or_none()
     if not lib_credit:
-        raise HTTPException(status_code=404, detail=f"CardCredit id={library_credit_id} not found for card {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"CardCredit id={library_credit_id} not found in library",
+        )
 
     existing = await db.execute(
         select(WalletCardCredit).where(
@@ -2596,16 +2692,13 @@ async def upsert_wallet_card_credit(
         )
     )
     row = existing.scalar_one_or_none()
-    is_one_time = payload.is_one_time if payload.is_one_time is not None else lib_credit.is_one_time
     if row:
         row.value = payload.value
-        row.is_one_time = is_one_time
     else:
         row = WalletCardCredit(
             wallet_card_id=wc.id,
             library_credit_id=library_credit_id,
             value=payload.value,
-            is_one_time=is_one_time,
         )
         db.add(row)
     await db.commit()
@@ -2629,7 +2722,7 @@ async def delete_wallet_card_credit(
     library_credit_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove a credit override (reverts to library value)."""
+    """Detach a standardized credit from this wallet card."""
     wc_result = await db.execute(
         select(WalletCard).where(
             WalletCard.wallet_id == wallet_id,
@@ -3692,64 +3785,6 @@ async def admin_delete_card_rotating_history(
             status_code=404,
             detail=f"Rotating history id={history_id} not found for card {card_id}",
         )
-    await db.delete(row)
-    await db.commit()
-
-
-@app.post(
-    "/admin/cards/{card_id}/credits",
-    response_model=CardCreditRead,
-    status_code=status.HTTP_201_CREATED,
-    tags=["admin"],
-)
-async def admin_add_card_credit(
-    card_id: int,
-    payload: AdminAddCardCreditPayload,
-    db: AsyncSession = Depends(get_db),
-):
-    card_result = await db.execute(select(Card).where(Card.id == card_id))
-    if not card_result.scalar_one_or_none():
-        raise _card_404(card_id)
-    existing = await db.execute(
-        select(CardCredit).where(
-            CardCredit.card_id == card_id,
-            CardCredit.credit_name == payload.credit_name.strip(),
-        )
-    )
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail=f"Credit '{payload.credit_name}' already exists on this card")
-
-    credit = CardCredit(
-        card_id=card_id,
-        credit_name=payload.credit_name.strip(),
-        credit_value=payload.credit_value,
-        is_one_time=payload.is_one_time,
-    )
-    db.add(credit)
-    await db.commit()
-    await db.refresh(credit)
-    return credit
-
-
-@app.delete(
-    "/admin/cards/{card_id}/credits/{credit_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    tags=["admin"],
-)
-async def admin_delete_card_credit(
-    card_id: int,
-    credit_id: int,
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(CardCredit).where(
-            CardCredit.id == credit_id,
-            CardCredit.card_id == card_id,
-        )
-    )
-    row = result.scalar_one_or_none()
-    if not row:
-        raise HTTPException(status_code=404, detail="Credit not found on this card")
     await db.delete(row)
     await db.commit()
 

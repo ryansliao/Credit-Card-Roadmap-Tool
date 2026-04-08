@@ -34,7 +34,6 @@ class CreditLine:
     library_credit_id: int
     name: str
     value: float
-    one_time: bool = False
 
 
 @dataclass
@@ -978,20 +977,14 @@ def calc_annual_point_earn(
 
 
 def _credit_annual_and_one_time_totals(card: CardData) -> tuple[float, float]:
-    annual = 0.0
-    one_time = 0.0
-    for line in card.credit_lines:
-        if line.one_time:
-            one_time += line.value
-        else:
-            annual += line.value
-    return annual, one_time
+    """All credits are recurring; one-time bucket is always 0."""
+    annual = sum(line.value for line in card.credit_lines)
+    return annual, 0.0
 
 
 def calc_credit_valuation(card: CardData) -> float:
-    """Sum of credit dollar values (annual + one-time face amounts) for display."""
-    a, o = _credit_annual_and_one_time_totals(card)
-    return a + o
+    """Sum of recurring credit dollar values for display."""
+    return sum(line.value for line in card.credit_lines)
 
 
 def calc_sub_extra_spend(

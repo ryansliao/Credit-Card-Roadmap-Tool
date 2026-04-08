@@ -72,12 +72,31 @@ class WalletCurrencyCppSet(BaseModel):
 
 
 class CardCreditRead(BaseModel):
+    """One row in the global standardized credit library."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     credit_name: str
     credit_value: float
-    is_one_time: bool = False
+
+
+class CreateCreditPayload(BaseModel):
+    credit_name: str = Field(..., max_length=120)
+    credit_value: float = Field(default=0.0, ge=0)
+
+
+class UpdateCreditPayload(BaseModel):
+    """Update a global library credit (at least one field required)."""
+
+    credit_value: Optional[float] = Field(default=None, ge=0)
+    credit_name: Optional[str] = Field(None, max_length=120)
+
+    @model_validator(mode="after")
+    def at_least_one_field(self):
+        if self.credit_value is None and self.credit_name is None:
+            raise ValueError("At least one of credit_value or credit_name must be set")
+        return self
 
 
 class UpdateCardLibraryPayload(BaseModel):
@@ -89,26 +108,6 @@ class UpdateCardLibraryPayload(BaseModel):
     annual_fee: Optional[float] = Field(default=None, ge=0)
     first_year_fee: Optional[float] = Field(default=None, ge=0)
     transfer_enabler: Optional[bool] = None
-
-
-class UpdateCardCreditPayload(BaseModel):
-    """Update one statement credit on a card (at least one field required)."""
-
-    credit_value: Optional[float] = Field(default=None, ge=0)
-    credit_name: Optional[str] = Field(None, max_length=120)
-    is_one_time: Optional[bool] = None
-
-    @model_validator(mode="after")
-    def at_least_one_field(self):
-        if (
-            self.credit_value is None
-            and self.credit_name is None
-            and self.is_one_time is None
-        ):
-            raise ValueError(
-                "At least one of credit_value, credit_name, or is_one_time must be set"
-            )
-        return self
 
 
 class CardMultiplierSchema(BaseModel):
@@ -260,7 +259,6 @@ class CardRead(BaseModel):
 
     multipliers: list[CardMultiplierSchema] = []
     multiplier_groups: list[CardMultiplierGroupRead] = []
-    credits: list[CardCreditRead] = []
 
     @model_validator(mode="wrap")
     @classmethod
@@ -437,7 +435,6 @@ class WalletCardCreditRead(BaseModel):
     library_credit_id: int
     credit_name: str = ""
     value: float
-    is_one_time: bool = False
 
     @model_validator(mode="wrap")
     @classmethod
@@ -451,7 +448,6 @@ class WalletCardCreditRead(BaseModel):
                     "library_credit_id": data.library_credit_id,
                     "credit_name": lc.credit_name if lc else "",
                     "value": data.value,
-                    "is_one_time": data.is_one_time,
                 }
             )
         return handler(data)
@@ -459,7 +455,6 @@ class WalletCardCreditRead(BaseModel):
 
 class WalletCardCreditUpsert(BaseModel):
     value: float = Field(..., ge=0)
-    is_one_time: Optional[bool] = None  # if None, inherit from library
 
 
 # ---------------------------------------------------------------------------
@@ -669,12 +664,6 @@ class CardRotatingHistoryRead(BaseModel):
         return handler(data)
 
 
-class AdminAddCardCreditPayload(BaseModel):
-    credit_name: str = Field(..., max_length=120)
-    credit_value: float = Field(default=0.0, ge=0)
-    is_one_time: bool = False
-
-
 # ---------------------------------------------------------------------------
 # Wallet card group selection schemas
 # ---------------------------------------------------------------------------
@@ -731,8 +720,13 @@ class WalletCardBase(BaseModel):
     panel: Literal["in_wallet", "future", "considering"] = "considering"
 
 
+class InitialWalletCardCredit(BaseModel):
+    library_credit_id: int
+    value: float = Field(..., ge=0)
+
+
 class WalletCardCreate(WalletCardBase):
-    pass
+    credits: list[InitialWalletCardCredit] = Field(default_factory=list)
 
 
 class WalletCardUpdate(BaseModel):

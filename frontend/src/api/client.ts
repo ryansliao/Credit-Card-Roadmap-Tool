@@ -80,12 +80,11 @@ export interface WalletPortalShare {
   issuer_name: string
 }
 
+/** A standardized statement credit in the global library (e.g. Priority Pass). */
 export interface CardCredit {
   id: number
   credit_name: string
   credit_value: number
-  /** If true, value counts once over the projection window (not each year). */
-  is_one_time?: boolean
 }
 
 export interface IssuerRead {
@@ -144,7 +143,6 @@ export interface Card {
   sub_family: string | null
   multipliers: CardMultiplier[]
   multiplier_groups: CardMultiplierGroup[]
-  credits: CardCredit[]
 }
 
 export interface SpendCategory {
@@ -234,8 +232,6 @@ export interface WalletCard {
   annual_fee: number | null
   /** Null = use library card first-year fee */
   first_year_fee: number | null
-  /** Library CardCredit id (string) -> valuation ($) for this wallet row */
-  credit_overrides: Record<string, number> | null
   sub_earned_date: string | null
   /** Auto-calculated projected SUB earn date based on wallet spend profile */
   sub_projected_earn_date: string | null
@@ -281,6 +277,11 @@ export interface CreateWalletPayload {
   as_of_date?: string | null
 }
 
+export interface InitialWalletCardCredit {
+  library_credit_id: number
+  value: number
+}
+
 export interface AddCardToWalletPayload {
   card_id: number
   added_date: string
@@ -292,11 +293,11 @@ export interface AddCardToWalletPayload {
   years_counted?: number
   annual_fee?: number | null
   first_year_fee?: number | null
-  credit_overrides?: Record<string, number> | null
   sub_earned_date?: string | null
   closed_date?: string | null
   acquisition_type?: WalletCardAcquisitionType
   panel?: WalletCardPanel
+  credits?: InitialWalletCardCredit[]
 }
 
 export interface WalletCurrencyBalance {
@@ -326,7 +327,6 @@ export interface UpdateWalletCardPayload {
   years_counted?: number | null
   annual_fee?: number | null
   first_year_fee?: number | null
-  credit_overrides?: Record<string, number> | null
   sub_earned_date?: string | null
   closed_date?: string | null
   acquisition_type?: WalletCardAcquisitionType | null
@@ -490,12 +490,6 @@ export interface UpdateCardLibraryPayload {
   first_year_fee?: number | null
 }
 
-export interface UpdateCardCreditPayload {
-  credit_value?: number
-  credit_name?: string | null
-  is_one_time?: boolean
-}
-
 export const cardsApi = {
   list: () => request<Card[]>('/cards'),
   update: (cardId: number, payload: UpdateCardLibraryPayload) =>
@@ -503,11 +497,34 @@ export const cardsApi = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
-  updateCredit: (cardId: number, creditId: number, payload: UpdateCardCreditPayload) =>
-    request<CardCredit>(`/cards/${cardId}/credits/${creditId}`, {
+}
+
+// ─── Standardized credit library ─────────────────────────────────────────────
+
+export interface CreateCreditPayload {
+  credit_name: string
+  credit_value?: number
+}
+
+export interface UpdateCreditPayload {
+  credit_name?: string
+  credit_value?: number
+}
+
+export const creditsApi = {
+  list: () => request<CardCredit[]>('/credits'),
+  create: (payload: CreateCreditPayload) =>
+    request<CardCredit>('/admin/credits', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  update: (creditId: number, payload: UpdateCreditPayload) =>
+    request<CardCredit>(`/admin/credits/${creditId}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
+  delete: (creditId: number) =>
+    request<void>(`/admin/credits/${creditId}`, { method: 'DELETE' }),
 }
 
 // ─── Spend categories ─────────────────────────────────────────────────────────
@@ -611,12 +628,10 @@ export interface WalletCardCreditOverride {
   library_credit_id: number
   credit_name: string
   value: number
-  is_one_time: boolean
 }
 
 export interface UpsertWalletCardCreditPayload {
   value: number
-  is_one_time?: boolean | null
 }
 
 export const walletCardCreditApi = {
@@ -777,17 +792,6 @@ export const adminApi = {
     }),
   deleteCardMultiplier: (cardId: number, categoryId: number) =>
     request<void>(`/admin/cards/${cardId}/multipliers/${categoryId}`, { method: 'DELETE' }),
-  addCardCredit: (cardId: number, payload: {
-    credit_name: string
-    credit_value?: number
-    is_one_time?: boolean
-  }) =>
-    request<CardCredit>(`/admin/cards/${cardId}/credits`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  deleteCardCredit: (cardId: number, creditId: number) =>
-    request<void>(`/admin/cards/${cardId}/credits/${creditId}`, { method: 'DELETE' }),
   listCardRotatingHistory: (cardId: number) =>
     request<CardRotatingHistoryRow[]>(`/admin/cards/${cardId}/rotating-history`),
   addCardRotatingHistory: (cardId: number, payload: {

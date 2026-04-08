@@ -224,9 +224,6 @@ class Card(Base):
     rotating_history: Mapped[list["CardRotatingHistory"]] = relationship(
         back_populates="card", cascade="all, delete-orphan"
     )
-    credits: Mapped[list["CardCredit"]] = relationship(
-        back_populates="card", cascade="all, delete-orphan"
-    )
     wallet_cards: Mapped[list["WalletCard"]] = relationship(
         back_populates="card", cascade="all, delete-orphan"
     )
@@ -355,18 +352,20 @@ class CardRotatingHistory(Base):
 
 
 class CardCredit(Base):
-    """Statement credit or perk. `credit_value` is dollars; recurring unless `is_one_time`."""
+    """
+    Standardized statement credit / perk in the global library
+    (e.g. Priority Pass, Global Entry, Free Checked Bags, Uber Cash).
+
+    `credit_value` is the default dollar valuation; users can override it on a
+    per-wallet-card basis via WalletCardCredit. All entries are recurring.
+    """
 
     __tablename__ = "card_credits"
-    __table_args__ = (UniqueConstraint("card_id", "credit_name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    card_id: Mapped[int] = mapped_column(ForeignKey("cards.id", ondelete="CASCADE"))
-    credit_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    credit_name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
     credit_value: Mapped[float] = mapped_column(Float, default=0)
-    is_one_time: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    card: Mapped["Card"] = relationship(back_populates="credits")
     wallet_credit_overrides: Mapped[list["WalletCardCredit"]] = relationship(
         back_populates="library_credit", cascade="all, delete-orphan"
     )
@@ -466,7 +465,9 @@ class WalletCard(Base):
     """
     A card in a wallet with added_date and optional overrides vs the library Card.
     Null sub_* / annual_fee / first_year_fee means use Card defaults.
-    Per-credit valuations are stored in WalletCardCredit rows (wallet_card_credits table).
+    Selected statement credits and their valuations live in WalletCardCredit rows
+    (wallet_card_credits table); each row attaches one global library credit to
+    this wallet card with a user-set value.
     """
 
     __tablename__ = "wallet_cards"
@@ -595,9 +596,10 @@ class IssuerApplicationRule(Base):
 
 class WalletCardCredit(Base):
     """
-    Wallet-level override of a statement credit value/type for a specific wallet card.
-    Replaces the former credit_overrides JSON blob on WalletCard.
-    When no row exists for a (wallet_card_id, library_credit_id) pair, the library value is used.
+    A standardized credit (from the global card_credits library) attached to a
+    specific wallet card with a user-set dollar value. The presence of this row
+    means "this wallet card has this credit"; the value defaults to the library
+    default but can be overridden by the user.
     """
 
     __tablename__ = "wallet_card_credits"
@@ -611,7 +613,6 @@ class WalletCardCredit(Base):
         ForeignKey("card_credits.id", ondelete="CASCADE"), nullable=False
     )
     value: Mapped[float] = mapped_column(Float, nullable=False)
-    is_one_time: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     wallet_card: Mapped["WalletCard"] = relationship(back_populates="credit_overrides_rows")
     library_credit: Mapped["CardCredit"] = relationship(back_populates="wallet_credit_overrides")

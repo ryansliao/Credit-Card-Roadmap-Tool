@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import type { CardResult, SpendCategory } from '../../../../api/client'
-import { formatMoney } from '../../../../utils/format'
 
 function formatPointsExact(n: number): string {
   if (!Number.isFinite(n) || n === 0) return '0'
@@ -289,27 +288,29 @@ export function SpendTabContent({
                         )}
                       </div>
                     </td>
-                    <td className="text-center px-3 py-2 tabular-nums border-r border-slate-800/60">
-                      {isEditing ? (
+                    <td className="text-center px-2 py-2 tabular-nums border-r border-slate-800/60">
+                      <div className="relative w-full">
+                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none">
+                          $
+                        </span>
                         <input
-                          autoFocus
-                          className="w-24 bg-slate-700 text-white text-sm text-center px-2 py-1 rounded border border-indigo-500 outline-none"
-                          value={amountDraft}
+                          type="number"
+                          min={0}
+                          step="1"
+                          value={isEditing ? amountDraft : Math.round(item.amount)}
+                          onFocus={() => startEditAmount(item)}
                           onChange={(e) => setAmountDraft(e.target.value)}
                           onBlur={() => commitAmount(item)}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') commitAmount(item)
-                            if (e.key === 'Escape') cancelEditAmount()
+                            if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur()
+                            if (e.key === 'Escape') {
+                              cancelEditAmount()
+                              ;(e.currentTarget as HTMLInputElement).blur()
+                            }
                           }}
+                          className="w-full min-w-0 bg-slate-700 border border-slate-600 text-white text-sm tabular-nums text-right pl-4 pr-1.5 py-0.5 rounded outline-none focus:border-indigo-500"
                         />
-                      ) : (
-                        <button
-                          className="text-indigo-300 hover:text-indigo-100"
-                          onClick={() => startEditAmount(item)}
-                        >
-                          {formatMoney(item.amount)}
-                        </button>
-                      )}
+                      </div>
                     </td>
                     <td className="text-center tabular-nums px-3 py-2 text-slate-200">
                       {currentCard ? (

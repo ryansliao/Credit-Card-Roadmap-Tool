@@ -1,15 +1,4 @@
-import type { Card, UpdateWalletCardPayload, WalletCard, WalletCardAcquisitionType } from '../../../api/client'
-
-/** Effective credit values when editing an existing wallet row (overrides + library). */
-export function initialCreditOverridesForEdit(wc: WalletCard, lib: Card): Record<number, number> {
-  const m: Record<number, number> = {}
-  for (const cr of lib.credits) {
-    const sid = String(cr.id)
-    const raw = wc.credit_overrides?.[sid]
-    m[cr.id] = raw !== undefined ? Number(raw) : cr.credit_value
-  }
-  return m
-}
+import type { Card, UpdateWalletCardPayload, WalletCardAcquisitionType } from '../../../api/client'
 
 export function parseOptionalInt(s: string): number | null {
   const t = s.trim()
@@ -109,18 +98,9 @@ export type BuiltWalletFields = Extract<
 export function walletFormToUpdatePayload(
   built: BuiltWalletFields,
   lib: Card,
-  creditOverrides: Record<number, number>,
   addedDate: string,
   acquisitionType: WalletCardAcquisitionType
 ): UpdateWalletCardPayload {
-  const co: Record<string, number> = {}
-  for (const cr of lib.credits) {
-    const v = creditOverrides[cr.id] ?? cr.credit_value
-    if (Math.abs(v - cr.credit_value) > 1e-6) {
-      co[String(cr.id)] = v
-    }
-  }
-
   return {
     added_date: addedDate,
     acquisition_type: acquisitionType,
@@ -130,6 +110,5 @@ export function walletFormToUpdatePayload(
     annual_bonus: intOverride(built.annual_bonus, lib.annual_bonus ?? undefined),
     annual_fee: floatOverride(built.annual_fee, lib.annual_fee),
     first_year_fee: floatOverride(built.first_year_fee, lib.first_year_fee ?? undefined),
-    credit_overrides: co,
   }
 }

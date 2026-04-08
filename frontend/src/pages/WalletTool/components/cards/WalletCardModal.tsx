@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 // Note: useRef is used here to track which data has been hydrated into the form,
 // preventing re-runs when the card library re-fetches without the user changing selection.
 import {
@@ -10,7 +10,7 @@ import {
   type WalletCard,
   type WalletCardAcquisitionType,
   type WalletCardRotationOverride,
-  cardsApi,
+  creditsApi,
   walletCardCreditApi,
   walletCardGroupSelectionApi,
   walletCardRotationOverrideApi,
@@ -20,102 +20,6 @@ import { formatMoney, today } from '../../../../utils/format'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
 import { buildWalletCardFields, walletFormToUpdatePayload } from '../../lib/walletCardForm'
 import { queryKeys } from '../../lib/queryKeys'
-
-// ---------------------------------------------------------------------------
-// Inline credit value editor dialog
-// ---------------------------------------------------------------------------
-
-function MiniDialog({
-  title,
-  children,
-  onClose,
-}: {
-  title: string
-  children: React.ReactNode
-  onClose: () => void
-}) {
-  const titleId = useId()
-  return (
-    <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70] p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      onClick={onClose}
-    >
-      <div
-        className="bg-slate-800 border border-slate-600 rounded-xl p-5 w-full max-w-sm shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 id={titleId} className="text-base font-semibold text-white mb-4">
-          {title}
-        </h3>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function CreditValueEditorDialog({
-  open,
-  creditName,
-  initialValue,
-  onClose,
-  onSave,
-}: {
-  open: boolean
-  creditName: string
-  initialValue: number
-  onClose: () => void
-  onSave: (value: number) => void
-}) {
-  const [valueText, setValueText] = useState(String(initialValue))
-
-  useEffect(() => {
-    if (open) setValueText(String(initialValue))
-  }, [open, initialValue])
-
-  if (!open) return null
-
-  function submit() {
-    const v = Number.parseFloat(valueText.trim())
-    if (Number.isNaN(v) || v < 0) return
-    onSave(v)
-    onClose()
-  }
-
-  return (
-    <MiniDialog title="Statement credit (this wallet)" onClose={onClose}>
-      <p className="text-sm text-slate-300 mb-3">{creditName}</p>
-      <label className="text-xs text-slate-400 mb-1 block">Value ($)</label>
-      <input
-        type="number"
-        min={0}
-        step="0.01"
-        className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 mb-4"
-        value={valueText}
-        onChange={(e) => setValueText(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && submit()}
-      />
-      <div className="flex gap-2">
-        <button
-          type="button"
-          className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-sm py-2 rounded-lg"
-          onClick={onClose}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-sm py-2 rounded-lg"
-          onClick={submit}
-        >
-          Save
-        </button>
-      </div>
-    </MiniDialog>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Main modal
@@ -159,9 +63,11 @@ export function WalletCardModal({
   const [annualBonus, setAnnualBonus] = useState('')
   const [annualFee, setAnnualFee] = useState('')
   const [firstYearFee, setFirstYearFee] = useState('')
-  const [creditOverrides, setCreditOverrides] = useState<Record<number, number>>({})
+  // Selected statement credits for this wallet card: library_credit_id -> value.
+  // The presence of a key means the credit is attached to this wallet card.
+  const [selectedCredits, setSelectedCredits] = useState<Record<number, number>>({})
   const [creditsExpanded, setCreditsExpanded] = useState(false)
-  const [editingCredit, setEditingCredit] = useState<CardCredit | null>(null)
+  const [creditPickerOpen, setCreditPickerOpen] = useState(false)
   const [groupSelectionsExpanded, setGroupSelectionsExpanded] = useState(false)
   // group_id -> array of selected spend_category_ids (length == top_n)
   const [groupSelections, setGroupSelections] = useState<Record<number, number[]>>({})
@@ -175,7 +81,18 @@ export function WalletCardModal({
   const effectiveCardId =
     mode === 'add' ? (typeof cardId === 'number' ? cardId : null) : (walletCard?.card_id ?? null)
 
-  // Fetch existing per-wallet credit overrides (edit mode only)
+  // Global standardized credit library (Priority Pass, Global Entry, etc.)
+  const { data: creditLibrary } = useQuery({
+    queryKey: queryKeys.credits(),
+    queryFn: () => creditsApi.list(),
+  })
+  const creditLibraryById = useMemo(() => {
+    const m = new Map<number, CardCredit>()
+    for (const c of creditLibrary ?? []) m.set(c.id, c)
+    return m
+  }, [creditLibrary])
+
+  // Existing wallet-card credit selections (edit mode only)
   const { data: existingCreditOverrides } = useQuery({
     queryKey: queryKeys.walletCardCredits(walletCard?.wallet_id ?? null, walletCard?.card_id ?? null),
     queryFn: () => walletCardCreditApi.list(walletCard!.wallet_id, walletCard!.card_id),
@@ -311,19 +228,6 @@ export function WalletCardModal({
     return () => document.removeEventListener('pointerdown', onPointerDown)
   }, [])
 
-  const patchCreditMutation = useMutation({
-    mutationFn: ({
-      creditId,
-      payload,
-    }: {
-      creditId: number
-      payload: { is_one_time: boolean }
-    }) => cardsApi.updateCredit(effectiveCardId!, creditId, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.cards() })
-    },
-  })
-
   useEffect(() => {
     if (mode === 'add') {
       if (!cardId) {
@@ -340,7 +244,7 @@ export function WalletCardModal({
       setAnnualBonus(lib.annual_bonus != null ? String(lib.annual_bonus) : '')
       setAnnualFee(String(lib.annual_fee))
       setFirstYearFee(lib.first_year_fee != null ? String(lib.first_year_fee) : '')
-      setCreditOverrides({})
+      setSelectedCredits({})
       setGroupSelections({})
       setFormError(null)
     } else {
@@ -362,22 +266,21 @@ export function WalletCardModal({
       setAnnualFee(String(effAf))
       const effFy = walletCard.first_year_fee ?? lib.first_year_fee
       setFirstYearFee(effFy != null ? String(effFy) : '')
-      setCreditOverrides({})
+      setSelectedCredits({})
       setGroupSelections({})
       setFormError(null)
     }
   }, [mode, cardId, lib, walletCard])
 
-  // Populate credit override state from the wallet-specific API data (edit mode).
+  // Populate selected credits from the wallet-specific API data (edit mode).
   useEffect(() => {
-    if (mode !== 'edit' || !lib || existingCreditOverrides === undefined) return
+    if (mode !== 'edit' || existingCreditOverrides === undefined) return
     const m: Record<number, number> = {}
-    for (const cr of lib.credits) {
-      const existing = existingCreditOverrides.find((o) => o.library_credit_id === cr.id)
-      m[cr.id] = existing !== undefined ? existing.value : cr.credit_value
+    for (const o of existingCreditOverrides) {
+      m[o.library_credit_id] = o.value
     }
-    setCreditOverrides(m)
-  }, [mode, lib, existingCreditOverrides])
+    setSelectedCredits(m)
+  }, [mode, existingCreditOverrides])
 
   // Populate group selection state from the wallet-specific API data (edit mode).
   useEffect(() => {
@@ -440,6 +343,10 @@ export function WalletCardModal({
         annual_bonus: built.annual_bonus,
         annual_fee: built.annual_fee,
         first_year_fee: built.first_year_fee,
+        credits: Object.entries(selectedCredits).map(([id, value]) => ({
+          library_credit_id: Number(id),
+          value,
+        })),
       })
       return
     }
@@ -449,16 +356,26 @@ export function WalletCardModal({
       return
     }
 
-    // Save credit overrides via the dedicated API before patching the card row.
+    // Reconcile selected credits against the existing wallet rows: upsert any
+    // newly-added or value-changed credits, delete any that were removed.
     const creditOps: Promise<unknown>[] = []
-    for (const cr of lib.credits) {
-      const v = creditOverrides[cr.id] ?? cr.credit_value
-      const hasExisting = existingCreditOverrides?.some((o) => o.library_credit_id === cr.id)
-      if (Math.abs(v - cr.credit_value) > 1e-6) {
-        creditOps.push(walletCardCreditApi.upsert(walletCard.wallet_id, walletCard.card_id, cr.id, { value: v }))
-      } else if (hasExisting) {
-        // Override was reset to library default — remove the stored row.
-        creditOps.push(walletCardCreditApi.delete(walletCard.wallet_id, walletCard.card_id, cr.id))
+    const existingByLibId = new Map(
+      (existingCreditOverrides ?? []).map((o) => [o.library_credit_id, o]),
+    )
+    for (const [idStr, value] of Object.entries(selectedCredits)) {
+      const libId = Number(idStr)
+      const existing = existingByLibId.get(libId)
+      if (!existing || Math.abs(existing.value - value) > 1e-6) {
+        creditOps.push(
+          walletCardCreditApi.upsert(walletCard.wallet_id, walletCard.card_id, libId, { value }),
+        )
+      }
+    }
+    for (const [libId] of existingByLibId) {
+      if (!(libId in selectedCredits)) {
+        creditOps.push(
+          walletCardCreditApi.delete(walletCard.wallet_id, walletCard.card_id, libId),
+        )
       }
     }
     // Save group selections via the dedicated API.
@@ -483,11 +400,10 @@ export function WalletCardModal({
       return
     }
 
-    onSaveEdit(walletFormToUpdatePayload(built, lib, creditOverrides, addedDate, acquisitionType))
-  }
-
-  function displayCreditValue(cr: CardCredit) {
-    return creditOverrides[cr.id] ?? cr.credit_value
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.walletCardCredits(walletCard.wallet_id, walletCard.card_id),
+    })
+    onSaveEdit(walletFormToUpdatePayload(built, lib, addedDate, acquisitionType))
   }
 
   const formDisabled = !lib
@@ -720,15 +636,22 @@ export function WalletCardModal({
                 </div>
               </div>
 
-              {/* Credit Valuations inline collapsible */}
-              {lib && lib.credits.length > 0 && (
+              {/* Statement Credits inline collapsible */}
+              {lib && (
                 <div className="border border-slate-600 rounded-lg overflow-hidden">
                   <button
                     type="button"
                     onClick={() => setCreditsExpanded((prev) => !prev)}
                     className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-700/40"
                   >
-                    <span>Credit Valuations</span>
+                    <span>
+                      Statement Credits
+                      {Object.keys(selectedCredits).length > 0 && (
+                        <span className="text-indigo-300 ml-1">
+                          ({Object.keys(selectedCredits).length})
+                        </span>
+                      )}
+                    </span>
                     <svg
                       className={`w-4 h-4 text-slate-400 transition-transform ${creditsExpanded ? 'rotate-180' : ''}`}
                       fill="none"
@@ -741,45 +664,108 @@ export function WalletCardModal({
                   </button>
                   {creditsExpanded && (
                     <div className="border-t border-slate-700">
-                      <ul className="divide-y divide-slate-700/40 max-h-48 overflow-y-auto">
-                        {lib.credits.map((cr) => (
-                          <li
-                            key={cr.id}
-                            className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between px-3 py-2 text-sm"
-                          >
-                            <div className="min-w-0">
-                              <span className="text-slate-200 block truncate">{cr.credit_name}</span>
-                              <label className="mt-0.5 flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
-                                <input
-                                  type="checkbox"
-                                  className="rounded border-slate-500 bg-slate-800 text-indigo-500 focus:ring-indigo-500"
-                                  checked={Boolean(cr.is_one_time)}
-                                  disabled={patchCreditMutation.isPending || effectiveCardId == null}
-                                  onChange={(e) =>
-                                    patchCreditMutation.mutate({
-                                      creditId: cr.id,
-                                      payload: { is_one_time: e.target.checked },
-                                    })
-                                  }
-                                />
-                                One-Time Credit
-                              </label>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                              <span className="text-slate-400 tabular-nums">
-                                {formatMoney(displayCreditValue(cr))}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setEditingCredit(cr)}
-                                className="text-indigo-400 hover:text-indigo-300 text-xs font-medium px-2 py-1 rounded-md hover:bg-slate-700/80"
+                      {Object.keys(selectedCredits).length === 0 ? (
+                        <p className="text-xs text-slate-500 px-3 py-3">
+                          No credits selected. Add credits this card grants from the picker below.
+                        </p>
+                      ) : (
+                        <ul className="divide-y divide-slate-700/40 max-h-48 overflow-y-auto">
+                          {Object.entries(selectedCredits).map(([idStr, value]) => {
+                            const libId = Number(idStr)
+                            const lc = creditLibraryById.get(libId)
+                            return (
+                              <li
+                                key={libId}
+                                className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
                               >
-                                Edit
-                              </button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
+                                <span className="text-slate-200 truncate min-w-0 flex-1">
+                                  {lc?.credit_name ?? `Credit #${libId}`}
+                                </span>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <div className="relative">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none">
+                                      $
+                                    </span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step="0.01"
+                                      value={value}
+                                      onChange={(e) => {
+                                        const raw = e.target.value
+                                        const parsed = raw === '' ? 0 : Number.parseFloat(raw)
+                                        if (Number.isNaN(parsed) || parsed < 0) return
+                                        setSelectedCredits((prev) => ({
+                                          ...prev,
+                                          [libId]: parsed,
+                                        }))
+                                      }}
+                                      className="w-24 bg-slate-700 border border-slate-600 text-white text-xs tabular-nums pl-5 pr-2 py-1 rounded outline-none focus:border-indigo-500"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedCredits((prev) => {
+                                        const next = { ...prev }
+                                        delete next[libId]
+                                        return next
+                                      })
+                                    }
+                                    className="text-slate-500 hover:text-red-400 text-xs px-2 py-1 rounded-md hover:bg-slate-700/80"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+                      <div className="px-3 py-2 border-t border-slate-700/60">
+                        {!creditPickerOpen ? (
+                          <button
+                            type="button"
+                            onClick={() => setCreditPickerOpen(true)}
+                            className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
+                          >
+                            + Add credit
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <select
+                              className="flex-1 bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1.5 rounded outline-none focus:border-indigo-500"
+                              defaultValue=""
+                              onChange={(e) => {
+                                const id = Number(e.target.value)
+                                if (!id) return
+                                const lc = creditLibraryById.get(id)
+                                setSelectedCredits((prev) => ({
+                                  ...prev,
+                                  [id]: lc?.credit_value ?? 0,
+                                }))
+                                setCreditPickerOpen(false)
+                              }}
+                            >
+                              <option value="">Pick a credit…</option>
+                              {(creditLibrary ?? [])
+                                .filter((c) => !(c.id in selectedCredits))
+                                .map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.credit_name} ({formatMoney(c.credit_value)})
+                                  </option>
+                                ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => setCreditPickerOpen(false)}
+                              className="text-xs text-slate-400 hover:text-white px-2 py-1.5"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1009,15 +995,6 @@ export function WalletCardModal({
         </div>
       </ModalBackdrop>
 
-      <CreditValueEditorDialog
-        open={editingCredit != null}
-        creditName={editingCredit?.credit_name ?? ''}
-        initialValue={editingCredit != null ? displayCreditValue(editingCredit) : 0}
-        onClose={() => setEditingCredit(null)}
-        onSave={(value) => {
-          if (editingCredit) setCreditOverrides((prev) => ({ ...prev, [editingCredit.id]: value }))
-        }}
-      />
     </>
   )
 }

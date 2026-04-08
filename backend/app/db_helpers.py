@@ -107,7 +107,6 @@ async def load_card_data(
             selectinload(Card.multipliers).selectinload(CardCategoryMultiplier.spend_category),
             selectinload(Card.multiplier_groups).selectinload(CardMultiplierGroup.categories).selectinload(CardCategoryMultiplier.spend_category),
             selectinload(Card.rotating_history).selectinload(CardRotatingHistory.spend_category),
-            selectinload(Card.credits),
         )
     )
     cards = result.scalars().all()
@@ -289,15 +288,9 @@ async def load_card_data(
                 (grp.multiplier, cats, top_n, grp.id, cap_amount, cap_months,
                  is_rotating, rotation_weights, is_additive)
             )
-        credit_lines = [
-            CreditLine(
-                library_credit_id=c.id,
-                name=c.credit_name,
-                value=c.credit_value,
-                one_time=bool(getattr(c, "is_one_time", False)),
-            )
-            for c in card.credits
-        ]
+        # Statement credits live exclusively on wallet cards now (see
+        # apply_wallet_card_overrides), so the library card has no credit_lines.
+        credit_lines: list[CreditLine] = []
 
         out.append(
             CardData(
@@ -441,6 +434,7 @@ async def load_wallet_card_credits(
     from .models import WalletCard as WalletCardModel
     result = await session.execute(
         select(WalletCardCredit)
+        .options(selectinload(WalletCardCredit.library_credit))
         .join(WalletCardModel, WalletCardModel.id == WalletCardCredit.wallet_card_id)
         .where(WalletCardModel.wallet_id == wallet_id)
     )
@@ -473,15 +467,13 @@ def apply_wallet_card_overrides(
     """
     Return CardData copies with wallet-level overrides: SUB fields, fees, statement credits.
     Null wallet fields keep the library Card value.
-    wallet_credit_rows: dict keyed by wallet_card_id -> list of WalletCardCredit rows.
+
+    Statement credits live exclusively on wallet cards: each WalletCardCredit row
+    (joined to its CardCredit library entry) becomes one CreditLine on the
+    resulting CardData. wallet_credit_rows: dict keyed by wallet_card_id.
     """
     wc_by_card_id: dict[int, "WalletCard"] = {wc.card_id: wc for wc in wallet_cards}
-    # Build credit override lookup: (wallet_card_id, library_credit_id) -> (value, is_one_time)
-    credit_lookup: dict[tuple[int, int], tuple[float, bool]] = {}
-    if wallet_credit_rows:
-        for wc_id, rows in wallet_credit_rows.items():
-            for row in rows:
-                credit_lookup[(wc_id, row.library_credit_id)] = (row.value, row.is_one_time)
+    rows_by_wc_id: dict[int, list[WalletCardCredit]] = wallet_credit_rows or {}
 
     out: list[CardData] = []
     for cd in card_data_list:
@@ -497,24 +489,16 @@ def apply_wallet_card_overrides(
             wc.first_year_fee if wc.first_year_fee is not None else cd.first_year_fee
         )
 
-        lib = library_cards_by_id.get(wc.card_id) if library_cards_by_id else None
-        lib_by_id = {cr.id: cr for cr in lib.credits} if lib is not None else {}
         merged_lines: list[CreditLine] = []
-        for line in cd.credit_lines:
-            cr = lib_by_id.get(line.library_credit_id)
-            # Check wallet-level credit row first, then fall back to library
-            override_key = (wc.id, line.library_credit_id)
-            if override_key in credit_lookup:
-                val, one_time = credit_lookup[override_key]
-            else:
-                val = line.value
-                one_time = bool(cr.is_one_time) if cr is not None else line.one_time
+        for row in rows_by_wc_id.get(wc.id, []):
+            lib_credit = row.library_credit
+            if lib_credit is None:
+                continue
             merged_lines.append(
                 CreditLine(
-                    library_credit_id=line.library_credit_id,
-                    name=line.name,
-                    value=val,
-                    one_time=one_time,
+                    library_credit_id=row.library_credit_id,
+                    name=lib_credit.credit_name,
+                    value=row.value,
                 )
             )
 
