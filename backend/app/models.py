@@ -194,6 +194,12 @@ class Card(Base):
 
     # Recurring annual bonus (e.g. Chase Ink Preferred 10k points/year; can be points or cash)
     annual_bonus: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
+    # Percentage-based annual bonus: earns this % of the card's own category earn as bonus points.
+    # e.g. 10.0 for CSP's 10% anniversary bonus, 100.0 for Discover IT's first-year cashback match.
+    annual_bonus_percent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # When True, percentage bonus applies only in the first year (e.g. Discover IT match).
+    # When False/null, percentage bonus recurs every year (e.g. CSP 10%).
+    annual_bonus_first_year_only: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True, default=False)
 
     # True if this card enables partner transfers for its currency ecosystem
     # (e.g. Sapphire Reserve for Chase UR, Strata Premier for Citi TY)
@@ -223,7 +229,7 @@ class Card(Base):
     multiplier_groups: Mapped[list["CardMultiplierGroup"]] = relationship(
         back_populates="card", cascade="all, delete-orphan"
     )
-    rotating_history: Mapped[list["CardRotatingHistory"]] = relationship(
+    rotating_categories: Mapped[list["RotatingCategory"]] = relationship(
         back_populates="card", cascade="all, delete-orphan"
     )
     wallet_cards: Mapped[list["WalletCard"]] = relationship(
@@ -283,30 +289,6 @@ class TravelPortal(Base):
         return f"<TravelPortal id={self.id} name={self.name!r}>"
 
 
-class TravelPortalSeedLog(Base):
-    """
-    Records which (issuer|cobrand, source_id) pairs have already been processed
-    by the startup travel-portal seed. The seed creates one TravelPortal per
-    issuer and per co-brand the first time it sees them, then writes a row
-    here so future restarts never re-create them — even if the user deletes
-    the portal afterwards.
-
-    Newly-added issuers/co-brands aren't in this table, so they still get
-    seeded once when they first appear.
-    """
-
-    __tablename__ = "travel_portal_seed_log"
-    __table_args__ = (UniqueConstraint("kind", "source_id"),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    # "issuer" or "cobrand"
-    kind: Mapped[str] = mapped_column(String(20), nullable=False)
-    source_id: Mapped[int] = mapped_column(Integer, nullable=False)
-
-    def __repr__(self) -> str:
-        return f"<TravelPortalSeedLog kind={self.kind} source_id={self.source_id}>"
-
-
 class CardMultiplierGroup(Base):
     """
     A group of categories that share one multiplier, optional cap, and optional
@@ -317,7 +299,7 @@ class CardMultiplierGroup(Base):
 
     is_rotating: when True, the group's category list is the *universe* of
     historically-rotated bonus categories, and per-category activation
-    probabilities are inferred from `card_rotating_history` rows on the
+    probabilities are inferred from `rotating_categories` rows on the
     parent card. The calculator treats each category's per-period cap as
     `cap_per_billing_cycle × p_C` instead of pooling the full cap across
     every category in the group.
@@ -384,7 +366,7 @@ class CardCategoryMultiplier(Base):
         return self.spend_category.category if self.spend_category else ""
 
 
-class CardRotatingHistory(Base):
+class RotatingCategory(Base):
     """
     One historical (year, quarter) bonus-category activation for a rotating card.
 
@@ -394,7 +376,7 @@ class CardRotatingHistory(Base):
     into per-category activation probabilities `p_C = active_quarters / total_quarters`.
     """
 
-    __tablename__ = "card_rotating_history"
+    __tablename__ = "rotating_categories"
     __table_args__ = (
         UniqueConstraint("card_id", "year", "quarter", "spend_category_id"),
     )
@@ -409,7 +391,7 @@ class CardRotatingHistory(Base):
         ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=False
     )
 
-    card: Mapped["Card"] = relationship(back_populates="rotating_history")
+    card: Mapped["Card"] = relationship(back_populates="rotating_categories")
     spend_category: Mapped["SpendCategory"] = relationship()
 
     @property
@@ -418,7 +400,7 @@ class CardRotatingHistory(Base):
 
     def __repr__(self) -> str:
         return (
-            f"<CardRotatingHistory card={self.card_id} {self.year}Q{self.quarter} "
+            f"<RotatingCategory card={self.card_id} {self.year}Q{self.quarter} "
             f"cat={self.spend_category_id}>"
         )
 
@@ -587,6 +569,8 @@ class WalletCard(Base):
 
     # Optional annual_bonus override (null = use Card's annual_bonus)
     annual_bonus: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    annual_bonus_percent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    annual_bonus_first_year_only: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
 
     # Optional fee overrides (null = use Card's annual_fee / first_year_fee)
     annual_fee: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -615,10 +599,6 @@ class WalletCard(Base):
     group_selections: Mapped[list["WalletCardGroupSelection"]] = relationship(
         back_populates="wallet_card", cascade="all, delete-orphan"
     )
-    rotation_overrides: Mapped[list["WalletCardRotationOverride"]] = relationship(
-        back_populates="wallet_card", cascade="all, delete-orphan"
-    )
-
     def __repr__(self) -> str:
         return f"<WalletCard wallet={self.wallet_id} card={self.card_id} added={self.added_date}>"
 
@@ -788,52 +768,6 @@ class WalletPortalShare(Base):
 
     def __repr__(self) -> str:
         return f"<WalletPortalShare w={self.wallet_id} portal={self.travel_portal_id} share={self.share}>"
-
-
-class WalletCardRotationOverride(Base):
-    """
-    Per-wallet-card pinned rotating-bonus category for a specific (year, quarter).
-
-    Overrides the inferred per-category activation probabilities for that
-    quarter only. When at least one row exists for a (wallet_card, year, quarter)
-    triple, the calculator treats every pinned category as p_C = 1.0 in that
-    quarter and every other category in the rotating group as p_C = 0.0.
-    Quarters with no override rows continue to use the historical-frequency
-    inference path.
-
-    Multiple rows per (wallet_card, year, quarter) are allowed for cards
-    where multiple categories are typically active in the same quarter
-    (e.g. Chase Freedom Flex's "Gas + Select Streaming" quarters, or
-    Discover Calendar Choice when the user picks more than one).
-    """
-
-    __tablename__ = "wallet_card_rotation_overrides"
-    __table_args__ = (
-        UniqueConstraint("wallet_card_id", "year", "quarter", "spend_category_id"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    wallet_card_id: Mapped[int] = mapped_column(
-        ForeignKey("wallet_cards.id", ondelete="CASCADE"), nullable=False
-    )
-    year: Mapped[int] = mapped_column(Integer, nullable=False)
-    quarter: Mapped[int] = mapped_column(Integer, nullable=False)
-    spend_category_id: Mapped[int] = mapped_column(
-        ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=False
-    )
-
-    wallet_card: Mapped["WalletCard"] = relationship(back_populates="rotation_overrides")
-    spend_category: Mapped["SpendCategory"] = relationship()
-
-    @property
-    def category_name(self) -> str:
-        return self.spend_category.category if self.spend_category else ""
-
-    def __repr__(self) -> str:
-        return (
-            f"<WalletCardRotationOverride wc={self.wallet_card_id} "
-            f"{self.year}Q{self.quarter} cat={self.spend_category_id}>"
-        )
 
 
 class WalletCurrencyCpp(Base):

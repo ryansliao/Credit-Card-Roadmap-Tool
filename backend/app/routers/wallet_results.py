@@ -19,14 +19,12 @@ from ..db_helpers import (
     apply_wallet_card_group_selections,
     apply_wallet_card_multiplier_overrides,
     apply_wallet_card_overrides,
-    apply_wallet_card_rotation_overrides,
     apply_wallet_portal_shares,
     load_card_data,
     load_card_ids_by_portal,
     load_wallet_card_credits,
     load_wallet_card_group_selections,
     load_wallet_card_multipliers,
-    load_wallet_card_rotation_overrides,
     load_wallet_cpp_overrides,
     load_wallet_portal_shares,
     load_wallet_spend_items,
@@ -185,8 +183,6 @@ async def wallet_results(
     modified_cards = apply_wallet_card_multiplier_overrides(modified_cards, wallet_multiplier_rows)
     group_selections = await load_wallet_card_group_selections(db, wallet_id)
     modified_cards = apply_wallet_card_group_selections(modified_cards, group_selections)
-    rotation_overrides = await load_wallet_card_rotation_overrides(db, wallet_id)
-    modified_cards = apply_wallet_card_rotation_overrides(modified_cards, rotation_overrides)
     portal_shares = await load_wallet_portal_shares(db, wallet_id)
     if portal_shares:
         card_ids_by_portal = await load_card_ids_by_portal(db)

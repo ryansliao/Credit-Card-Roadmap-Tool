@@ -77,6 +77,12 @@ class CardData:
     sub_months: Optional[int]
     sub_spend_earn: int
     annual_bonus: int
+    annual_bonus_percent: float = 0.0
+    annual_bonus_first_year_only: bool = False
+    # Multiplier on allocation score that reflects the percentage bonus.
+    # Set by compute_wallet before calculation. 1.0 = no bonus.
+    # Recurring 10%: 1.1. First-year-only 100% over 2yr: 1.5.
+    earn_bonus_factor: float = 1.0
     first_year_fee: Optional[float] = None
 
     # category -> always-on rate per dollar. For additive cards this already
@@ -116,12 +122,6 @@ class CardData:
     ] = field(default_factory=list)
     # Manual group category selections: group_id -> set of selected category names (empty/missing = auto-pick by spend)
     group_selected_categories: dict[int, set[str]] = field(default_factory=dict)
-    # Per-wallet rotation overrides: (year, quarter) -> set of pinned category names
-    # (lowercased for case-insensitive matching). When present, these categories
-    # become the only active rotating-bonus categories for that quarter on this
-    # card; all other categories in the rotating universe earn at the All Other
-    # rate. The cap is the full group cap_amount, pooled across the pinned set.
-    rotation_overrides: dict[tuple[int, int], set[str]] = field(default_factory=dict)
     credit_lines: list[CreditLine] = field(default_factory=list)
     # Set of category names where the multiplier only applies via the card's booking portal
     portal_categories: set[str] = field(default_factory=set)
@@ -176,6 +176,8 @@ class CardResult:
     first_year_fee: Optional[float] = None
     sub: int = 0
     annual_bonus: int = 0
+    annual_bonus_percent: float = 0.0
+    annual_bonus_first_year_only: bool = False
     sub_extra_spend: float = 0.0
     sub_spend_earn: int = 0
     # Opportunity cost: net dollar value foregone on the rest of the wallet
@@ -787,7 +789,7 @@ def _tied_cards_for_category(
     for c in candidates:
         m = _multiplier_for_category(c, category, spend)
         cpp = _comparison_cpp(c, wallet_currency_ids, for_balance=for_balance)
-        scored.append((m * cpp, c))
+        scored.append((m * cpp * c.earn_bonus_factor, c))
     if not scored:
         return []
     best = max(t[0] for t in scored)
@@ -817,7 +819,7 @@ def calc_annual_point_earn_allocated(
     """
     if len(selected_cards) <= 1:
         return calc_annual_point_earn(card, spend)
-    total = float(card.annual_bonus)
+    cat_pts = 0.0
     for cat, s in spend.items():
         if s <= 0:
             continue
@@ -826,8 +828,8 @@ def calc_annual_point_earn_allocated(
             continue
         n = len(tied)
         m = _multiplier_for_category(card, cat, spend)
-        total += (s / n) * m
-    return total
+        cat_pts += (s / n) * m
+    return float(card.annual_bonus) + cat_pts + _pct_bonus(card, cat_pts)
 
 
 def calc_annual_allocated_spend(
@@ -891,6 +893,11 @@ def calc_category_earn_breakdown(
                 result.append((cat, round(pts, 2)))
     if card.annual_bonus > 0:
         result.append(("Annual Bonus", float(card.annual_bonus)))
+    # Percentage-based bonus line items
+    cat_pts_total = sum(pts for _, pts in result if _ != "Annual Bonus")
+    pct_recurring = _pct_bonus(card, cat_pts_total)
+    if pct_recurring > 0:
+        result.append((f"Annual Bonus ({card.annual_bonus_percent:g}%)", round(pct_recurring, 2)))
     result.sort(key=lambda x: x[1], reverse=True)
     return result
 
@@ -946,6 +953,11 @@ def _segmented_category_earn_breakdown(
     # Annual bonus is included at full value (same as calc_annual_point_earn_allocated).
     if card.annual_bonus > 0:
         cat_totals["Annual Bonus"] = float(card.annual_bonus)
+    # Recurring percentage bonus
+    cat_pts_total = sum(v for k, v in cat_totals.items() if k != "Annual Bonus")
+    pct_recurring = _pct_bonus(card, cat_pts_total)
+    if pct_recurring > 0:
+        cat_totals[f"Annual Bonus ({card.annual_bonus_percent:g}%)"] = pct_recurring
 
     result = [(cat, round(pts, 2)) for cat, pts in cat_totals.items() if pts > 0]
     result.sort(key=lambda x: x[1], reverse=True)
@@ -976,19 +988,65 @@ def _effective_annual_earn_allocated(
 # ---------------------------------------------------------------------------
 
 
+def _pct_bonus(card: CardData, cat_pts: float) -> float:
+    """Recurring percentage bonus points (0 when first-year-only or no percent set)."""
+    if card.annual_bonus_percent and not card.annual_bonus_first_year_only:
+        return cat_pts * card.annual_bonus_percent / 100
+    return 0.0
+
+
+def _first_year_pct_bonus(card: CardData, cat_pts: float) -> float:
+    """First-year-only percentage bonus points (0 when recurring or no percent set)."""
+    if card.annual_bonus_percent and card.annual_bonus_first_year_only:
+        return cat_pts * card.annual_bonus_percent / 100
+    return 0.0
+
+
+def _calc_earn_bonus_factor(card: CardData, years: int = 1) -> float:
+    """Allocation scoring factor for the percentage bonus.
+
+    Recurring: ``1 + pct/100`` (full every year).
+    First-year-only: ``1 + pct/100/years`` (amortised over projection window).
+    """
+    if not card.annual_bonus_percent:
+        return 1.0
+    if card.annual_bonus_first_year_only:
+        return 1 + card.annual_bonus_percent / 100 / max(years, 1)
+    return 1 + card.annual_bonus_percent / 100
+
+
+def _segment_earn_bonus_factor(card: CardData, seg_start: date) -> float:
+    """Per-segment allocation factor for first-year-only percentage bonus.
+
+    Returns the full factor during the card's first year, 1.0 after.
+    Recurring bonuses always use the full factor regardless of segment.
+    """
+    if not card.annual_bonus_percent:
+        return 1.0
+    if not card.annual_bonus_first_year_only:
+        return 1 + card.annual_bonus_percent / 100
+    # First-year-only: active only during the card's first 12 months.
+    if card.wallet_added_date:
+        first_year_end = add_months(card.wallet_added_date, 12)
+        if seg_start < first_year_end:
+            return 1 + card.annual_bonus_percent / 100
+    return 1.0
+
+
 def calc_annual_point_earn(
     card: CardData,
     spend: dict[str, float],
 ) -> float:
     """Total points earned per year from category spend plus any annual bonus.
     Uses effective multipliers (top-N applied for groups) and All Other fallback.
+    Includes recurring percentage bonus but NOT first-year-only percentage bonus.
     """
     cat_pts = sum(
         s * _multiplier_for_category(card, cat, spend)
         for cat, s in spend.items()
         if s > 0
     )
-    return float(card.annual_bonus) + cat_pts
+    return float(card.annual_bonus) + cat_pts + _pct_bonus(card, cat_pts)
 
 
 def _credit_annual_and_one_time_totals(card: CardData) -> tuple[float, float]:
@@ -1142,10 +1200,16 @@ def calc_total_points(
     # When the SUB is not earnable, exclude the SUB bonus and its earn contribution
     effective_sub = (card.sub_spend_earn * rate) if card.sub_earnable else 0.0
     effective_sub_pts = card.sub if card.sub_earnable else 0
+    # First-year-only percentage bonus: one-time points based on annual category earn.
+    fy_bonus = 0.0
+    if card.annual_bonus_percent and card.annual_bonus_first_year_only and rate:
+        raw_cat_pts = effective_earn / rate - card.annual_bonus
+        fy_bonus = _first_year_pct_bonus(card, raw_cat_pts) * rate
     return (
         effective_earn * years
         + effective_sub
         + effective_sub_pts
+        + fy_bonus
     )
 
 
@@ -1191,15 +1255,20 @@ def _average_annual_net_dollars(
     effective_sub_pts = card.sub if card.sub_earnable else 0
     fee_y1 = card.first_year_fee if card.first_year_fee is not None else card.annual_fee
     total_fees = fee_y1 + (years - 1) * card.annual_fee
-    # effective_earn (from _effective_annual_earn_allocated) already includes card.annual_bonus,
-    # so it is counted correctly via the years multiplier above.
-    # effective_sub and effective_sub_pts are one-time earns; placing them outside the
-    # * years term means they are amortised by the outer / years (i.e. counted once total).
-    # (for cash cards cpp=1, so * cpp / 100 is the same as / 100).
+    # effective_earn (from _effective_annual_earn_allocated) already includes card.annual_bonus
+    # and any recurring percentage bonus, so they are counted correctly via the years
+    # multiplier. effective_sub and effective_sub_pts are one-time earns; placing them
+    # outside the * years term means they are amortised by the outer / years.
+    # First-year-only percentage bonus is also one-time, amortised like SUB.
+    fy_bonus_eff = 0.0
+    if card.annual_bonus_percent and card.annual_bonus_first_year_only and rate:
+        raw_cat_pts = effective_earn / rate - card.annual_bonus
+        fy_bonus_eff = _first_year_pct_bonus(card, raw_cat_pts) * rate
     value = (
         (effective_earn / 100 * cpp) * years
         + effective_sub / 100 * cpp
         + effective_sub_pts * cpp / 100
+        + fy_bonus_eff / 100 * cpp
         + annual_credits * years
         + one_time_credits
         - total_fees
@@ -1384,26 +1453,16 @@ def _segment_card_earn_pts_per_cat(
         for cl, premium, p_is_add in card.portal_premiums:
             portal_lookup[cl] = (float(premium), bool(p_is_add))
 
-    # Per-segment rotation override lookup. When the focal card has a pinned
-    # set of categories for the calendar quarter containing this segment, the
-    # rotating branch switches from per-category historical weights to a
-    # pooled cap restricted to the override set.
     seg_year, seg_quarter = _calendar_quarter(seg_start)
-    override_for_quarter: set[str] | None = card.rotation_overrides.get(
-        (seg_year, seg_quarter)
-    )
 
     # Pass 1: walk every spend category, classify, and stash results we'll
     # finalize in pass 2 (so non-rotating pooled groups can split the cap
     # proportionally across all contributing categories).
     out: dict[str, float] = {}
     # group_id -> list of (cat_name, seg_alloc_dollars, group_mult, cat_mult, is_additive)
-    # for pooled groups (also used for rotating-with-override since override pools the cap).
-    # cat_mult is the always-on rate for that category on this card (already includes
-    # uncapped additive premiums); is_additive comes from the group.
+    # for pooled groups. cat_mult is the always-on rate for that category on this card
+    # (already includes uncapped additive premiums); is_additive comes from the group.
     pooled_pending: dict[int, list[tuple[str, float, float, float, bool]]] = {}
-    # group_id -> "rotating-override" marker so pass 2 uses the right cap_state key prefix
-    rotating_override_groups: set[int] = set()
 
     for cat, s in spend.items():
         if s <= 0:
@@ -1475,23 +1534,7 @@ def _segment_card_earn_pts_per_cat(
         period_start, _ = _cap_period_bounds(seg_start, g_cap_months)
 
         if is_rotating:
-            if override_for_quarter is not None:
-                # User pinned the active categories for this quarter. The cap
-                # becomes a pooled cap across the override set; categories
-                # not in the override get the always-on rate. Pinned categories
-                # share the full group cap (proportional split in pass 2).
-                if cat_lower in override_for_quarter:
-                    rotating_override_groups.add(gid)
-                    pooled_pending.setdefault(gid, []).append(
-                        (cat, seg_alloc_dollars, g_mult, cat_mult, is_additive)
-                    )
-                else:
-                    pts = seg_alloc_dollars * overflow_rate
-                    if pts > 0:
-                        out[cat] = out.get(cat, 0.0) + pts
-                continue
-
-            # No override → expected-value rate for this category.
+            # Expected-value rate for this category.
             #
             # The calculator does NOT pretend the user can perfectly time their
             # spend to whichever category is active in a given quarter. Instead,
@@ -1531,19 +1574,12 @@ def _segment_card_earn_pts_per_cat(
             (cat, seg_alloc_dollars, g_mult, cat_mult, is_additive)
         )
 
-    # Pass 2: finalize pooled groups (non-rotating, or rotating-with-override),
-    # splitting the remaining cap proportionally to each category's
-    # seg-allocated spend.
+    # Pass 2: finalize pooled groups, splitting the remaining cap
+    # proportionally to each category's seg-allocated spend.
     for gid, items in pooled_pending.items():
         g_mult, g_cap_amt, g_cap_months, _is_rot, _rot, g_is_add = capped_groups[gid]
         period_start, _ = _cap_period_bounds(seg_start, g_cap_months)
-        # Use a separate key prefix for override-driven pooling so the
-        # quarter (year, quarter) becomes part of the key — different
-        # quarters with different overrides each get their own cap budget.
-        if gid in rotating_override_groups:
-            key = ("rot_override", gid, seg_year, seg_quarter)
-        else:
-            key = ("pool", gid, period_start)
+        key = ("pool", gid, period_start)
         if key not in cap_state:
             cap_state[key] = g_cap_amt
         remaining = cap_state[key]
@@ -1649,7 +1685,7 @@ def _solve_segment_allocation_lp(
         # Lowercase keys for case-insensitive matching against spend keys
         card_mult[k_idx] = {(k or "").strip().lower(): v for k, v in eff_mults.items()}
         card_all_other[k_idx] = _all_other_multiplier(eff_mults)
-        card_cpp[k_idx] = _comparison_cpp(c, seg_currency_ids, for_balance=for_balance)
+        card_cpp[k_idx] = _comparison_cpp(c, seg_currency_ids, for_balance=for_balance) * c.earn_bonus_factor
 
     # Categories with positive segment spend.
     seg_year, seg_quarter = _calendar_quarter(seg_start)
@@ -1734,27 +1770,7 @@ def _solve_segment_allocation_lp(
             period_start, _ = _cap_period_bounds(seg_start, g_cap_months)
             cat_lower_set = {(x or "").strip().lower() for x in g_cats}
 
-            override = c.rotation_overrides.get((seg_year, seg_quarter)) if g_is_rot else None
-
-            if g_is_rot and override is not None:
-                # Pooled cap restricted to override categories for this quarter.
-                state_key = ("rot_override", g_id, seg_year, seg_quarter)
-                if state_key not in cap_state:
-                    cap_state[state_key] = float(g_cap_amt)
-                members: list[tuple[int, str]] = []
-                for cl in override:
-                    if cl in cat_lower_set:
-                        members.append((k_idx, cl))
-                        bonus_mult[(k_idx, cl)] = _bonus_rate_for_pair(k_idx, cl, float(g_mult), g_is_add)
-                        pair_is_additive[(k_idx, cl)] = g_is_add
-                        capped_pairs.add((k_idx, cl))
-                if members and cap_state[state_key] > 0:
-                    constraints.append(_CapConstraint(
-                        members=members,
-                        remaining=cap_state[state_key],
-                        state_key=state_key,
-                    ))
-            elif g_is_rot:
+            if g_is_rot:
                 # Per-category EV-blended bonus rate, applied up to the FULL
                 # quarterly cap (not a p_C-scaled cap). The bonus var earns at
                 #
@@ -2263,6 +2279,7 @@ def _segmented_card_net_per_year(
     total_earn_dollars = 0.0
     annualized_earn_pts = 0.0
     annualized_earn_pts_for_balance = 0.0
+    annualized_raw_cat_pts = 0.0  # raw category earn (no fixed bonus/conversion), for first-year pct bonus
     total_credits = 0.0
     card_ever_active = False
 
@@ -2297,8 +2314,15 @@ def _segmented_card_net_per_year(
             )
         seg_years = seg_days / 365.25
         # Annual bonus is uniform per year — prorate to segment.
-        seg_pts_raw = sum(cat_pts.values()) + float(card.annual_bonus) * seg_years
-        seg_pts_raw_balance = sum(cat_pts_balance.values()) + float(card.annual_bonus) * seg_years
+        seg_cat_pts_raw = sum(cat_pts.values())
+        seg_cat_pts_raw_balance = sum(cat_pts_balance.values())
+        # Annualize segment category earn for percentage bonus calculation.
+        seg_cat_annual = seg_cat_pts_raw / seg_years if seg_years > 0 else 0.0
+        seg_cat_annual_balance = seg_cat_pts_raw_balance / seg_years if seg_years > 0 else 0.0
+        seg_pct_bonus = _pct_bonus(card, seg_cat_annual) * seg_years
+        seg_pct_bonus_balance = _pct_bonus(card, seg_cat_annual_balance) * seg_years
+        seg_pts_raw = seg_cat_pts_raw + float(card.annual_bonus) * seg_years + seg_pct_bonus
+        seg_pts_raw_balance = seg_cat_pts_raw_balance + float(card.annual_bonus) * seg_years + seg_pct_bonus_balance
         seg_pts = seg_pts_raw * conv_rate
         seg_pts_balance = seg_pts_raw_balance * conv_rate
 
@@ -2306,6 +2330,7 @@ def _segmented_card_net_per_year(
         total_earn_dollars += seg_pts * eff_currency.cents_per_point / 100.0
         annualized_earn_pts += seg_pts * 365.25 / total_days
         annualized_earn_pts_for_balance += seg_pts_balance * 365.25 / total_days
+        annualized_raw_cat_pts += seg_cat_pts_raw * 365.25 / total_days
 
         annual_credits, _ = _credit_annual_and_one_time_totals(card)
         total_credits += annual_credits * seg_days / 365.25
@@ -2327,6 +2352,14 @@ def _segmented_card_net_per_year(
         if earned is None or window_start <= earned <= window_end:
             eff_currency = _effective_currency(card, active_wallet_currency_ids)
             total_earn_dollars += card.sub * eff_currency.cents_per_point / 100.0
+
+    # First-year-only percentage bonus: one-time earn based on annualized category
+    # earn rate, counted once regardless of window length (like SUB).
+    if card_ever_active and card.annual_bonus_percent and card.annual_bonus_first_year_only:
+        fy_bonus_raw = _first_year_pct_bonus(card, annualized_raw_cat_pts)
+        fy_bonus_eff = fy_bonus_raw * conv_rate
+        eff_currency = _effective_currency(card, active_wallet_currency_ids)
+        total_earn_dollars += fy_bonus_eff * eff_currency.cents_per_point / 100.0
 
     # Fees: prorated by card's actual active days in the window
     card_start_in_window = max(card.wallet_added_date or window_start, window_start)
@@ -2379,6 +2412,17 @@ def compute_wallet(
     all_cards = _apply_transfer_enabler_cpp(all_cards, selected_cards)
     selected_cards = [c for c in all_cards if c.id in selected_ids]
 
+    # Apply earn_bonus_factor for percentage-based annual bonuses.
+    # This factor is used by allocation scoring so cards with bonuses compete
+    # at their effective earn rate. For the simple path, first-year-only bonuses
+    # use an amortised factor; the segmented path overrides per-segment below.
+    all_cards = [
+        replace(c, earn_bonus_factor=_calc_earn_bonus_factor(c, years))
+        if c.annual_bonus_percent else c
+        for c in all_cards
+    ]
+    selected_cards = [c for c in all_cards if c.id in selected_ids]
+
     active_wallet_currency_ids = _wallet_currency_ids(selected_cards)
 
     # Use segmented calculation when window dates are available and either:
@@ -2422,8 +2466,18 @@ def compute_wallet(
         seg_alloc_cache_balance = []
         cap_state_lp: dict[tuple, float] = {}
         cap_state_lp_balance: dict[tuple, float] = {}
+        # Any first-year-only bonus cards need per-segment factor overrides so
+        # the LP allocates categories correctly during vs. after the match year.
+        has_fy_bonus = any(c.annual_bonus_percent and c.annual_bonus_first_year_only for c in selected_cards)
         for seg_start, seg_end, active in segments_for_cache:
             seg_days = (seg_end - seg_start).days
+            # Override earn_bonus_factor per-segment for first-year-only cards.
+            if has_fy_bonus:
+                active = [
+                    replace(c, earn_bonus_factor=_segment_earn_bonus_factor(c, seg_start))
+                    if c.annual_bonus_percent and c.annual_bonus_first_year_only else c
+                    for c in active
+                ]
             seg_currency_ids = {c.currency.id for c in active}
             sub_prio = _sub_priority_ids_for_segment(active, seg_start)
             seg_alloc_cache.append(
@@ -2517,6 +2571,14 @@ def compute_wallet(
             if card.sub_earnable and card.sub_spend_earn > 0:
                 cat_earn = list(cat_earn) + [("SUB Spend", float(card.sub_spend_earn))]
                 cat_earn.sort(key=lambda x: x[1], reverse=True)
+        # First-year-only percentage bonus shown as a separate line item in the breakdown.
+        if card.annual_bonus_percent and card.annual_bonus_first_year_only:
+            cat_pts_for_fy = sum(pts for label, pts in cat_earn
+                                if label not in ("Annual Bonus", "SUB Spend"))
+            fy_bonus = _first_year_pct_bonus(card, cat_pts_for_fy)
+            if fy_bonus > 0:
+                cat_earn = list(cat_earn) + [(f"First Year Match ({card.annual_bonus_percent:g}%)", round(fy_bonus, 2))]
+                cat_earn.sort(key=lambda x: x[1], reverse=True)
 
         # Surface only the SUB values that were actually counted in totals.
         # When sub_earnable is False (e.g. in-wallet cards whose SUB is historical
@@ -2538,6 +2600,8 @@ def compute_wallet(
                 first_year_fee=card.first_year_fee,
                 sub=reported_sub,
                 annual_bonus=card.annual_bonus,
+                annual_bonus_percent=card.annual_bonus_percent,
+                annual_bonus_first_year_only=card.annual_bonus_first_year_only,
                 sub_extra_spend=round(sub_extra, 2),
                 sub_spend_earn=reported_sub_spend_earn,
                 sub_opp_cost_dollars=net_opp,

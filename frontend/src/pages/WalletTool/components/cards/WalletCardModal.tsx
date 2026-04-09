@@ -9,11 +9,9 @@ import {
   type UpdateWalletCardPayload,
   type WalletCard,
   type WalletCardAcquisitionType,
-  type WalletCardRotationOverride,
   creditsApi,
   walletCardCreditApi,
   walletCardGroupSelectionApi,
-  walletCardRotationOverrideApi,
 } from '../../../../api/client'
 import { ModalBackdrop } from '../../../../components/ModalBackdrop'
 import { formatMoney, today } from '../../../../utils/format'
@@ -158,82 +156,8 @@ export function WalletCardModal({
     return lib.multiplier_groups.filter((g) => g.top_n_categories != null && g.top_n_categories > 0)
   }, [lib])
 
-  // Rotating-bonus groups on the selected card (Discover IT / Chase Freedom Flex / Freedom)
-  const rotatingGroups = useMemo<CardMultiplierGroup[]>(() => {
-    if (!lib) return []
-    return lib.multiplier_groups.filter((g) => g.is_rotating)
-  }, [lib])
-  const hasRotating = rotatingGroups.length > 0
 
-  // Rotation overrides — only fetched in edit mode (need an existing wallet card row).
-  const { data: existingOverrides } = useQuery({
-    queryKey: queryKeys.walletCardRotationOverrides(
-      walletCard?.wallet_id ?? null,
-      walletCard?.card_id ?? null,
-    ),
-    queryFn: () =>
-      walletCardRotationOverrideApi.list(walletCard!.wallet_id, walletCard!.card_id),
-    enabled: mode === 'edit' && walletCard != null && hasRotating,
-  })
 
-  const [rotationExpanded, setRotationExpanded] = useState(false)
-  const [pinYear, setPinYear] = useState<number>(new Date().getFullYear())
-  const [pinQuarter, setPinQuarter] = useState<number>(
-    Math.floor(new Date().getMonth() / 3) + 1,
-  )
-  const [pinCategoryId, setPinCategoryId] = useState<number | ''>('')
-
-  const addOverrideMutation = useMutation({
-    mutationFn: (payload: {
-      year: number
-      quarter: number
-      spend_category_id: number
-    }) =>
-      walletCardRotationOverrideApi.add(
-        walletCard!.wallet_id,
-        walletCard!.card_id,
-        payload,
-      ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.walletCardRotationOverrides(
-          walletCard!.wallet_id,
-          walletCard!.card_id,
-        ),
-      })
-      setPinCategoryId('')
-    },
-  })
-
-  const deleteOverrideMutation = useMutation({
-    mutationFn: (overrideId: number) =>
-      walletCardRotationOverrideApi.delete(
-        walletCard!.wallet_id,
-        walletCard!.card_id,
-        overrideId,
-      ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.walletCardRotationOverrides(
-          walletCard!.wallet_id,
-          walletCard!.card_id,
-        ),
-      })
-    },
-  })
-
-  // Combined unique category list across all rotating groups for the picker
-  const rotatingCategoryUniverse = useMemo(() => {
-    const seen = new Map<number, string>()
-    for (const g of rotatingGroups) {
-      for (const c of g.categories) {
-        if (!seen.has(c.spend_category_id)) seen.set(c.spend_category_id, c.name)
-      }
-    }
-    return Array.from(seen.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }, [rotatingGroups])
 
   // Close card dropdown when clicking outside
   useEffect(() => {
@@ -872,133 +796,6 @@ export function WalletCardModal({
                             })()}
                           </div>
                         )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Rotation override pinning (rotating-bonus cards in edit mode) */}
-              {hasRotating && mode === 'edit' && walletCard != null && (
-                <div className="border border-slate-600 rounded-lg overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setRotationExpanded((prev) => !prev)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-700/40"
-                  >
-                    <span>
-                      Rotation Quarter Pins{' '}
-                      {existingOverrides && existingOverrides.length > 0 && (
-                        <span className="text-indigo-300 ml-1">
-                          ({existingOverrides.length})
-                        </span>
-                      )}
-                    </span>
-                    <svg
-                      className={`w-4 h-4 text-slate-400 transition-transform ${rotationExpanded ? 'rotate-180' : ''}`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {rotationExpanded && (
-                    <div className="border-t border-slate-700 px-3 py-3 space-y-3">
-                      <p className="text-[11px] text-slate-400">
-                        Pin a category as the active rotating bonus for a specific
-                        quarter. Pinned quarters override the inferred historical
-                        activation probabilities — pinned categories get the full{' '}
-                        {rotatingGroups[0].multiplier}× rate up to the cap. Quarters
-                        without a pin keep using the inferred weights.
-                      </p>
-                      {existingOverrides && existingOverrides.length > 0 && (
-                        <ul className="space-y-1">
-                          {existingOverrides.map((ov: WalletCardRotationOverride) => (
-                            <li
-                              key={ov.id}
-                              className="flex items-center justify-between text-xs text-slate-200 bg-slate-900/50 rounded px-2 py-1.5"
-                            >
-                              <span>
-                                <span className="text-slate-400 tabular-nums mr-2">
-                                  {ov.year}Q{ov.quarter}
-                                </span>
-                                {ov.category_name}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => deleteOverrideMutation.mutate(ov.id)}
-                                className="text-slate-500 hover:text-red-400 text-[11px]"
-                              >
-                                Remove
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      <div className="flex gap-2 items-end">
-                        <div className="w-20">
-                          <label className="text-[10px] text-slate-500 block mb-0.5">
-                            Year
-                          </label>
-                          <input
-                            type="number"
-                            value={pinYear}
-                            onChange={(e) => setPinYear(Number(e.target.value))}
-                            className="w-full bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1.5 rounded outline-none focus:border-indigo-500"
-                          />
-                        </div>
-                        <div className="w-16">
-                          <label className="text-[10px] text-slate-500 block mb-0.5">
-                            Quarter
-                          </label>
-                          <select
-                            value={pinQuarter}
-                            onChange={(e) => setPinQuarter(Number(e.target.value))}
-                            className="w-full bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1.5 rounded outline-none focus:border-indigo-500"
-                          >
-                            <option value={1}>Q1</option>
-                            <option value={2}>Q2</option>
-                            <option value={3}>Q3</option>
-                            <option value={4}>Q4</option>
-                          </select>
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-[10px] text-slate-500 block mb-0.5">
-                            Category
-                          </label>
-                          <select
-                            value={pinCategoryId}
-                            onChange={(e) =>
-                              setPinCategoryId(
-                                e.target.value === '' ? '' : Number(e.target.value),
-                              )
-                            }
-                            className="w-full bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1.5 rounded outline-none focus:border-indigo-500"
-                          >
-                            <option value="">Pick a category…</option>
-                            {rotatingCategoryUniverse.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={pinCategoryId === '' || addOverrideMutation.isPending}
-                          onClick={() =>
-                            addOverrideMutation.mutate({
-                              year: pinYear,
-                              quarter: pinQuarter,
-                              spend_category_id: Number(pinCategoryId),
-                            })
-                          }
-                          className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs px-3 py-1.5 rounded"
-                        >
-                          Pin
-                        </button>
                       </div>
                     </div>
                   )}

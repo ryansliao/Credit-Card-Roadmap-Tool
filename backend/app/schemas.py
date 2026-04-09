@@ -117,6 +117,9 @@ class UpdateCardLibraryPayload(BaseModel):
     annual_fee: Optional[float] = Field(default=None, ge=0)
     first_year_fee: Optional[float] = Field(default=None, ge=0)
     transfer_enabler: Optional[bool] = None
+    annual_bonus: Optional[int] = Field(default=None, ge=0)
+    annual_bonus_percent: Optional[float] = Field(default=None, ge=0)
+    annual_bonus_first_year_only: Optional[bool] = None
 
 
 class CardMultiplierSchema(BaseModel):
@@ -146,7 +149,7 @@ class CardMultiplierGroupSchema(BaseModel):
 
 
 class RotationCategoryWeight(BaseModel):
-    """Per-category activation probability inferred from card_rotating_history."""
+    """Per-category activation probability inferred from rotating_categories."""
 
     spend_category_id: int
     name: str
@@ -156,7 +159,7 @@ class RotationCategoryWeight(BaseModel):
 def _build_rotation_weights(group: Any) -> list[dict[str, Any]]:
     """
     Compute per-category activation probabilities for a rotating CardMultiplierGroup
-    ORM object from its parent card's loaded `rotating_history` rows.
+    ORM object from its parent card's loaded `rotating_categories` rows.
 
     Returns [] when the group is not rotating or when the parent card's history
     is empty / unloaded. Categories present in the group but missing from history
@@ -165,7 +168,7 @@ def _build_rotation_weights(group: Any) -> list[dict[str, Any]]:
     if not getattr(group, "is_rotating", False):
         return []
     card = getattr(group, "card", None)
-    history = getattr(card, "rotating_history", None) if card is not None else None
+    history = getattr(card, "rotating_categories", None) if card is not None else None
     if not history:
         # Still emit zero-weight rows so the UI can show the universe.
         return [
@@ -257,6 +260,8 @@ class CardRead(BaseModel):
     sub_months: Optional[int] = None
     sub_spend_earn: Optional[int] = None
     annual_bonus: Optional[int] = None
+    annual_bonus_percent: Optional[float] = None
+    annual_bonus_first_year_only: Optional[bool] = None
     transfer_enabler: bool = False
     sub_recurrence_months: Optional[int] = None
     sub_family: Optional[str] = None
@@ -543,6 +548,8 @@ class AdminCreateCardPayload(BaseModel):
     sub_months: Optional[int] = Field(default=None, ge=1)
     sub_spend_earn: Optional[int] = Field(default=None, ge=0)
     annual_bonus: Optional[int] = Field(default=None, ge=0)
+    annual_bonus_percent: Optional[float] = Field(default=None, ge=0)
+    annual_bonus_first_year_only: Optional[bool] = None
     sub_recurrence_months: Optional[int] = Field(default=None, ge=1)
     sub_family: Optional[str] = Field(default=None, max_length=80)
 
@@ -644,40 +651,7 @@ class AdminUpdateTravelPortalPayload(BaseModel):
     card_ids: Optional[list[int]] = None
 
 
-class WalletRotationOverridePayload(BaseModel):
-    year: int = Field(..., ge=2000, le=2100)
-    quarter: int = Field(..., ge=1, le=4)
-    spend_category_id: int
-
-
-class WalletRotationOverrideRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    wallet_card_id: int
-    year: int
-    quarter: int
-    spend_category_id: int
-    category_name: str = ""
-
-    @model_validator(mode="wrap")
-    @classmethod
-    def populate_category_name(cls, data: Any, handler: Any) -> Any:
-        if not isinstance(data, dict):
-            sc = getattr(data, "spend_category", None)
-            return handler(
-                {
-                    "id": data.id,
-                    "wallet_card_id": data.wallet_card_id,
-                    "year": data.year,
-                    "quarter": data.quarter,
-                    "spend_category_id": data.spend_category_id,
-                    "category_name": sc.category if sc is not None else "",
-                }
-            )
-        return handler(data)
-
-
-class CardRotatingHistoryRead(BaseModel):
+class RotatingCategoryRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     card_id: int
@@ -750,6 +724,8 @@ class WalletCardBase(BaseModel):
     sub_months: Optional[int] = None
     sub_spend_earn: Optional[int] = None
     annual_bonus: Optional[int] = Field(default=None, ge=0)
+    annual_bonus_percent: Optional[float] = Field(default=None, ge=0)
+    annual_bonus_first_year_only: Optional[bool] = None
     years_counted: int = Field(default=2, ge=1, le=20)
     annual_fee: Optional[float] = Field(default=None, ge=0)
     first_year_fee: Optional[float] = Field(default=None, ge=0)
@@ -777,6 +753,8 @@ class WalletCardUpdate(BaseModel):
     sub_months: Optional[int] = None
     sub_spend_earn: Optional[int] = None
     annual_bonus: Optional[int] = Field(default=None, ge=0)
+    annual_bonus_percent: Optional[float] = Field(default=None, ge=0)
+    annual_bonus_first_year_only: Optional[bool] = None
     years_counted: Optional[int] = Field(default=None, ge=1, le=20)
     annual_fee: Optional[float] = Field(default=None, ge=0)
     first_year_fee: Optional[float] = Field(default=None, ge=0)
@@ -867,6 +845,8 @@ class CardResultSchema(BaseModel):
     first_year_fee: Optional[float] = None
     sub: int = 0
     annual_bonus: int = 0
+    annual_bonus_percent: float = 0.0
+    annual_bonus_first_year_only: bool = False
     sub_extra_spend: float = 0.0
     sub_spend_earn: int = 0
     # Opportunity cost in dollars (net: gross minus value earned on target card)

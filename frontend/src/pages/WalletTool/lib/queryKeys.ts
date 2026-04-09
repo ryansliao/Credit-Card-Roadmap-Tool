@@ -21,8 +21,6 @@ export const queryKeys = {
     ['wallet-card-credits', walletId, cardId] as const,
   walletCardGroupSelections: (walletId: number | null, cardId: number | null) =>
     ['wallet-card-group-selections', walletId, cardId] as const,
-  walletCardRotationOverrides: (walletId: number | null, cardId: number | null) =>
-    ['wallet-card-rotation-overrides', walletId, cardId] as const,
   walletPortalShares: (walletId: number | null) =>
     ['wallet-portal-shares', walletId] as const,
   travelPortals: ['travel-portals'] as const,

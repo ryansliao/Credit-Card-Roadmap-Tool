@@ -32,17 +32,9 @@ from .routers import (
     wallet_multipliers,
     wallet_portals,
     wallet_results,
-    wallet_rotations,
     wallet_spend,
     wallets,
 )
-from .seed import (
-    seed_portal_premiums,
-    seed_rotating_cards_and_history,
-    seed_standardized_credits,
-    seed_travel_portals,
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -54,22 +46,6 @@ logger = logging.getLogger(__name__)
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     await create_tables()
-    try:
-        await seed_standardized_credits()
-    except Exception:  # pragma: no cover — defensive
-        logger.exception("standardized credit seed failed")
-    try:
-        await seed_rotating_cards_and_history()
-    except Exception:  # pragma: no cover — defensive
-        logger.exception("rotating seed failed")
-    try:
-        await seed_portal_premiums()
-    except Exception:  # pragma: no cover — defensive
-        logger.exception("portal premium seed failed")
-    try:
-        await seed_travel_portals()
-    except Exception:  # pragma: no cover — defensive
-        logger.exception("travel portal seed failed")
     yield
 
 
@@ -121,7 +97,6 @@ app.include_router(wallet_currencies.router)
 app.include_router(wallet_credits.router)
 app.include_router(wallet_multipliers.router)
 app.include_router(wallet_groups.router)
-app.include_router(wallet_rotations.router)
 app.include_router(wallet_portals.router)
 app.include_router(wallet_results.router)
 app.include_router(admin.router)

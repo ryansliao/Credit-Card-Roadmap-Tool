@@ -10,7 +10,7 @@ from ..models import (
     Card,
     CardCategoryMultiplier,
     CardMultiplierGroup,
-    CardRotatingHistory,
+    RotatingCategory,
     WalletCard,
     WalletCardGroupSelection,
 )
@@ -73,8 +73,8 @@ async def set_wallet_card_group_selections(
                 CardCategoryMultiplier.spend_category
             ),
             selectinload(CardMultiplierGroup.card)
-            .selectinload(Card.rotating_history)
-            .selectinload(CardRotatingHistory.spend_category),
+            .selectinload(Card.rotating_categories)
+            .selectinload(RotatingCategory.spend_category),
         )
         .where(
             CardMultiplierGroup.id == group_id,

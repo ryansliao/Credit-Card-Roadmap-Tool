@@ -20,14 +20,13 @@ from .models import (
     Card,
     CardCategoryMultiplier,
     CardMultiplierGroup,
-    CardRotatingHistory,
+    RotatingCategory,
     Currency,
     SpendCategory,
     Wallet,
     WalletCardCredit,
     WalletCardGroupSelection,
     WalletCardMultiplier,
-    WalletCardRotationOverride,
     WalletCurrencyCpp,
     WalletPortalShare,
     WalletSpendCategory,
@@ -106,7 +105,7 @@ async def load_card_data(
             .selectinload(Currency.converts_to_currency),
             selectinload(Card.multipliers).selectinload(CardCategoryMultiplier.spend_category),
             selectinload(Card.multiplier_groups).selectinload(CardMultiplierGroup.categories).selectinload(CardCategoryMultiplier.spend_category),
-            selectinload(Card.rotating_history).selectinload(CardRotatingHistory.spend_category),
+            selectinload(Card.rotating_categories).selectinload(RotatingCategory.spend_category),
         )
     )
     cards = result.scalars().all()
@@ -234,9 +233,9 @@ async def load_card_data(
             if getattr(m, "is_portal", False) and m.category
         }
         # Per-category activation probabilities computed once from this card's
-        # rotating_history rows: p_C = (active quarters for C) / (distinct quarters in history).
+        # rotating_categories rows: p_C = (active quarters for C) / (distinct quarters in history).
         # Used by the calculator to size per-category caps on rotating groups.
-        history_rows = getattr(card, "rotating_history", []) or []
+        history_rows = getattr(card, "rotating_categories", []) or []
         rotation_quarters = {(h.year, h.quarter) for h in history_rows}
         total_history_q = len(rotation_quarters) or 1
         rotation_counts: dict[int, int] = {}
@@ -355,6 +354,8 @@ async def load_card_data(
                 sub_months=card.sub_months,
                 sub_spend_earn=card.sub_spend_earn if card.sub_spend_earn is not None else 0,
                 annual_bonus=card.annual_bonus if card.annual_bonus is not None else 0,
+                annual_bonus_percent=card.annual_bonus_percent if card.annual_bonus_percent is not None else 0.0,
+                annual_bonus_first_year_only=bool(card.annual_bonus_first_year_only) if card.annual_bonus_first_year_only is not None else False,
                 multipliers=multipliers,
                 multiplier_groups=multiplier_groups_list,
                 credit_lines=credit_lines,
@@ -572,6 +573,12 @@ def apply_wallet_card_overrides(
                 annual_bonus=(
                     wc.annual_bonus if wc.annual_bonus is not None else cd.annual_bonus
                 ),
+                annual_bonus_percent=(
+                    wc.annual_bonus_percent if wc.annual_bonus_percent is not None else cd.annual_bonus_percent
+                ),
+                annual_bonus_first_year_only=(
+                    wc.annual_bonus_first_year_only if wc.annual_bonus_first_year_only is not None else cd.annual_bonus_first_year_only
+                ),
                 annual_fee=annual_fee,
                 first_year_fee=first_year_fee,
                 credit_lines=merged_lines,
@@ -670,69 +677,6 @@ def apply_wallet_card_group_selections(
             out.append(cd)
             continue
         out.append(dataclasses.replace(cd, group_selected_categories=card_sels))
-    return out
-
-
-async def load_wallet_card_rotation_overrides(
-    session: AsyncSession,
-    wallet_id: int,
-) -> dict[int, dict[tuple[int, int], set[str]]]:
-    """
-    Load rotation overrides for cards in a wallet.
-    Returns: {card_id: {(year, quarter): {category_name_lower, ...}}}.
-    """
-    from .models import WalletCard as WalletCardModel
-
-    result = await session.execute(
-        select(WalletCardRotationOverride)
-        .options(selectinload(WalletCardRotationOverride.spend_category))
-        .join(
-            WalletCardModel,
-            WalletCardModel.id == WalletCardRotationOverride.wallet_card_id,
-        )
-        .where(WalletCardModel.wallet_id == wallet_id)
-    )
-    rows = result.scalars().all()
-    if not rows:
-        return {}
-
-    wc_ids = {r.wallet_card_id for r in rows}
-    wc_result = await session.execute(
-        select(WalletCardModel).where(WalletCardModel.id.in_(wc_ids))
-    )
-    wc_to_card = {wc.id: wc.card_id for wc in wc_result.scalars().all()}
-
-    out: dict[int, dict[tuple[int, int], set[str]]] = {}
-    for r in rows:
-        card_id = wc_to_card.get(r.wallet_card_id)
-        if card_id is None:
-            continue
-        cat = r.spend_category.category if r.spend_category else ""
-        if not cat:
-            continue
-        out.setdefault(card_id, {}).setdefault((r.year, r.quarter), set()).add(
-            cat.strip().lower()
-        )
-    return out
-
-
-def apply_wallet_card_rotation_overrides(
-    card_data_list: list[CardData],
-    overrides: dict[int, dict[tuple[int, int], set[str]]],
-) -> list[CardData]:
-    """
-    Return CardData copies with rotation_overrides populated for any card with
-    pinned (year, quarter) → category(s) selections in this wallet.
-    """
-    if not overrides:
-        return card_data_list
-    out: list[CardData] = []
-    for cd in card_data_list:
-        card_overrides = overrides.get(cd.id)
-        if not card_overrides:
-            out.append(cd)
-            continue
-        out.append(dataclasses.replace(cd, rotation_overrides=card_overrides))
     return out
 
 

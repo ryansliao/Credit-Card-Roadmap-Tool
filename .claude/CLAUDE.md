@@ -16,8 +16,7 @@ user-defined time horizon (1–5 years).
 - **Backend**: FastAPI + SQLAlchemy (async), PostgreSQL
 - **Frontend**: React 18 + TypeScript + Tailwind CSS, React Query
 - **Reference Data**: Cards, currencies, categories, multipliers, and credits are managed
-  directly in the DB via admin endpoints (`/admin/*`). Seeding of spend categories and
-  issuer application rules happens on startup in `main.py`.
+  directly in the DB via admin endpoints (`/admin/*`). There is no startup seeding.
 - **Single-tenant**: `DEFAULT_USER_ID = 1` defined in `backend/app/constants.py`; no authentication
 
 ## Core Concepts
@@ -68,6 +67,7 @@ card returns more value than it costs. It is **not** simply `annual_fee − cred
 ( effective_earn * cpp/100 * years        # recurring annual earn (in effective currency)
   + sub_spend_earn * cpp/100              # one-time SUB-spend earn (amortised by ÷years)
   + sub_pts * cpp/100                     # one-time SUB bonus (amortised by ÷years)
+  + fy_bonus * cpp/100                    # one-time first-year pct bonus (amortised by ÷years)
   + annual_credits * years
   + one_time_credits                      # one-time credits (amortised by ÷years)
   - first_year_fee - (years-1)*annual_fee
@@ -77,6 +77,7 @@ Where:
 - `effective_earn` = `calc_annual_point_earn_allocated * _conversion_rate` (effective currency pts/yr)
 - `cpp` = effective currency's cents-per-point (after upgrade if applicable)
 - `sub_spend_earn` / `sub_pts` are zero when `sub_earnable = False`
+- `fy_bonus` = first-year-only percentage bonus points (zero when recurring or no pct set)
 - `first_year_fee` defaults to `annual_fee` when not explicitly set
 
 **Category allocation**: each spend category is awarded to the card(s) with the highest
@@ -90,6 +91,16 @@ top-N by spend; categories outside the top-N fall back to the "All Other" multip
 currency earned directly by another selected card, the card's earn is converted at
 `converts_at_rate` and valued at the target currency's CPP. This affects both category
 allocation scores and earn dollar valuation (e.g., UR Cash → Chase UR).
+
+**Percentage-based annual bonus**: `annual_bonus_percent` earns a percentage of the card's
+own category earn as bonus points. Two modes controlled by `annual_bonus_first_year_only`:
+- **Recurring** (False): e.g. CSP's 10% anniversary bonus. Added to `annual_point_earn`
+  every year via `_pct_bonus()`. Shown as "Annual Bonus (10%)" in category breakdown.
+- **First-year-only** (True): e.g. Discover IT's 100% cashback match. Treated as a one-time
+  earn (like SUB), amortised over the projection years. Computed from annualized category
+  earn via `_first_year_pct_bonus()`. Shown as "First Year Match (100%)" in category breakdown.
+Both are overridable at the wallet level (WalletCard fields). The fixed `annual_bonus`
+(integer points) still works alongside and is independent of the percentage bonus.
 
 **Display note**: `CardResult.category_earn` (the per-category breakdown) is in **raw**
 currency units (conversion rate not applied), while `annual_point_earn` is in **effective**
@@ -214,7 +225,6 @@ backend/app/
   db_helpers.py      # DB → calculator bridge: load_card_data, load_spend, etc.
   database.py        # Engine setup, session factory, idempotent migrations
   helpers.py         # Shared endpoint helpers (404 factories, selectinload builders, SUB date math, schema conversion)
-  seed.py            # Startup seed logic (rotating cards, portal premiums, credits, travel portals)
   date_utils.py      # Pure date utility functions
   routers/
     __init__.py
@@ -235,6 +245,18 @@ backend/app/
     wallet_results.py  # GET /wallets/{id}/results, GET /wallets/{id}/roadmap
     admin.py           # Admin CRUD: issuers, currencies, spend categories, cards, multipliers, groups, rotating history
 ```
+
+## Known Pitfalls
+
+**SQL migrations must be a single statement** — the migration runner uses
+`conn.execute(text(sql_file.read_text()))` with asyncpg, which cannot execute multiple
+statements in one prepared statement call. Always wrap multi-statement migrations in a
+`DO $$ BEGIN ... END $$;` block so asyncpg sees a single statement.
+
+**No startup seed code** — all reference data (cards, issuers, currencies, spend categories,
+multipliers, credits, rotating history, travel portals, application rules) lives exclusively
+in the database and is managed via admin endpoints. Do NOT create seed files, startup seed
+functions, or hardcoded reference data in Python code. The `seed.py` file has been removed.
 
 ## Known Conventions
 

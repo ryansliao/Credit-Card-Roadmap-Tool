@@ -179,6 +179,8 @@ async def add_card_to_wallet(
         sub_months=payload.sub_months,
         sub_spend_earn=payload.sub_spend_earn,
         annual_bonus=payload.annual_bonus,
+        annual_bonus_percent=payload.annual_bonus_percent,
+        annual_bonus_first_year_only=payload.annual_bonus_first_year_only,
         years_counted=payload.years_counted,
         annual_fee=payload.annual_fee,
         first_year_fee=payload.first_year_fee,

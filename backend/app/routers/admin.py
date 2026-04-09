@@ -11,7 +11,7 @@ from ..models import (
     Card,
     CardCategoryMultiplier,
     CardMultiplierGroup,
-    CardRotatingHistory,
+    RotatingCategory,
     CoBrand,
     Currency,
     Issuer,
@@ -30,7 +30,7 @@ from ..schemas import (
     AdminUpdateCardMultiplierGroupPayload,
     CardMultiplierGroupRead,
     CardRead,
-    CardRotatingHistoryRead,
+    RotatingCategoryRead,
     CurrencyRead,
     IssuerRead,
     SpendCategoryRead,
@@ -152,6 +152,8 @@ async def admin_create_card(
         sub_months=payload.sub_months,
         sub_spend_earn=payload.sub_spend_earn,
         annual_bonus=payload.annual_bonus,
+        annual_bonus_percent=payload.annual_bonus_percent,
+        annual_bonus_first_year_only=payload.annual_bonus_first_year_only,
         transfer_enabler=payload.transfer_enabler,
         sub_recurrence_months=payload.sub_recurrence_months,
         sub_family=payload.sub_family,
@@ -281,8 +283,8 @@ async def admin_list_card_multiplier_groups(
                 CardCategoryMultiplier.spend_category
             ),
             selectinload(CardMultiplierGroup.card)
-            .selectinload(Card.rotating_history)
-            .selectinload(CardRotatingHistory.spend_category),
+            .selectinload(Card.rotating_categories)
+            .selectinload(RotatingCategory.spend_category),
         )
         .where(CardMultiplierGroup.card_id == card_id)
     )
@@ -351,8 +353,8 @@ async def admin_create_card_multiplier_group(
                 CardCategoryMultiplier.spend_category
             ),
             selectinload(CardMultiplierGroup.card)
-            .selectinload(Card.rotating_history)
-            .selectinload(CardRotatingHistory.spend_category),
+            .selectinload(Card.rotating_categories)
+            .selectinload(RotatingCategory.spend_category),
         )
         .where(CardMultiplierGroup.id == grp.id)
     )
@@ -450,8 +452,8 @@ async def admin_update_card_multiplier_group(
                 CardCategoryMultiplier.spend_category
             ),
             selectinload(CardMultiplierGroup.card)
-            .selectinload(Card.rotating_history)
-            .selectinload(CardRotatingHistory.spend_category),
+            .selectinload(Card.rotating_categories)
+            .selectinload(RotatingCategory.spend_category),
         )
         .where(CardMultiplierGroup.id == group_id)
     )
@@ -488,7 +490,7 @@ async def admin_delete_card_multiplier_group(
 
 @router.get(
     "/admin/cards/{card_id}/rotating-history",
-    response_model=list[CardRotatingHistoryRead],
+    response_model=list[RotatingCategoryRead],
 )
 async def admin_list_card_rotating_history(
     card_id: int,
@@ -498,17 +500,17 @@ async def admin_list_card_rotating_history(
     if not card_result.scalar_one_or_none():
         raise card_404(card_id)
     result = await db.execute(
-        select(CardRotatingHistory)
-        .options(selectinload(CardRotatingHistory.spend_category))
-        .where(CardRotatingHistory.card_id == card_id)
-        .order_by(CardRotatingHistory.year.desc(), CardRotatingHistory.quarter.desc())
+        select(RotatingCategory)
+        .options(selectinload(RotatingCategory.spend_category))
+        .where(RotatingCategory.card_id == card_id)
+        .order_by(RotatingCategory.year.desc(), RotatingCategory.quarter.desc())
     )
     return result.scalars().all()
 
 
 @router.post(
     "/admin/cards/{card_id}/rotating-history",
-    response_model=CardRotatingHistoryRead,
+    response_model=RotatingCategoryRead,
     status_code=status.HTTP_201_CREATED,
 )
 async def admin_add_card_rotating_history(
@@ -528,11 +530,11 @@ async def admin_add_card_rotating_history(
             detail=f"SpendCategory id={payload.spend_category_id} not found",
         )
     existing = await db.execute(
-        select(CardRotatingHistory).where(
-            CardRotatingHistory.card_id == card_id,
-            CardRotatingHistory.year == payload.year,
-            CardRotatingHistory.quarter == payload.quarter,
-            CardRotatingHistory.spend_category_id == payload.spend_category_id,
+        select(RotatingCategory).where(
+            RotatingCategory.card_id == card_id,
+            RotatingCategory.year == payload.year,
+            RotatingCategory.quarter == payload.quarter,
+            RotatingCategory.spend_category_id == payload.spend_category_id,
         )
     )
     if existing.scalar_one_or_none():
@@ -540,7 +542,7 @@ async def admin_add_card_rotating_history(
             status_code=409,
             detail=f"Rotating history already exists for card {card_id} {payload.year}Q{payload.quarter} cat={payload.spend_category_id}",
         )
-    row = CardRotatingHistory(
+    row = RotatingCategory(
         card_id=card_id,
         year=payload.year,
         quarter=payload.quarter,
@@ -549,9 +551,9 @@ async def admin_add_card_rotating_history(
     db.add(row)
     await db.commit()
     result = await db.execute(
-        select(CardRotatingHistory)
-        .options(selectinload(CardRotatingHistory.spend_category))
-        .where(CardRotatingHistory.id == row.id)
+        select(RotatingCategory)
+        .options(selectinload(RotatingCategory.spend_category))
+        .where(RotatingCategory.id == row.id)
     )
     return result.scalar_one()
 
@@ -566,9 +568,9 @@ async def admin_delete_card_rotating_history(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(CardRotatingHistory).where(
-            CardRotatingHistory.id == history_id,
-            CardRotatingHistory.card_id == card_id,
+        select(RotatingCategory).where(
+            RotatingCategory.id == history_id,
+            RotatingCategory.card_id == card_id,
         )
     )
     row = result.scalar_one_or_none()

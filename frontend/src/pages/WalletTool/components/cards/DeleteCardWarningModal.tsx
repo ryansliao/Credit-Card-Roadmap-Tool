@@ -10,7 +10,7 @@ interface Props {
 /**
  * Confirmation dialog shown before removing a card from a wallet. Removing a
  * wallet card is destructive — it cascades and deletes per-wallet credit
- * overrides, multiplier overrides, group selections, and rotation overrides
+ * overrides, multiplier overrides, and group selections
  * for that card — so we ask the user to confirm.
  */
 export function DeleteCardWarningModal({ cardName, onConfirm, onClose, isLoading }: Props) {
@@ -27,8 +27,8 @@ export function DeleteCardWarningModal({ cardName, onConfirm, onClose, isLoading
       </p>
       <div className="bg-red-900/20 border border-red-700/40 rounded-lg px-3 py-2 text-xs text-slate-300 mb-5">
         This will also delete any per-wallet customizations attached to this card —
-        statement credit selections, multiplier overrides, top-N category picks, and
-        rotation overrides. This action cannot be undone.
+        statement credit selections, multiplier overrides, and top-N category picks.
+        This action cannot be undone.
       </div>
       <div className="flex items-center justify-end gap-2">
         <button

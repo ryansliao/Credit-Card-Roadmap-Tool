@@ -63,15 +63,6 @@ export interface CardRotatingHistoryRow {
   category_name: string
 }
 
-export interface WalletCardRotationOverride {
-  id: number
-  wallet_card_id: number
-  year: number
-  quarter: number
-  spend_category_id: number
-  category_name: string
-}
-
 export interface WalletPortalShare {
   id: number
   wallet_id: number
@@ -732,27 +723,6 @@ export const travelPortalApi = {
     }),
   delete: (portalId: number) =>
     request<void>(`/admin/travel-portals/${portalId}`, { method: 'DELETE' }),
-}
-
-export const walletCardRotationOverrideApi = {
-  list: (walletId: number, cardId: number) =>
-    request<WalletCardRotationOverride[]>(
-      `/wallets/${walletId}/cards/${cardId}/rotation-overrides`,
-    ),
-  add: (
-    walletId: number,
-    cardId: number,
-    payload: { year: number; quarter: number; spend_category_id: number },
-  ) =>
-    request<WalletCardRotationOverride>(
-      `/wallets/${walletId}/cards/${cardId}/rotation-overrides`,
-      { method: 'POST', body: JSON.stringify(payload) },
-    ),
-  delete: (walletId: number, cardId: number, overrideId: number) =>
-    request<void>(
-      `/wallets/${walletId}/cards/${cardId}/rotation-overrides/${overrideId}`,
-      { method: 'DELETE' },
-    ),
 }
 
 // ─── Admin: Reference data CRUD ──────────────────────────────────────────────

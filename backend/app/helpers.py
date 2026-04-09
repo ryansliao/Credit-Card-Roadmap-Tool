@@ -16,7 +16,7 @@ from .models import (
     CardCategoryMultiplier,
     CardCredit,
     CardMultiplierGroup,
-    CardRotatingHistory,
+    RotatingCategory,
     Credit,
     Currency,
     Wallet,
@@ -75,6 +75,8 @@ def wc_read(wc: WalletCard, card: Card) -> WalletCardRead:
         sub_months=_inh(wc.sub_months, card.sub_months),
         sub_spend_earn=_inh(wc.sub_spend_earn, card.sub_spend_earn),
         annual_bonus=_inh(wc.annual_bonus, card.annual_bonus),
+        annual_bonus_percent=_inh(wc.annual_bonus_percent, card.annual_bonus_percent),
+        annual_bonus_first_year_only=_inh(wc.annual_bonus_first_year_only, card.annual_bonus_first_year_only),
         years_counted=wc.years_counted,
         annual_fee=_inh(wc.annual_fee, card.annual_fee),
         first_year_fee=_inh(wc.first_year_fee, card.first_year_fee),
@@ -100,7 +102,7 @@ def card_load_opts():
         selectinload(Card.network_tier),
         selectinload(Card.multipliers).selectinload(CardCategoryMultiplier.spend_category),
         selectinload(Card.multiplier_groups).selectinload(CardMultiplierGroup.categories).selectinload(CardCategoryMultiplier.spend_category),
-        selectinload(Card.rotating_history).selectinload(CardRotatingHistory.spend_category),
+        selectinload(Card.rotating_categories).selectinload(RotatingCategory.spend_category),
     ]
 
 
@@ -346,6 +348,8 @@ def wallet_to_schema(wallet) -> WalletResultSchema:
             first_year_fee=cr.first_year_fee,
             sub=cr.sub,
             annual_bonus=cr.annual_bonus,
+            annual_bonus_percent=cr.annual_bonus_percent,
+            annual_bonus_first_year_only=cr.annual_bonus_first_year_only,
             sub_extra_spend=cr.sub_extra_spend,
             sub_spend_earn=cr.sub_spend_earn,
             sub_opp_cost_dollars=cr.sub_opp_cost_dollars,
