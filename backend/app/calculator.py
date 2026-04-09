@@ -29,7 +29,7 @@ from .date_utils import add_months
 
 @dataclass(frozen=True)
 class CreditLine:
-    """Statement credit row for calculations (ids match library `card_credits.id`)."""
+    """Statement credit row for calculations (ids match library `credits.id`)."""
 
     library_credit_id: int
     name: str
@@ -89,8 +89,12 @@ class CardData:
     # - cap_amount:        per-period spend cap in dollars (None = uncapped)
     # - cap_period_months: 1=monthly, 3=quarterly, 6=semi-annual, 12=annual (None = uncapped)
     # - is_rotating:       True for rotating-bonus cards (Discover IT, Chase Freedom Flex).
-    #                      Each category gets its own cap sized by its activation
-    #                      probability instead of pooling the cap across the group.
+    #                      Each category earns at the EV-blended rate
+    #                      `p_C × bonus + (1 − p_C) × overflow` up to the FULL
+    #                      per-period cap, instead of pretending the user can
+    #                      perfectly time spend toward whichever quarter the
+    #                      issuer activates. There is no pooling across
+    #                      categories within the rotating group.
     # - rotation_weights:  category_name -> p_C (activation probability in [0, 1]),
     #                      empty when is_rotating is False.
     # - is_additive:       True if the group's multiplier is a *premium* that
@@ -127,10 +131,21 @@ class CardData:
     # category's segment dollars get the portal premium; the rest fall back
     # to the card's non-portal rate on that category.
     portal_premiums: list[tuple[str, float, bool]] = field(default_factory=list)
-    # Per-wallet share of travel-portal spend for this card's issuer (0..1).
+    # Per-wallet share of travel-portal spend for this card (0..1). When the
+    # card belongs to multiple TravelPortals, this is the *max* share across
+    # those portals (so per-card calculations and the legacy greedy path see
+    # the most-generous share). The LP path uses `portal_memberships` instead,
+    # which preserves the portal_id grouping needed to pool caps across cards
+    # that share a portal.
     # Set by `apply_wallet_portal_shares` from wallet_portal_shares rows.
     # Default 0 = portal premiums contribute nothing.
     portal_share: float = 0.0
+    # {travel_portal_id: share} for every TravelPortal this card belongs to
+    # in the current wallet. Empty when the card has no portal share rows.
+    # The LP uses this to build *pooled* portal-cap constraints — all cards
+    # in the same portal share one cap = `share × seg_dollars[cat]`, instead
+    # of each card having its own independent cap.
+    portal_memberships: dict[int, float] = field(default_factory=dict)
     # True if this card enables partner transfers for its currency (e.g. Sapphire Reserve for UR)
     transfer_enabler: bool = False
 
@@ -1313,11 +1328,18 @@ def _segment_card_earn_pts_per_cat(
       remainder of each category's spend earns at the All Other rate.
 
     - **Rotating capped group (Discover IT, Chase Freedom Flex):** the cap is
-      treated as one-per-category-per-period, sized to `cap × p_C` where p_C
-      is the historical activation probability. Categories with p_C = 0
-      (never historically active) receive no bonus rate. There is no pooling
-      across categories within the rotating group: a quarter where Restaurants
-      is the active category does not consume Gas's expected cap.
+      the FULL `cap_per_billing_cycle` per category per period (not scaled by
+      p_C). The bonus rate applied to spend up to the cap is the *expected*
+      rate over the period:
+
+          ev_rate(C) = p_C × bonus_rate_when_active + (1 − p_C) × overflow_rate
+
+      where p_C is the historical activation probability for category C.
+      This credits expected points instead of assuming the user can perfectly
+      time their spend toward whichever category the issuer activates in a
+      given quarter. Categories with p_C = 0 (never historically active)
+      collapse to the overflow rate. There is no pooling across categories
+      within the rotating group; each gets its own per-period budget.
 
     Both flavors share `cap_state`, keyed by:
       - non-rotating: ``("pool", group_id, period_start)`` → remaining $
@@ -1423,9 +1445,17 @@ def _segment_card_earn_pts_per_cat(
 
         g_mult, g_cap_amt, g_cap_months, is_rotating, rot_weights, is_additive = capped_groups[gid]
 
-        # For non-additive groups: when top-N has demoted this category to
-        # the All Other rate, the bonus path doesn't apply at all.
-        if not is_additive and cat_mult <= all_other + 1e-9:
+        # For non-additive non-rotating groups: when top-N has demoted this
+        # category to the All Other rate, the bonus path doesn't apply at all.
+        # Rotating non-additive groups are intentionally excluded — they don't
+        # use top-N, and their universe categories *naturally* have
+        # cat_mult == all_other because the bonus rate lives on the group
+        # (e.g. Discover IT's 5x), not on a standalone CardCategoryMultiplier.
+        if (
+            not is_additive
+            and not is_rotating
+            and cat_mult <= all_other + 1e-9
+        ):
             pts = seg_alloc_dollars * cat_mult
             if pts > 0:
                 out[cat] = out.get(cat, 0.0) + pts
@@ -1461,24 +1491,37 @@ def _segment_card_earn_pts_per_cat(
                         out[cat] = out.get(cat, 0.0) + pts
                 continue
 
-            # No override → per-category cap sized by historical activation probability.
+            # No override → expected-value rate for this category.
+            #
+            # The calculator does NOT pretend the user can perfectly time their
+            # spend to whichever category is active in a given quarter. Instead,
+            # every dollar in C earns a blended rate that mixes the bonus rate
+            # (with probability p_C the issuer activates this category in the
+            # quarter) and the overflow rate (otherwise):
+            #
+            #     ev_rate(C) = p_C × bonus_rate + (1 − p_C) × overflow_rate
+            #
+            # This rate applies to spend up to the FULL per-period cap (not a
+            # p_C-scaled cap). Above the cap, spend reverts to the overflow
+            # rate, since the issuer's cap binds even on the active quarters.
             p_c = rot_weights.get(cat_lower, 0.0)
             if p_c <= 0.0:
                 # Category is in the rotating universe but has never been
-                # active in our recorded history → no bonus rate.
+                # active in our recorded history → no bonus path; ev_rate
+                # collapses to overflow.
                 pts = seg_alloc_dollars * overflow_rate
                 if pts > 0:
                     out[cat] = out.get(cat, 0.0) + pts
                 continue
-            cat_period_cap = g_cap_amt * p_c
+            ev_rate = p_c * bonus_rate + (1.0 - p_c) * overflow_rate
             key = ("rot", gid, period_start, cat_lower)
             if key not in cap_state:
-                cap_state[key] = cat_period_cap
+                cap_state[key] = float(g_cap_amt)
             remaining = cap_state[key]
             bonus_dollars = min(seg_alloc_dollars, remaining)
             overflow_dollars = seg_alloc_dollars - bonus_dollars
             cap_state[key] = remaining - bonus_dollars
-            pts = bonus_dollars * bonus_rate + overflow_dollars * overflow_rate
+            pts = bonus_dollars * ev_rate + overflow_dollars * overflow_rate
             if pts > 0:
                 out[cat] = out.get(cat, 0.0) + pts
             continue
@@ -1568,7 +1611,10 @@ def _solve_segment_allocation_lp(
     scipy.linprog. Honors:
       - per-category flow conservation (Σ_k allocated = segment_dollars)
       - pooled cap constraints on non-rotating capped groups
-      - per-category cap constraints on rotating groups (cap × p_C)
+      - per-category cap constraints on rotating groups, where the bonus
+        var earns at the expected rate
+        ``p_C × bonus + (1 − p_C) × overflow`` up to the FULL per-quarter
+        cap (the LP allocates *expected* points, not perfectly-timed spend)
       - rotating overrides (pooled cap restricted to pinned categories
         in that calendar quarter)
       - SUB priority filtering (when SUB-priority cards are present, they
@@ -1647,19 +1693,36 @@ def _solve_segment_allocation_lp(
             return card_mult[k_idx].get(cl, card_all_other[k_idx]) + g_mult
         return g_mult
 
-    # ---- Portal premiums (Phase B). ----
-    # Each (card, category) with an is_portal=True premium produces a
-    # per-segment cap constraint with cap = share × seg_alloc_dollars[cat].
-    # The constraint state_key includes the segment date so it never carries
-    # across segments (portal shares are per-quarter intent, not cumulative).
-    # We add these constraints AFTER per-category seg_alloc is known, so we
-    # process them in a second pass below.
-    portal_constraint_specs: list[tuple[int, str, float, bool]] = []
+    # ---- Portal premiums. ----
+    # Each TravelPortal in the wallet has one share value that represents
+    # "fraction of travel-coverable spend booked through this portal." The
+    # cap is therefore POOLED across every card belonging to that portal —
+    # the user can only book each $1 of travel through the portal once, so
+    # the total bonus dollars across all member cards must respect that
+    # single share × seg_dollars[cat] limit.
+    #
+    # We bucket portal premiums by (portal_id, cat_lower) below: each bucket
+    # collects every (card_idx, premium, is_additive) member of that portal
+    # that exposes a premium for the category. One pooled _CapConstraint is
+    # emitted per bucket in the constraint pass below.
+    #
+    # `portal_buckets[(portal_id, cat_lower)] = (share, [(k_idx, premium, is_add), ...])`
+    portal_buckets: dict[tuple[int, str], tuple[float, list[tuple[int, float, bool]]]] = {}
     for k_idx, c in enumerate(competing):
-        if c.portal_share <= 0.0 or not c.portal_premiums:
+        if not c.portal_memberships or not c.portal_premiums:
             continue
-        for cat_lower, premium, p_is_add in c.portal_premiums:
-            portal_constraint_specs.append((k_idx, cat_lower, float(premium), bool(p_is_add)))
+        for portal_id, share in c.portal_memberships.items():
+            if share <= 0.0:
+                continue
+            for cat_lower, premium, p_is_add in c.portal_premiums:
+                bucket = portal_buckets.get((portal_id, cat_lower))
+                if bucket is None:
+                    portal_buckets[(portal_id, cat_lower)] = (
+                        float(share),
+                        [(k_idx, float(premium), bool(p_is_add))],
+                    )
+                else:
+                    bucket[1].append((k_idx, float(premium), bool(p_is_add)))
 
     for k_idx, c in enumerate(competing):
         for (
@@ -1692,7 +1755,17 @@ def _solve_segment_allocation_lp(
                         state_key=state_key,
                     ))
             elif g_is_rot:
-                # Per-category caps sized by historical activation probability.
+                # Per-category EV-blended bonus rate, applied up to the FULL
+                # quarterly cap (not a p_C-scaled cap). The bonus var earns at
+                #
+                #     ev_rate = p_C × bonus_rate_when_active
+                #             + (1 − p_C) × overflow_rate
+                #
+                # so the LP credits expected points rather than pretending the
+                # user can route every dollar to the active quarter. Above the
+                # cap the base var takes over at the overflow rate, which is
+                # the always-on `cat_mult` for additive groups (Freedom Flex)
+                # and `all_other` for non-additive groups (Discover IT).
                 rot_lookup = {(k or "").strip().lower(): float(v) for k, v in g_rot_weights.items()}
                 for cl in cat_lower_set:
                     p_c = rot_lookup.get(cl, 0.0)
@@ -1701,8 +1774,21 @@ def _solve_segment_allocation_lp(
                         continue
                     state_key = ("rot", g_id, period_start, cl)
                     if state_key not in cap_state:
-                        cap_state[state_key] = float(g_cap_amt) * p_c
-                    bonus_mult[(k_idx, cl)] = _bonus_rate_for_pair(k_idx, cl, float(g_mult), g_is_add)
+                        cap_state[state_key] = float(g_cap_amt)
+                    active_bonus_rate = _bonus_rate_for_pair(
+                        k_idx, cl, float(g_mult), g_is_add
+                    )
+                    if g_is_add:
+                        overflow_rate_for_pair = card_mult[k_idx].get(
+                            cl, card_all_other[k_idx]
+                        )
+                    else:
+                        overflow_rate_for_pair = card_all_other[k_idx]
+                    ev_rate = (
+                        p_c * active_bonus_rate
+                        + (1.0 - p_c) * overflow_rate_for_pair
+                    )
+                    bonus_mult[(k_idx, cl)] = ev_rate
                     pair_is_additive[(k_idx, cl)] = g_is_add
                     capped_pairs.add((k_idx, cl))
                     if cap_state[state_key] > 0:
@@ -1729,48 +1815,47 @@ def _solve_segment_allocation_lp(
                         state_key=state_key,
                     ))
 
-    # ---- Portal premium constraints. ----
-    # Each portal premium becomes a per-segment cap = share × seg_dollars[cat].
-    # The cap is dynamic (computed from this segment's spend, not stored in
-    # cap_state) and never carries across segments. The state_key uses a
-    # ("portal", k_idx, cat_lower, seg_start) tuple so multiple cards/cats
-    # have distinct entries — but we initialize to the dynamic value each
-    # time, so cross-segment carry-forward doesn't matter.
-    for spec_k_idx, spec_cl, spec_premium, spec_is_add in portal_constraint_specs:
+    # ---- Portal premium constraints (pooled per portal). ----
+    # For each (portal_id, category) bucket built above, emit ONE constraint
+    # whose members are every card-bonus-var in that portal/category combo.
+    # The cap is `share × seg_dollars[cat]` — a wallet-wide pool, not per
+    # card. The LP can then route the eligible spend to whichever member
+    # earns the most per dollar (typically the highest portal multiplier),
+    # while the rest of the spend falls to base/standalone variables.
+    for (portal_id, spec_cl), (share, members_spec) in portal_buckets.items():
         # Find the matching category (case-insensitive) in cat_dollars.
-        cat_idx_match = None
         cat_seg_dollars = 0.0
-        for idx, (cat, d_c) in enumerate(cat_dollars):
+        for cat, d_c in cat_dollars:
             if cat.strip().lower() == spec_cl:
-                cat_idx_match = idx
                 cat_seg_dollars = d_c
                 break
-        if cat_idx_match is None or cat_seg_dollars <= 0.0:
+        if cat_seg_dollars <= 0.0 or share <= 0.0:
             continue
-        share = competing[spec_k_idx].portal_share
         portal_cap = share * cat_seg_dollars
         if portal_cap <= 0.0:
             continue
-        state_key = ("portal", spec_k_idx, spec_cl, seg_start)
-        # Always re-initialize (per-segment, no carry-forward).
+        state_key = ("portal", portal_id, spec_cl, seg_start)
+        # Always re-initialize per segment (portal shares are per-quarter
+        # intent, not cumulative).
         cap_state[state_key] = portal_cap
-        # The portal premium uses the same additive/non-additive math as a
-        # regular capped group. Override bonus_mult only if no other cap is
-        # already set for this pair (avoids stomping on a more aggressive
-        # standalone bonus path on the same category).
-        rate = _bonus_rate_for_pair(spec_k_idx, spec_cl, spec_premium, spec_is_add)
-        existing_bonus = bonus_mult.get((spec_k_idx, spec_cl))
-        if existing_bonus is None or rate > existing_bonus:
-            bonus_mult[(spec_k_idx, spec_cl)] = rate
-            pair_is_additive[(spec_k_idx, spec_cl)] = spec_is_add
-        capped_pairs.add((spec_k_idx, spec_cl))
-        constraints.append(
-            _CapConstraint(
-                members=[(spec_k_idx, spec_cl)],
-                remaining=portal_cap,
-                state_key=state_key,
+        constraint_members: list[tuple[int, str]] = []
+        for spec_k_idx, spec_premium, spec_is_add in members_spec:
+            # Each member gets its own bonus var with its own rate.
+            rate = _bonus_rate_for_pair(spec_k_idx, spec_cl, spec_premium, spec_is_add)
+            existing_bonus = bonus_mult.get((spec_k_idx, spec_cl))
+            if existing_bonus is None or rate > existing_bonus:
+                bonus_mult[(spec_k_idx, spec_cl)] = rate
+                pair_is_additive[(spec_k_idx, spec_cl)] = spec_is_add
+            capped_pairs.add((spec_k_idx, spec_cl))
+            constraint_members.append((spec_k_idx, spec_cl))
+        if constraint_members:
+            constraints.append(
+                _CapConstraint(
+                    members=constraint_members,
+                    remaining=portal_cap,
+                    state_key=state_key,
+                )
             )
-        )
 
     # ---- Build LP variables and matrices. ----
     # For each (k_idx, cat_idx) pair we always have a `base` variable (e).
@@ -1838,13 +1923,20 @@ def _solve_segment_allocation_lp(
         cat_lower = cat_name.strip().lower()
         cpp = card_cpp[k_idx]
         if kind == "e":
-            if pair_is_additive.get((k_idx, cat_lower), True) is False:
-                # Non-additive bonus path → overflow earns at All Other.
-                mult = card_all_other[k_idx]
-            else:
-                # Additive path or no bonus path: always-on rate (which
-                # includes uncapped additive premiums via db_helpers).
-                mult = card_mult[k_idx].get(cat_lower, card_all_other[k_idx])
+            # The base variable always earns at the card's always-on rate for
+            # this category — i.e., what the category earns *without* the
+            # bonus path being active. For cards where the only multiplier on
+            # the category lives inside a non-additive cap group (BCP 6x
+            # Groceries, Discover IT rotating Gas), `card_mult[k][cat]` is
+            # not set and falls back to All Other, matching the original
+            # "overflow → All Other" behaviour for legacy non-additive groups.
+            #
+            # When the card has BOTH a standalone always-on multiplier AND a
+            # non-additive bonus on the same category (e.g. CSR Airlines 4x
+            # standalone + 8x Chase Travel portal expansion), `card_mult` is
+            # 4x and the base var correctly earns 4x on the non-portal
+            # portion, instead of being silently dropped to All Other = 1x.
+            mult = card_mult[k_idx].get(cat_lower, card_all_other[k_idx])
         else:
             mult = bonus_mult.get((k_idx, cat_lower), card_all_other[k_idx])
         # Effective $ earned per $ spent.

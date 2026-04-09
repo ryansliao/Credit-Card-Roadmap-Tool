@@ -297,7 +297,14 @@ export function SpendTabContent({
                           type="number"
                           min={0}
                           step="1"
-                          value={isEditing ? amountDraft : Math.round(item.amount)}
+                          value={
+                            isEditing
+                              ? amountDraft
+                              : item.amount === 0
+                                ? ''
+                                : Math.round(item.amount)
+                          }
+                          placeholder="0"
                           onFocus={() => startEditAmount(item)}
                           onChange={(e) => setAmountDraft(e.target.value)}
                           onBlur={() => commitAmount(item)}
@@ -308,7 +315,7 @@ export function SpendTabContent({
                               ;(e.currentTarget as HTMLInputElement).blur()
                             }
                           }}
-                          className="w-full min-w-0 bg-slate-700 border border-slate-600 text-white text-sm tabular-nums text-right pl-4 pr-1.5 py-0.5 rounded outline-none focus:border-indigo-500"
+                          className="w-full min-w-0 bg-slate-700 border border-slate-600 text-white text-sm tabular-nums text-right pl-4 pr-1.5 py-0.5 rounded outline-none focus:border-indigo-500 placeholder:text-slate-500"
                         />
                       </div>
                     </td>

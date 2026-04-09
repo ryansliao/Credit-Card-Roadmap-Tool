@@ -14,8 +14,10 @@ import { WalletCardModal } from './components/cards/WalletCardModal'
 import { CreateWalletModal } from './components/wallet/CreateWalletModal'
 import { WalletResultsAndCurrenciesPanel } from './components/summary/WalletResultsAndCurrenciesPanel'
 import { CardsListPanel } from './components/cards/CardsListPanel'
+import { DeleteCardWarningModal } from './components/cards/DeleteCardWarningModal'
 import { ApplicationRuleWarningModal } from './components/roadmap/ApplicationRuleWarningModal'
 import { DEFAULT_USER_ID } from './constants'
+import { useCreditLibrary } from './hooks/useCreditLibrary'
 import { queryKeys } from './lib/queryKeys'
 
 
@@ -36,11 +38,18 @@ export default function WalletToolPage() {
   const [applicationRuleWarnings, setApplicationRuleWarnings] = useState<RoadmapRuleStatus[] | null>(
     null
   )
+  const [pendingRemoval, setPendingRemoval] = useState<{ cardId: number; cardName: string } | null>(
+    null
+  )
 
   const { data: wallets, isLoading: walletsLoading } = useQuery({
     queryKey: queryKeys.wallets(),
     queryFn: () => walletsApi.list(DEFAULT_USER_ID),
   })
+
+  // Warm the global credit library cache so the credits picker inside
+  // WalletCardModal renders instantly when a card is opened.
+  useCreditLibrary()
 
   const createWalletMutation = useMutation({
     mutationFn: (payload: { name: string; description: string }) =>
@@ -285,9 +294,13 @@ export default function WalletToolPage() {
                         }
                       )
                     }}
-                    onRemoveCard={(cardId) =>
-                      removeCardMutation.mutate({ walletId: selectedWallet.id, cardId })
-                    }
+                    onRemoveCard={(cardId) => {
+                      const wc = selectedWallet.wallet_cards.find((c) => c.card_id === cardId)
+                      setPendingRemoval({
+                        cardId,
+                        cardName: wc?.card_name ?? `Card #${cardId}`,
+                      })
+                    }}
                     onEditCard={(wc) => setWalletCardModal({ mode: 'edit', walletCard: wc })}
                     onAddCard={() => setWalletCardModal({ mode: 'add' })}
                   />
@@ -314,6 +327,20 @@ export default function WalletToolPage() {
         <ApplicationRuleWarningModal
           violations={applicationRuleWarnings}
           onClose={() => setApplicationRuleWarnings(null)}
+        />
+      )}
+
+      {pendingRemoval && selectedWallet && (
+        <DeleteCardWarningModal
+          cardName={pendingRemoval.cardName}
+          isLoading={removeCardMutation.isPending}
+          onClose={() => setPendingRemoval(null)}
+          onConfirm={() => {
+            removeCardMutation.mutate(
+              { walletId: selectedWallet.id, cardId: pendingRemoval.cardId },
+              { onSuccess: () => setPendingRemoval(null) },
+            )
+          }}
         />
       )}
 

@@ -18,6 +18,7 @@ import {
 import { ModalBackdrop } from '../../../../components/ModalBackdrop'
 import { formatMoney, today } from '../../../../utils/format'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
+import { useCreditLibrary } from '../../hooks/useCreditLibrary'
 import { buildWalletCardFields, walletFormToUpdatePayload } from '../../lib/walletCardForm'
 import { queryKeys } from '../../lib/queryKeys'
 
@@ -68,6 +69,7 @@ export function WalletCardModal({
   const [selectedCredits, setSelectedCredits] = useState<Record<number, number>>({})
   const [creditsExpanded, setCreditsExpanded] = useState(false)
   const [creditPickerOpen, setCreditPickerOpen] = useState(false)
+  const [creditSearch, setCreditSearch] = useState('')
   const [groupSelectionsExpanded, setGroupSelectionsExpanded] = useState(false)
   // group_id -> array of selected spend_category_ids (length == top_n)
   const [groupSelections, setGroupSelections] = useState<Record<number, number[]>>({})
@@ -81,16 +83,26 @@ export function WalletCardModal({
   const effectiveCardId =
     mode === 'add' ? (typeof cardId === 'number' ? cardId : null) : (walletCard?.card_id ?? null)
 
-  // Global standardized credit library (Priority Pass, Global Entry, etc.)
-  const { data: creditLibrary } = useQuery({
-    queryKey: queryKeys.credits(),
-    queryFn: () => creditsApi.list(),
-  })
+  // Global standardized credit library (Priority Pass, Global Entry, etc.).
+  // Cached indefinitely; prefetched at the WalletTool root so opening the
+  // modal does not block on a network round-trip.
+  const { data: creditLibrary, isLoading: creditLibraryLoading } = useCreditLibrary()
   const creditLibraryById = useMemo(() => {
     const m = new Map<number, CardCredit>()
     for (const c of creditLibrary ?? []) m.set(c.id, c)
     return m
   }, [creditLibrary])
+
+  const createCreditMutation = useMutation({
+    mutationFn: (credit_name: string) => creditsApi.create({ credit_name, credit_value: 0 }),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.credits() })
+      setSelectedCredits((prev) => ({ ...prev, [created.id]: created.credit_value }))
+      setCreditPickerOpen(false)
+      setCreditSearch('')
+    },
+    onError: (e: Error) => setFormError(e.message),
+  })
 
   // Existing wallet-card credit selections (edit mode only)
   const { data: existingCreditOverrides } = useQuery({
@@ -109,7 +121,9 @@ export function WalletCardModal({
   // Cards already in the wallet — shown in the "changing from" picker
   const walletCards = useMemo(() => {
     if (!cards) return []
-    return cards.filter((c) => existingCardIds.includes(c.id))
+    return [...cards]
+      .filter((c) => existingCardIds.includes(c.id))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
   }, [cards, existingCardIds])
 
   // "Changing to" candidates: same issuer as the selected from-card, not already in wallet
@@ -124,8 +138,12 @@ export function WalletCardModal({
 
   const searchedCards = useMemo(() => {
     const q = cardSearch.trim().toLowerCase()
-    if (!q) return issuerFilteredCards
-    return issuerFilteredCards.filter((c) => c.name.toLowerCase().includes(q))
+    const filtered = !q
+      ? issuerFilteredCards
+      : issuerFilteredCards.filter((c) => c.name.toLowerCase().includes(q))
+    return [...filtered].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    )
   }, [issuerFilteredCards, cardSearch])
 
   const lib = useMemo(
@@ -235,6 +253,9 @@ export function WalletCardModal({
         return
       }
       if (!lib) return
+      // Wait for the credit library before hydrating so we can pre-populate
+      // the card's default statement credits in the same pass.
+      if (!creditLibrary) return
       const key = `add:${cardId}`
       if (hydratedKey.current === key) return
       hydratedKey.current = key
@@ -244,7 +265,16 @@ export function WalletCardModal({
       setAnnualBonus(lib.annual_bonus != null ? String(lib.annual_bonus) : '')
       setAnnualFee(String(lib.annual_fee))
       setFirstYearFee(lib.first_year_fee != null ? String(lib.first_year_fee) : '')
-      setSelectedCredits({})
+      // Auto-attach the default statement credits this card natively offers,
+      // based on the global card_credits link table.
+      const defaults: Record<number, number> = {}
+      for (const c of creditLibrary) {
+        if (c.card_ids.includes(cardId)) {
+          defaults[c.id] = c.credit_value
+        }
+      }
+      setSelectedCredits(defaults)
+      setCreditsExpanded(Object.keys(defaults).length > 0)
       setGroupSelections({})
       setFormError(null)
     } else {
@@ -270,7 +300,7 @@ export function WalletCardModal({
       setGroupSelections({})
       setFormError(null)
     }
-  }, [mode, cardId, lib, walletCard])
+  }, [mode, cardId, lib, walletCard, creditLibrary])
 
   // Populate selected credits from the wallet-specific API data (edit mode).
   useEffect(() => {
@@ -664,7 +694,30 @@ export function WalletCardModal({
                   </button>
                   {creditsExpanded && (
                     <div className="border-t border-slate-700">
-                      {Object.keys(selectedCredits).length === 0 ? (
+                      {creditLibraryLoading ? (
+                        <div className="flex items-center gap-2 px-3 py-3 text-xs text-slate-400">
+                          <svg
+                            className="w-3.5 h-3.5 animate-spin text-indigo-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                            />
+                          </svg>
+                          Loading credits…
+                        </div>
+                      ) : Object.keys(selectedCredits).length === 0 ? (
                         <p className="text-xs text-slate-500 px-3 py-3">
                           No credits selected. Add credits this card grants from the picker below.
                         </p>
@@ -690,7 +743,8 @@ export function WalletCardModal({
                                       type="number"
                                       min={0}
                                       step="0.01"
-                                      value={value}
+                                      value={value === 0 ? '' : value}
+                                      placeholder="0"
                                       onChange={(e) => {
                                         const raw = e.target.value
                                         const parsed = raw === '' ? 0 : Number.parseFloat(raw)
@@ -700,7 +754,7 @@ export function WalletCardModal({
                                           [libId]: parsed,
                                         }))
                                       }}
-                                      className="w-24 bg-slate-700 border border-slate-600 text-white text-xs tabular-nums pl-5 pr-2 py-1 rounded outline-none focus:border-indigo-500"
+                                      className="w-24 bg-slate-700 border border-slate-600 text-white text-xs tabular-nums pl-5 pr-2 py-1 rounded outline-none focus:border-indigo-500 placeholder:text-slate-500"
                                     />
                                   </div>
                                   <button
@@ -726,43 +780,96 @@ export function WalletCardModal({
                         {!creditPickerOpen ? (
                           <button
                             type="button"
-                            onClick={() => setCreditPickerOpen(true)}
+                            onClick={() => {
+                              setCreditPickerOpen(true)
+                              setCreditSearch('')
+                            }}
                             className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
                           >
                             + Add credit
                           </button>
                         ) : (
-                          <div className="flex items-center gap-2">
-                            <select
-                              className="flex-1 bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1.5 rounded outline-none focus:border-indigo-500"
-                              defaultValue=""
-                              onChange={(e) => {
-                                const id = Number(e.target.value)
-                                if (!id) return
-                                const lc = creditLibraryById.get(id)
-                                setSelectedCredits((prev) => ({
-                                  ...prev,
-                                  [id]: lc?.credit_value ?? 0,
-                                }))
-                                setCreditPickerOpen(false)
-                              }}
-                            >
-                              <option value="">Pick a credit…</option>
-                              {(creditLibrary ?? [])
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="search"
+                                autoFocus
+                                value={creditSearch}
+                                onChange={(e) => setCreditSearch(e.target.value)}
+                                placeholder="Search credits…"
+                                className="flex-1 bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1.5 rounded outline-none focus:border-indigo-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCreditPickerOpen(false)
+                                  setCreditSearch('')
+                                }}
+                                className="text-xs text-slate-400 hover:text-white px-2 py-1.5"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                            {(() => {
+                              const trimmed = creditSearch.trim()
+                              const q = trimmed.toLowerCase()
+                              const matches = (creditLibrary ?? [])
                                 .filter((c) => !(c.id in selectedCredits))
-                                .map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.credit_name} ({formatMoney(c.credit_value)})
-                                  </option>
-                                ))}
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => setCreditPickerOpen(false)}
-                              className="text-xs text-slate-400 hover:text-white px-2 py-1.5"
-                            >
-                              Cancel
-                            </button>
+                                .filter((c) => !q || c.credit_name.toLowerCase().includes(q))
+                              const exactExists = (creditLibrary ?? []).some(
+                                (c) => c.credit_name.toLowerCase() === q,
+                              )
+                              const canCreate = trimmed.length > 0 && !exactExists
+                              if (matches.length === 0 && !canCreate) {
+                                return (
+                                  <p className="text-[11px] text-slate-500 px-1 py-1">
+                                    No matching credits.
+                                  </p>
+                                )
+                              }
+                              return (
+                                <ul className="max-h-40 overflow-y-auto rounded border border-slate-700 divide-y divide-slate-700/60">
+                                  {matches.map((c) => (
+                                    <li key={c.id}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedCredits((prev) => ({
+                                            ...prev,
+                                            [c.id]: c.credit_value,
+                                          }))
+                                          setCreditPickerOpen(false)
+                                          setCreditSearch('')
+                                        }}
+                                        className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-700/60"
+                                      >
+                                        <span className="truncate min-w-0">{c.credit_name}</span>
+                                        <span className="text-slate-500 tabular-nums shrink-0">
+                                          {formatMoney(c.credit_value)}
+                                        </span>
+                                      </button>
+                                    </li>
+                                  ))}
+                                  {canCreate && (
+                                    <li>
+                                      <button
+                                        type="button"
+                                        disabled={createCreditMutation.isPending}
+                                        onClick={() => createCreditMutation.mutate(trimmed)}
+                                        className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-indigo-300 hover:bg-slate-700/60 disabled:opacity-50"
+                                      >
+                                        <span className="shrink-0">+</span>
+                                        <span className="truncate min-w-0">
+                                          {createCreditMutation.isPending
+                                            ? `Creating "${trimmed}"…`
+                                            : `Create "${trimmed}"`}
+                                        </span>
+                                      </button>
+                                    </li>
+                                  )}
+                                </ul>
+                              )
+                            })()}
                           </div>
                         )}
                       </div>

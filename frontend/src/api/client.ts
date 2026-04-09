@@ -75,9 +75,15 @@ export interface WalletCardRotationOverride {
 export interface WalletPortalShare {
   id: number
   wallet_id: number
-  issuer_id: number
+  travel_portal_id: number
   share: number
-  issuer_name: string
+  travel_portal_name: string
+}
+
+export interface TravelPortal {
+  id: number
+  name: string
+  card_ids: number[]
 }
 
 /** A standardized statement credit in the global library (e.g. Priority Pass). */
@@ -85,6 +91,8 @@ export interface CardCredit {
   id: number
   credit_name: string
   credit_value: number
+  /** IDs of cards in the global library that natively offer this credit. */
+  card_ids: number[]
 }
 
 export interface IssuerRead {
@@ -696,13 +704,34 @@ export const walletCardGroupSelectionApi = {
 export const walletPortalShareApi = {
   list: (walletId: number) =>
     request<WalletPortalShare[]>(`/wallets/${walletId}/portal-shares`),
-  upsert: (walletId: number, payload: { issuer_id: number; share: number }) =>
+  upsert: (walletId: number, payload: { travel_portal_id: number; share: number }) =>
     request<WalletPortalShare>(`/wallets/${walletId}/portal-shares`, {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),
-  delete: (walletId: number, issuerId: number) =>
-    request<void>(`/wallets/${walletId}/portal-shares/${issuerId}`, { method: 'DELETE' }),
+  delete: (walletId: number, travelPortalId: number) =>
+    request<void>(`/wallets/${walletId}/portal-shares/${travelPortalId}`, {
+      method: 'DELETE',
+    }),
+}
+
+export const travelPortalApi = {
+  list: () => request<TravelPortal[]>(`/travel-portals`),
+  create: (payload: { name: string; card_ids?: number[] }) =>
+    request<TravelPortal>(`/admin/travel-portals`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  update: (
+    portalId: number,
+    payload: { name?: string; card_ids?: number[] },
+  ) =>
+    request<TravelPortal>(`/admin/travel-portals/${portalId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  delete: (portalId: number) =>
+    request<void>(`/admin/travel-portals/${portalId}`, { method: 'DELETE' }),
 }
 
 export const walletCardRotationOverrideApi = {

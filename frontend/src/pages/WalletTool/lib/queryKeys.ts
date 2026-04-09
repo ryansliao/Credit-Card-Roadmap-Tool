@@ -25,4 +25,5 @@ export const queryKeys = {
     ['wallet-card-rotation-overrides', walletId, cardId] as const,
   walletPortalShares: (walletId: number | null) =>
     ['wallet-portal-shares', walletId] as const,
+  travelPortals: ['travel-portals'] as const,
 } as const

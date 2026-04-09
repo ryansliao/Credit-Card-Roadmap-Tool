@@ -77,7 +77,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -95,6 +95,7 @@ from .db_helpers import (
     ensure_all_other_wallet_spend_category,
     ensure_all_other_wallet_spend_item,
     load_card_data,
+    load_card_ids_by_portal,
     load_wallet_card_credits,
     load_wallet_card_group_selections,
     load_wallet_card_multipliers,
@@ -108,6 +109,7 @@ from .models import (
     Card,
     CardCategoryMultiplier,
     CardCredit,
+    Credit,
     CardMultiplierGroup,
     CardRotatingHistory,
     CoBrand,
@@ -116,6 +118,8 @@ from .models import (
     IssuerApplicationRule,
     NetworkTier,
     SpendCategory,
+    TravelPortal,
+    TravelPortalSeedLog,
     User,
     Wallet,
     WalletCard,
@@ -138,7 +142,10 @@ from .schemas import (
     AdminCreateCurrencyPayload,
     AdminCreateIssuerPayload,
     AdminCreateSpendCategoryPayload,
+    AdminCreateTravelPortalPayload,
     AdminUpdateCardMultiplierGroupPayload,
+    AdminUpdateTravelPortalPayload,
+    TravelPortalRead,
     CardMultiplierGroupRead,
     CardRotatingHistoryRead,
     CardCreditRead,
@@ -769,35 +776,103 @@ async def _seed_one_rotating_card(session, spec: dict) -> None:
 # Default standardized statement credits seeded on startup. Each (name, default_value)
 # pair is upserted by name only — existing rows keep whatever value they have.
 _STANDARDIZED_CREDIT_SPECS: list[tuple[str, float]] = [
+    # Subscriptions / memberships with a fixed retail price get a default value.
     ("Priority Pass", 469.0),
-    ("Global Entry / TSA PreCheck", 100.0),
-    ("Free Checked Bags", 60.0),
-    ("Uber Cash", 200.0),
-    ("DoorDash Credit", 120.0),
     ("CLEAR Plus", 199.0),
-    ("Marriott Free Night Award", 300.0),
-    ("Hilton Free Night Award", 200.0),
-    ("Hotel Credit", 300.0),
-    ("Airline Incidental Credit", 200.0),
-    ("Streaming Credit", 84.0),
     ("Walmart+ Membership", 155.0),
     ("Equinox Credit", 300.0),
-    ("Saks Fifth Avenue Credit", 100.0),
-    ("Resy Dining Credit", 120.0),
+    ("Global Entry / TSA PreCheck", 120.0),
+    # Variable-value credits — dollar amount depends on which card carries them,
+    # so the default is left at 0 and overridden per wallet card as needed.
+    ("Free Checked Bags", 0.0),
+    ("Uber Cash", 0.0),
+    ("DoorDash Credit", 0.0),
+    ("Marriott Free Night Award", 0.0),
+    ("Hilton Free Night Award", 0.0),
+    ("Hotel Credit", 0.0),
+    ("Airline Incidental Credit", 0.0),
+    ("Streaming Credit", 0.0),
+    ("Saks Fifth Avenue Credit", 0.0),
+    ("Resy Dining Credit", 0.0),
 ]
 
 
 async def _seed_standardized_credits() -> None:
     """Idempotently seed the global credit library with common defaults."""
     async with AsyncSessionLocal() as session:
-        existing_rows = await session.execute(select(CardCredit.credit_name))
+        existing_rows = await session.execute(select(Credit.credit_name))
         existing_names = {n for (n,) in existing_rows.all()}
         added = False
         for name, default_value in _STANDARDIZED_CREDIT_SPECS:
             if name in existing_names:
                 continue
-            session.add(CardCredit(credit_name=name, credit_value=default_value))
+            session.add(Credit(credit_name=name, credit_value=default_value))
             added = True
+        if added:
+            await session.commit()
+
+
+async def _seed_travel_portals() -> None:
+    """Seed one TravelPortal per Issuer and per CoBrand the *first* time we
+    see them. The seed consults `travel_portal_seed_log`: any (kind, source_id)
+    pair already in the log is skipped, so a portal the user has manually
+    deleted does not respawn on the next startup. Newly-added issuers/co-brands
+    aren't in the log yet, so they still get seeded once.
+    """
+    async with AsyncSessionLocal() as session:
+        log_rows = (
+            await session.execute(select(TravelPortalSeedLog))
+        ).scalars().all()
+        seeded_issuer_ids = {r.source_id for r in log_rows if r.kind == "issuer"}
+        seeded_cobrand_ids = {r.source_id for r in log_rows if r.kind == "cobrand"}
+
+        existing_names = {
+            name
+            for (name,) in (
+                await session.execute(select(TravelPortal.name))
+            ).all()
+        }
+
+        issuers = (await session.execute(select(Issuer))).scalars().all()
+        cobrands = (await session.execute(select(CoBrand))).scalars().all()
+        cards = (await session.execute(select(Card))).scalars().all()
+
+        cards_by_issuer: dict[int, list[Card]] = {}
+        cards_by_cobrand: dict[int, list[Card]] = {}
+        for c in cards:
+            cards_by_issuer.setdefault(c.issuer_id, []).append(c)
+            if c.co_brand_id is not None:
+                cards_by_cobrand.setdefault(c.co_brand_id, []).append(c)
+
+        added = False
+        for iss in issuers:
+            if iss.id in seeded_issuer_ids:
+                continue
+            portal_name = f"{iss.name} Travel"
+            if portal_name not in existing_names:
+                session.add(
+                    TravelPortal(
+                        name=portal_name,
+                        cards=list(cards_by_issuer.get(iss.id, [])),
+                    )
+                )
+            session.add(TravelPortalSeedLog(kind="issuer", source_id=iss.id))
+            added = True
+
+        for cb in cobrands:
+            if cb.id in seeded_cobrand_ids:
+                continue
+            portal_name = f"{cb.name} Travel"
+            if portal_name not in existing_names:
+                session.add(
+                    TravelPortal(
+                        name=portal_name,
+                        cards=list(cards_by_cobrand.get(cb.id, [])),
+                    )
+                )
+            session.add(TravelPortalSeedLog(kind="cobrand", source_id=cb.id))
+            added = True
+
         if added:
             await session.commit()
 
@@ -817,6 +892,10 @@ async def lifespan(app: FastAPI):
         await _seed_portal_premiums()
     except Exception:  # pragma: no cover — defensive
         logger.exception("portal premium seed failed")
+    try:
+        await _seed_travel_portals()
+    except Exception:  # pragma: no cover — defensive
+        logger.exception("travel portal seed failed")
     yield
 
 
@@ -1013,10 +1092,41 @@ async def update_card_library(
 # ---------------------------------------------------------------------------
 
 
+async def _validate_card_ids(db: AsyncSession, card_ids: list[int]) -> list[int]:
+    """Deduplicate, validate that each card exists, return a sorted list."""
+    unique = sorted(set(card_ids))
+    if not unique:
+        return []
+    result = await db.execute(select(Card.id).where(Card.id.in_(unique)))
+    found = {row[0] for row in result.all()}
+    missing = [cid for cid in unique if cid not in found]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown card id(s): {missing}",
+        )
+    return unique
+
+
+async def _set_credit_card_links(
+    db: AsyncSession, credit: Credit, card_ids: list[int]
+) -> None:
+    """Replace this credit's card_credit_cards rows with the given card_ids."""
+    await db.execute(
+        delete(CardCredit).where(CardCredit.credit_id == credit.id)
+    )
+    for cid in card_ids:
+        db.add(CardCredit(credit_id=credit.id, card_id=cid))
+
+
 @app.get("/credits", response_model=list[CardCreditRead], tags=["credits"])
 async def list_credits(db: AsyncSession = Depends(get_db)):
     """List the global standardized statement credit library."""
-    result = await db.execute(select(CardCredit).order_by(CardCredit.credit_name))
+    result = await db.execute(
+        select(Credit)
+        .options(selectinload(Credit.card_links))
+        .order_by(Credit.credit_name)
+    )
     return list(result.scalars().all())
 
 
@@ -1033,14 +1143,21 @@ async def admin_create_credit(
     name = payload.credit_name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="credit_name cannot be empty")
-    existing = await db.execute(select(CardCredit).where(CardCredit.credit_name == name))
+    existing = await db.execute(select(Credit).where(Credit.credit_name == name))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail=f"Credit '{name}' already exists")
-    credit = CardCredit(credit_name=name, credit_value=payload.credit_value)
+    card_ids = await _validate_card_ids(db, payload.card_ids)
+    credit = Credit(credit_name=name, credit_value=payload.credit_value)
     db.add(credit)
+    await db.flush()
+    await _set_credit_card_links(db, credit, card_ids)
     await db.commit()
-    await db.refresh(credit)
-    return credit
+    result = await db.execute(
+        select(Credit)
+        .options(selectinload(Credit.card_links))
+        .where(Credit.id == credit.id)
+    )
+    return result.scalar_one()
 
 
 @app.patch(
@@ -1053,8 +1170,12 @@ async def admin_update_credit(
     payload: UpdateCreditPayload,
     db: AsyncSession = Depends(get_db),
 ):
-    """Update default value or rename a global library credit."""
-    result = await db.execute(select(CardCredit).where(CardCredit.id == credit_id))
+    """Update default value, rename, or update card links for a library credit."""
+    result = await db.execute(
+        select(Credit)
+        .options(selectinload(Credit.card_links))
+        .where(Credit.id == credit_id)
+    )
     row = result.scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail=f"Credit {credit_id} not found")
@@ -1066,9 +1187,9 @@ async def admin_update_credit(
             raise HTTPException(status_code=400, detail="credit_name cannot be empty")
         if new_name != row.credit_name:
             clash = await db.execute(
-                select(CardCredit).where(
-                    CardCredit.credit_name == new_name,
-                    CardCredit.id != credit_id,
+                select(Credit).where(
+                    Credit.credit_name == new_name,
+                    Credit.id != credit_id,
                 )
             )
             if clash.scalar_one_or_none():
@@ -1077,9 +1198,16 @@ async def admin_update_credit(
                     detail=f"Credit name {new_name!r} already exists",
                 )
         row.credit_name = new_name
+    if payload.card_ids is not None:
+        card_ids = await _validate_card_ids(db, payload.card_ids)
+        await _set_credit_card_links(db, row, card_ids)
     await db.commit()
-    await db.refresh(row)
-    return row
+    result = await db.execute(
+        select(Credit)
+        .options(selectinload(Credit.card_links))
+        .where(Credit.id == credit_id)
+    )
+    return result.scalar_one()
 
 
 @app.delete(
@@ -1091,7 +1219,7 @@ async def admin_delete_credit(
     credit_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(CardCredit).where(CardCredit.id == credit_id))
+    result = await db.execute(select(Credit).where(Credit.id == credit_id))
     row = result.scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail=f"Credit {credit_id} not found")
@@ -1626,13 +1754,13 @@ async def add_card_to_wallet(
     # Attach the initial standardized credits, if any.
     if payload.credits:
         lib_ids = {c.library_credit_id for c in payload.credits}
-        lib_rows = await db.execute(select(CardCredit).where(CardCredit.id.in_(lib_ids)))
+        lib_rows = await db.execute(select(Credit).where(Credit.id.in_(lib_ids)))
         valid_ids = {row.id for row in lib_rows.scalars()}
         for entry in payload.credits:
             if entry.library_credit_id not in valid_ids:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"CardCredit id={entry.library_credit_id} not found in library",
+                    detail=f"Credit id={entry.library_credit_id} not found in library",
                 )
             db.add(
                 WalletCardCredit(
@@ -2011,13 +2139,9 @@ async def wallet_results(
     modified_cards = apply_wallet_card_rotation_overrides(modified_cards, rotation_overrides)
     portal_shares = await load_wallet_portal_shares(db, wallet_id)
     if portal_shares:
-        # Need an issuer_id lookup for each selected card; load minimal Card rows.
-        issuer_lookup = await db.execute(
-            select(Card).where(Card.id.in_(card_ids_sel))
-        )
-        cards_orm_by_id = {c.id: c for c in issuer_lookup.scalars().all()}
+        card_ids_by_portal = await load_card_ids_by_portal(db)
         modified_cards = apply_wallet_portal_shares(
-            modified_cards, portal_shares, cards_orm_by_id
+            modified_cards, portal_shares, card_ids_by_portal
         )
     selected_ids = card_ids_sel
     spend = await load_wallet_spend_items(db, wallet_id)
@@ -2676,13 +2800,13 @@ async def upsert_wallet_card_credit(
         raise HTTPException(status_code=404, detail="Wallet card not found")
 
     lib_result = await db.execute(
-        select(CardCredit).where(CardCredit.id == library_credit_id)
+        select(Credit).where(Credit.id == library_credit_id)
     )
     lib_credit = lib_result.scalar_one_or_none()
     if not lib_credit:
         raise HTTPException(
             status_code=404,
-            detail=f"CardCredit id={library_credit_id} not found in library",
+            detail=f"Credit id={library_credit_id} not found in library",
         )
 
     existing = await db.execute(
@@ -3134,7 +3258,7 @@ async def delete_wallet_card_rotation_override(
     await db.commit()
 
 
-# ---- Wallet portal shares (per-issuer travel-portal share for the wallet) ----
+# ---- Wallet portal shares (per-travel-portal share for the wallet) ----
 
 
 @app.get(
@@ -3150,9 +3274,9 @@ async def list_wallet_portal_shares(
         raise _wallet_404(wallet_id)
     result = await db.execute(
         select(WalletPortalShare)
-        .options(selectinload(WalletPortalShare.issuer))
+        .options(selectinload(WalletPortalShare.travel_portal))
         .where(WalletPortalShare.wallet_id == wallet_id)
-        .order_by(WalletPortalShare.issuer_id)
+        .order_by(WalletPortalShare.travel_portal_id)
     )
     return result.scalars().all()
 
@@ -3169,22 +3293,25 @@ async def upsert_wallet_portal_share(
     wallet_row = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
     if not wallet_row.scalar_one_or_none():
         raise _wallet_404(wallet_id)
-    iss_row = await db.execute(select(Issuer).where(Issuer.id == payload.issuer_id))
-    if not iss_row.scalar_one_or_none():
+    portal_row = await db.execute(
+        select(TravelPortal).where(TravelPortal.id == payload.travel_portal_id)
+    )
+    if not portal_row.scalar_one_or_none():
         raise HTTPException(
-            status_code=404, detail=f"Issuer id={payload.issuer_id} not found"
+            status_code=404,
+            detail=f"Travel portal id={payload.travel_portal_id} not found",
         )
     existing = await db.execute(
         select(WalletPortalShare).where(
             WalletPortalShare.wallet_id == wallet_id,
-            WalletPortalShare.issuer_id == payload.issuer_id,
+            WalletPortalShare.travel_portal_id == payload.travel_portal_id,
         )
     )
     row = existing.scalar_one_or_none()
     if row is None:
         row = WalletPortalShare(
             wallet_id=wallet_id,
-            issuer_id=payload.issuer_id,
+            travel_portal_id=payload.travel_portal_id,
             share=payload.share,
         )
         db.add(row)
@@ -3193,31 +3320,163 @@ async def upsert_wallet_portal_share(
     await db.commit()
     result = await db.execute(
         select(WalletPortalShare)
-        .options(selectinload(WalletPortalShare.issuer))
+        .options(selectinload(WalletPortalShare.travel_portal))
         .where(WalletPortalShare.id == row.id)
     )
     return result.scalar_one()
 
 
 @app.delete(
-    "/wallets/{wallet_id}/portal-shares/{issuer_id}",
+    "/wallets/{wallet_id}/portal-shares/{travel_portal_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_wallet_portal_share(
     wallet_id: int,
-    issuer_id: int,
+    travel_portal_id: int,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
         select(WalletPortalShare).where(
             WalletPortalShare.wallet_id == wallet_id,
-            WalletPortalShare.issuer_id == issuer_id,
+            WalletPortalShare.travel_portal_id == travel_portal_id,
         )
     )
     row = result.scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="Portal share not found")
     await db.delete(row)
+    await db.commit()
+
+
+# ---- Travel portals (reference data: which cards belong to each portal) ----
+
+
+@app.get(
+    "/travel-portals",
+    response_model=list[TravelPortalRead],
+)
+async def list_travel_portals(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(TravelPortal)
+        .options(selectinload(TravelPortal.cards))
+        .order_by(TravelPortal.name)
+    )
+    return result.scalars().all()
+
+
+@app.post(
+    "/admin/travel-portals",
+    response_model=TravelPortalRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["admin"],
+)
+async def admin_create_travel_portal(
+    payload: AdminCreateTravelPortalPayload,
+    db: AsyncSession = Depends(get_db),
+):
+    name = payload.name.strip()
+    existing = await db.execute(select(TravelPortal).where(TravelPortal.name == name))
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=409, detail=f"Travel portal '{name}' already exists"
+        )
+    portal = TravelPortal(name=name)
+    if payload.card_ids:
+        cards_result = await db.execute(
+            select(Card).where(Card.id.in_(payload.card_ids))
+        )
+        cards = cards_result.scalars().all()
+        found_ids = {c.id for c in cards}
+        missing = [cid for cid in payload.card_ids if cid not in found_ids]
+        if missing:
+            raise HTTPException(
+                status_code=404, detail=f"Card ids not found: {missing}"
+            )
+        portal.cards = list(cards)
+    db.add(portal)
+    await db.commit()
+    result = await db.execute(
+        select(TravelPortal)
+        .options(selectinload(TravelPortal.cards))
+        .where(TravelPortal.id == portal.id)
+    )
+    return result.scalar_one()
+
+
+@app.put(
+    "/admin/travel-portals/{portal_id}",
+    response_model=TravelPortalRead,
+    tags=["admin"],
+)
+async def admin_update_travel_portal(
+    portal_id: int,
+    payload: AdminUpdateTravelPortalPayload,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(TravelPortal)
+        .options(selectinload(TravelPortal.cards))
+        .where(TravelPortal.id == portal_id)
+    )
+    portal = result.scalar_one_or_none()
+    if portal is None:
+        raise HTTPException(
+            status_code=404, detail=f"Travel portal id={portal_id} not found"
+        )
+    if payload.name is not None:
+        new_name = payload.name.strip()
+        if new_name != portal.name:
+            clash = await db.execute(
+                select(TravelPortal).where(TravelPortal.name == new_name)
+            )
+            if clash.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Travel portal '{new_name}' already exists",
+                )
+            portal.name = new_name
+    if payload.card_ids is not None:
+        if payload.card_ids:
+            cards_result = await db.execute(
+                select(Card).where(Card.id.in_(payload.card_ids))
+            )
+            cards = cards_result.scalars().all()
+            found_ids = {c.id for c in cards}
+            missing = [cid for cid in payload.card_ids if cid not in found_ids]
+            if missing:
+                raise HTTPException(
+                    status_code=404, detail=f"Card ids not found: {missing}"
+                )
+            portal.cards = list(cards)
+        else:
+            portal.cards = []
+    await db.commit()
+    refreshed = await db.execute(
+        select(TravelPortal)
+        .options(selectinload(TravelPortal.cards))
+        .where(TravelPortal.id == portal.id)
+    )
+    return refreshed.scalar_one()
+
+
+@app.delete(
+    "/admin/travel-portals/{portal_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["admin"],
+)
+async def admin_delete_travel_portal(
+    portal_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(TravelPortal).where(TravelPortal.id == portal_id)
+    )
+    portal = result.scalar_one_or_none()
+    if portal is None:
+        raise HTTPException(
+            status_code=404, detail=f"Travel portal id={portal_id} not found"
+        )
+    await db.delete(portal)
     await db.commit()
 
 

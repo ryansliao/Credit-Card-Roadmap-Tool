@@ -4,11 +4,13 @@ from typing import Optional
 from sqlalchemy import (
     JSON,
     Boolean,
+    Column,
     Date,
     Float,
     ForeignKey,
     Integer,
     String,
+    Table,
     Text,
     UniqueConstraint,
 )
@@ -231,8 +233,78 @@ class Card(Base):
         back_populates="card", cascade="all, delete-orphan"
     )
 
+    travel_portals: Mapped[list["TravelPortal"]] = relationship(
+        secondary="travel_portal_cards", back_populates="cards"
+    )
+
     def __repr__(self) -> str:
         return f"<Card id={self.id} name={self.name!r}>"
+
+
+# Many-to-many: a TravelPortal contains the set of cards whose portal-only
+# multipliers (CardCategoryMultiplier.is_portal=True) become eligible when
+# the wallet has a portal share for that portal. A card may belong to more
+# than one portal in principle.
+travel_portal_cards = Table(
+    "travel_portal_cards",
+    Base.metadata,
+    Column(
+        "travel_portal_id",
+        ForeignKey("travel_portals.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "card_id",
+        ForeignKey("cards.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+
+class TravelPortal(Base):
+    """
+    A travel booking portal (e.g. Chase Travel, Amex Travel, Capital One Travel).
+
+    A portal owns the list of cards whose portal-only multipliers should be
+    treated as earnable. The user's wallet sets a per-portal share to control
+    what fraction of category spend is treated as booked through that portal.
+    """
+
+    __tablename__ = "travel_portals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+
+    cards: Mapped[list["Card"]] = relationship(
+        secondary="travel_portal_cards", back_populates="travel_portals"
+    )
+
+    def __repr__(self) -> str:
+        return f"<TravelPortal id={self.id} name={self.name!r}>"
+
+
+class TravelPortalSeedLog(Base):
+    """
+    Records which (issuer|cobrand, source_id) pairs have already been processed
+    by the startup travel-portal seed. The seed creates one TravelPortal per
+    issuer and per co-brand the first time it sees them, then writes a row
+    here so future restarts never re-create them — even if the user deletes
+    the portal afterwards.
+
+    Newly-added issuers/co-brands aren't in this table, so they still get
+    seeded once when they first appear.
+    """
+
+    __tablename__ = "travel_portal_seed_log"
+    __table_args__ = (UniqueConstraint("kind", "source_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # "issuer" or "cobrand"
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    source_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<TravelPortalSeedLog kind={self.kind} source_id={self.source_id}>"
 
 
 class CardMultiplierGroup(Base):
@@ -351,7 +423,7 @@ class CardRotatingHistory(Base):
         )
 
 
-class CardCredit(Base):
+class Credit(Base):
     """
     Standardized statement credit / perk in the global library
     (e.g. Priority Pass, Global Entry, Free Checked Bags, Uber Cash).
@@ -360,7 +432,7 @@ class CardCredit(Base):
     per-wallet-card basis via WalletCardCredit. All entries are recurring.
     """
 
-    __tablename__ = "card_credits"
+    __tablename__ = "credits"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     credit_name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
@@ -369,6 +441,32 @@ class CardCredit(Base):
     wallet_credit_overrides: Mapped[list["WalletCardCredit"]] = relationship(
         back_populates="library_credit", cascade="all, delete-orphan"
     )
+
+    # Cards in the global library that natively offer this credit. Used by the UI to
+    # auto-suggest credits when a card is added to a wallet.
+    card_links: Mapped[list["CardCredit"]] = relationship(
+        back_populates="credit",
+        cascade="all, delete-orphan",
+    )
+
+    @property
+    def card_ids(self) -> list[int]:
+        return sorted(link.card_id for link in self.card_links)
+
+
+class CardCredit(Base):
+    """Join row linking a global library credit to a card that natively offers it."""
+
+    __tablename__ = "card_credits"
+
+    credit_id: Mapped[int] = mapped_column(
+        ForeignKey("credits.id", ondelete="CASCADE"), primary_key=True
+    )
+    card_id: Mapped[int] = mapped_column(
+        ForeignKey("cards.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    credit: Mapped["Credit"] = relationship(back_populates="card_links")
 
 
 class SpendCategory(Base):
@@ -596,7 +694,7 @@ class IssuerApplicationRule(Base):
 
 class WalletCardCredit(Base):
     """
-    A standardized credit (from the global card_credits library) attached to a
+    A standardized credit (from the global credits library) attached to a
     specific wallet card with a user-set dollar value. The presence of this row
     means "this wallet card has this credit"; the value defaults to the library
     default but can be overridden by the user.
@@ -610,12 +708,12 @@ class WalletCardCredit(Base):
         ForeignKey("wallet_cards.id", ondelete="CASCADE"), nullable=False
     )
     library_credit_id: Mapped[int] = mapped_column(
-        ForeignKey("card_credits.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("credits.id", ondelete="CASCADE"), nullable=False
     )
     value: Mapped[float] = mapped_column(Float, nullable=False)
 
     wallet_card: Mapped["WalletCard"] = relationship(back_populates="credit_overrides_rows")
-    library_credit: Mapped["CardCredit"] = relationship(back_populates="wallet_credit_overrides")
+    library_credit: Mapped["Credit"] = relationship(back_populates="wallet_credit_overrides")
 
     def __repr__(self) -> str:
         return f"<WalletCardCredit wc={self.wallet_card_id} credit={self.library_credit_id} value={self.value}>"
@@ -660,38 +758,36 @@ class WalletCardGroupSelection(Base):
 
 class WalletPortalShare(Base):
     """
-    Per-wallet per-issuer travel-portal share. Determines what fraction of
-    the wallet's spend in portal-eligible categories (e.g., Travel, Hotels)
-    is treated as "booked through this issuer's portal" — and thus eligible
-    for portal-only multipliers like Chase Freedom Flex's 5x on Chase Travel
-    or Chase Sapphire Reserve's 8x on Chase Travel hotels.
+    Per-wallet per-travel-portal share. Determines what fraction of the
+    wallet's spend in portal-eligible categories (e.g., Travel, Hotels) is
+    treated as booked through that portal — and thus eligible for the
+    portal-only multipliers on the cards belonging to that TravelPortal.
 
-    A wallet has at most one row per issuer. share is in [0, 1]. The default
+    A wallet has at most one row per portal. share is in [0, 1]. The default
     behavior when no row exists is share=0, which means portal-only
     multipliers contribute nothing until the user explicitly opts in.
 
-    Multiple cards from the same issuer (e.g., CSP + CFF, both Chase) share
-    the same portal_share — it's a property of the user's booking habits,
-    not the individual card.
+    Cards belong to a portal via the travel_portal_cards association table —
+    issuer is no longer the linking concept.
     """
 
     __tablename__ = "wallet_portal_shares"
-    __table_args__ = (UniqueConstraint("wallet_id", "issuer_id"),)
+    __table_args__ = (UniqueConstraint("wallet_id", "travel_portal_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     wallet_id: Mapped[int] = mapped_column(
         ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False
     )
-    issuer_id: Mapped[int] = mapped_column(
-        ForeignKey("issuers.id", ondelete="CASCADE"), nullable=False
+    travel_portal_id: Mapped[int] = mapped_column(
+        ForeignKey("travel_portals.id", ondelete="CASCADE"), nullable=False
     )
     share: Mapped[float] = mapped_column(Float, nullable=False)
 
     wallet: Mapped["Wallet"] = relationship()
-    issuer: Mapped["Issuer"] = relationship()
+    travel_portal: Mapped["TravelPortal"] = relationship()
 
     def __repr__(self) -> str:
-        return f"<WalletPortalShare w={self.wallet_id} issuer={self.issuer_id} share={self.share}>"
+        return f"<WalletPortalShare w={self.wallet_id} portal={self.travel_portal_id} share={self.share}>"
 
 
 class WalletCardRotationOverride(Base):

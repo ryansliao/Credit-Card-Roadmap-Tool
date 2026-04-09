@@ -79,11 +79,13 @@ class CardCreditRead(BaseModel):
     id: int
     credit_name: str
     credit_value: float
+    card_ids: list[int] = Field(default_factory=list)
 
 
 class CreateCreditPayload(BaseModel):
     credit_name: str = Field(..., max_length=120)
     credit_value: float = Field(default=0.0, ge=0)
+    card_ids: list[int] = Field(default_factory=list)
 
 
 class UpdateCreditPayload(BaseModel):
@@ -91,11 +93,18 @@ class UpdateCreditPayload(BaseModel):
 
     credit_value: Optional[float] = Field(default=None, ge=0)
     credit_name: Optional[str] = Field(None, max_length=120)
+    card_ids: Optional[list[int]] = None
 
     @model_validator(mode="after")
     def at_least_one_field(self):
-        if self.credit_value is None and self.credit_name is None:
-            raise ValueError("At least one of credit_value or credit_name must be set")
+        if (
+            self.credit_value is None
+            and self.credit_name is None
+            and self.card_ids is None
+        ):
+            raise ValueError(
+                "At least one of credit_value, credit_name, or card_ids must be set"
+            )
         return self
 
 
@@ -575,7 +584,7 @@ class AdminAddRotatingHistoryPayload(BaseModel):
 
 
 class WalletPortalSharePayload(BaseModel):
-    issuer_id: int
+    travel_portal_id: int
     share: float = Field(..., ge=0.0, le=1.0)
 
 
@@ -583,25 +592,56 @@ class WalletPortalShareRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     wallet_id: int
-    issuer_id: int
+    travel_portal_id: int
     share: float
-    issuer_name: str = ""
+    travel_portal_name: str = ""
 
     @model_validator(mode="wrap")
     @classmethod
-    def populate_issuer_name(cls, data: Any, handler: Any) -> Any:
+    def populate_portal_name(cls, data: Any, handler: Any) -> Any:
         if not isinstance(data, dict):
-            iss = getattr(data, "issuer", None)
+            portal = getattr(data, "travel_portal", None)
             return handler(
                 {
                     "id": data.id,
                     "wallet_id": data.wallet_id,
-                    "issuer_id": data.issuer_id,
+                    "travel_portal_id": data.travel_portal_id,
                     "share": data.share,
-                    "issuer_name": iss.name if iss is not None else "",
+                    "travel_portal_name": portal.name if portal is not None else "",
                 }
             )
         return handler(data)
+
+
+class TravelPortalRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    card_ids: list[int] = []
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def populate_card_ids(cls, data: Any, handler: Any) -> Any:
+        if not isinstance(data, dict):
+            cards = getattr(data, "cards", None) or []
+            return handler(
+                {
+                    "id": data.id,
+                    "name": data.name,
+                    "card_ids": [c.id for c in cards],
+                }
+            )
+        return handler(data)
+
+
+class AdminCreateTravelPortalPayload(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    card_ids: list[int] = Field(default_factory=list)
+
+
+class AdminUpdateTravelPortalPayload(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    card_ids: Optional[list[int]] = None
 
 
 class WalletRotationOverridePayload(BaseModel):

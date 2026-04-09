@@ -284,6 +284,56 @@ async def load_card_data(
                     if cm.category_id in group_cat_ids:
                         rotation_weights[cat_name] = count / total_history_q
 
+                # Hierarchical expansion: every ancestor of a rotating leaf
+                # is *also* eligible for the bonus at the same p_C, summed
+                # across siblings that share the ancestor. This makes the
+                # parent category (e.g. "Online Shopping") inherit the rotating
+                # bonus when its children (e.g. "Amazon", "PayPal") are in the
+                # rotating universe — so a user who tracks general "Online
+                # Shopping" spend rather than per-merchant spend still gets
+                # credited.
+                #
+                # Sibling p_C values are summed because rotating quarters are
+                # approximately mutually exclusive: in any given quarter at
+                # most one of {Amazon, PayPal} is the active leaf, so
+                # P(any active) ≈ p_C(Amazon) + p_C(PayPal). Capped at 1.0
+                # for safety. Existing entries (the leaves themselves) are
+                # left alone.
+                ancestor_weights: dict[str, float] = {}
+                for cm in getattr(grp, "categories", []):
+                    if cm.category_id not in group_cat_ids:
+                        continue
+                    leaf_count = rotation_counts.get(cm.category_id, 0)
+                    if leaf_count <= 0:
+                        continue
+                    leaf_weight = leaf_count / total_history_q
+                    # Walk up the parent chain.
+                    current = sc_by_id.get(cm.category_id)
+                    visited: set[int] = set()
+                    while current is not None and current.parent_id is not None:
+                        parent = sc_by_id.get(current.parent_id)
+                        if parent is None or parent.id in visited:
+                            break
+                        visited.add(parent.id)
+                        # Skip "All Other" — it's the implicit base, not a
+                        # bonus-eligible parent.
+                        if (parent.category or "").strip().lower() == "all other":
+                            current = parent
+                            continue
+                        ancestor_weights[parent.category] = (
+                            ancestor_weights.get(parent.category, 0.0) + leaf_weight
+                        )
+                        current = parent
+
+                for ancestor_name, w in ancestor_weights.items():
+                    # Don't clobber a leaf entry with the same name (e.g. a
+                    # rotating leaf that happens to be its own root).
+                    if ancestor_name in rotation_weights:
+                        continue
+                    rotation_weights[ancestor_name] = min(1.0, w)
+                    if ancestor_name not in cats:
+                        cats.append(ancestor_name)
+
             multiplier_groups_list.append(
                 (grp.multiplier, cats, top_n, grp.id, cap_amount, cap_months,
                  is_rotating, rotation_weights, is_additive)
@@ -469,7 +519,7 @@ def apply_wallet_card_overrides(
     Null wallet fields keep the library Card value.
 
     Statement credits live exclusively on wallet cards: each WalletCardCredit row
-    (joined to its CardCredit library entry) becomes one CreditLine on the
+    (joined to its Credit library entry) becomes one CreditLine on the
     resulting CardData. wallet_credit_rows: dict keyed by wallet_card_id.
     """
     wc_by_card_id: dict[int, "WalletCard"] = {wc.card_id: wc for wc in wallet_cards}
@@ -690,48 +740,74 @@ async def load_wallet_portal_shares(
     session: AsyncSession,
     wallet_id: int,
 ) -> dict[int, float]:
-    """Load per-issuer portal shares for one wallet. Returns {issuer_id: share}.
-    Issuers without a row default to share=0 (the calculator's behavior is to
+    """Load per-portal shares for one wallet. Returns {travel_portal_id: share}.
+    Portals without a row default to share=0 (the calculator's behavior is to
     not credit portal multipliers in that case)."""
     result = await session.execute(
         select(WalletPortalShare).where(WalletPortalShare.wallet_id == wallet_id)
     )
-    return {row.issuer_id: float(row.share) for row in result.scalars()}
+    return {row.travel_portal_id: float(row.share) for row in result.scalars()}
+
+
+async def load_card_ids_by_portal(
+    session: AsyncSession,
+) -> dict[int, set[int]]:
+    """Return {travel_portal_id: {card_id, ...}} from the travel_portal_cards
+    association table."""
+    from .models import travel_portal_cards  # local import to avoid cycles
+
+    result = await session.execute(
+        select(
+            travel_portal_cards.c.travel_portal_id,
+            travel_portal_cards.c.card_id,
+        )
+    )
+    out: dict[int, set[int]] = {}
+    for portal_id, card_id in result.all():
+        out.setdefault(int(portal_id), set()).add(int(card_id))
+    return out
 
 
 def apply_wallet_portal_shares(
     card_data_list: list[CardData],
-    shares_by_issuer: dict[int, float],
-    cards_orm_by_id: dict[int, "CardLike"] | None = None,
+    shares_by_portal: dict[int, float],
+    card_ids_by_portal: dict[int, set[int]],
 ) -> list[CardData]:
     """
-    Return CardData copies with `portal_share` set from the wallet's per-issuer
-    shares. Cards whose issuer has no share row keep portal_share=0 (default).
+    Return CardData copies with `portal_share` and `portal_memberships` set
+    from the wallet's per-portal shares.
 
-    The CardData itself doesn't carry an issuer_id (just an issuer_name string),
-    so the caller passes a `cards_orm_by_id` mapping for issuer lookup. If not
-    supplied, falls back to matching by lowercased issuer_name against any
-    issuer name we can resolve from `shares_by_issuer` keys — but that's
-    rarely available, so the orm map is the recommended path.
+    `portal_memberships` is a `{portal_id: share}` dict listing every portal
+    this card belongs to (with a positive share). The LP uses this to build
+    pooled portal-cap constraints so cards sharing a portal share one cap
+    instead of stacking caps independently.
+
+    `portal_share` is the maximum share across the card's portals — used by
+    the legacy greedy path and as a quick "is the card portal-eligible at all"
+    flag.
     """
-    if not shares_by_issuer or not card_data_list:
+    if not shares_by_portal or not card_data_list:
+        return card_data_list
+    # Invert: card_id -> {portal_id: share} for portals with a positive share.
+    memberships_by_card: dict[int, dict[int, float]] = {}
+    for portal_id, share in shares_by_portal.items():
+        if share <= 0.0:
+            continue
+        for cid in card_ids_by_portal.get(portal_id, ()):
+            memberships_by_card.setdefault(cid, {})[portal_id] = share
+    if not memberships_by_card:
         return card_data_list
     out: list[CardData] = []
     for cd in card_data_list:
-        share = 0.0
-        if cards_orm_by_id is not None:
-            orm = cards_orm_by_id.get(cd.id)
-            if orm is not None:
-                issuer_id = getattr(orm, "issuer_id", None)
-                if issuer_id is not None:
-                    share = shares_by_issuer.get(issuer_id, 0.0)
-        if share <= 0.0:
+        memberships = memberships_by_card.get(cd.id)
+        if not memberships:
             out.append(cd)
             continue
-        out.append(dataclasses.replace(cd, portal_share=share))
+        out.append(
+            dataclasses.replace(
+                cd,
+                portal_share=max(memberships.values()),
+                portal_memberships=dict(memberships),
+            )
+        )
     return out
-
-
-# Marker for the orm map type — kept loose to avoid a circular import on Card.
-class CardLike:  # pragma: no cover
-    issuer_id: int

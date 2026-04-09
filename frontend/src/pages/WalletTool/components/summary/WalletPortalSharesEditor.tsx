@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import {
   type WalletPortalShare,
+  travelPortalApi,
   walletPortalShareApi,
   walletsApi,
 } from '../../../../api/client'
@@ -9,17 +10,18 @@ import { useCardLibrary } from '../../hooks/useCardLibrary'
 import { queryKeys } from '../../lib/queryKeys'
 
 /**
- * Per-wallet, per-issuer travel-portal share editor.
+ * Per-wallet, per-travel-portal share editor.
  *
- * Shows a row for every issuer that has at least one in-wallet card with a
- * portal-only multiplier (e.g., Chase Freedom Flex's 5x on Chase Travel).
- * The user picks what fraction of their travel-coverable spend they book
- * through that issuer's portal; the calculator credits the portal premium
+ * Shows a row for every TravelPortal that has at least one in-wallet card
+ * with a portal-only multiplier (e.g., Chase Freedom Flex's 5x on Chase
+ * Travel). The user picks what fraction of their travel-coverable spend
+ * they book through that portal; the calculator credits the portal premium
  * only to that fraction.
  *
- * When `filterByCurrencyId` is supplied, only cards that earn that currency
- * directly are considered — used by the per-currency settings modals so each
- * modal shows just the portal sliders relevant to that currency's ecosystem.
+ * When `filterByCurrencyId` is supplied, only portals whose member cards
+ * include at least one card earning that currency directly are shown — used
+ * by the per-currency settings modals so each modal lists just the portals
+ * relevant to that currency's ecosystem.
  *
  * Hidden entirely when no eligible in-wallet card exposes a portal multiplier.
  */
@@ -41,45 +43,42 @@ export function WalletPortalSharesEditor({
     queryFn: () => walletsApi.get(walletId!),
     enabled: walletId != null,
   })
+  const { data: travelPortals = [] } = useQuery({
+    queryKey: queryKeys.travelPortals,
+    queryFn: () => travelPortalApi.list(),
+  })
   const walletCards = wallet?.wallet_cards ?? []
 
-  // Issuers that have at least one in-wallet card with at least one portal
-  // multiplier row. We treat a row as portal-flagged if any of its standalone
-  // multipliers carries a portal-shaped name (the API doesn't currently expose
-  // is_portal directly on the read schema, so we look at the card's full
-  // multiplier list and infer from is_portal when present, falling back to
-  // category name heuristics for resilience).
-  const portalIssuers = useMemo(() => {
-    if (!cards || walletCards.length === 0) return []
-    // Only cards that contribute to EAF count — i.e. "in_wallet" (held) and
-    // "future" (committed). "Considering" cards are excluded since moving the
-    // slider would have no effect on them.
+  // Travel portals that have at least one in-wallet card that (a) belongs to
+  // the portal, (b) carries at least one portal-flagged multiplier, and (c)
+  // matches the optional currency filter.
+  const visiblePortals = useMemo(() => {
+    if (!cards || walletCards.length === 0 || travelPortals.length === 0) return []
     const inWalletCardIds = new Set(
       walletCards
         .filter((wc) => wc.panel === 'in_wallet' || wc.panel === 'future')
         .map((wc) => wc.card_id),
     )
-    const issuerMap = new Map<number, { id: number; name: string; cardNames: string[] }>()
-    for (const c of cards) {
-      if (!inWalletCardIds.has(c.id)) continue
-      // Currency-scoped editor (used inside per-currency modals): only count
-      // cards whose direct currency matches the modal's currency.
-      if (filterByCurrencyId != null && c.currency_id !== filterByCurrencyId) continue
-      const portalMults = (c.multipliers ?? []).filter((m) => (m as { is_portal?: boolean }).is_portal)
-      if (portalMults.length === 0) continue
-      const entry = issuerMap.get(c.issuer_id)
-      if (entry) {
-        entry.cardNames.push(c.name)
-      } else {
-        issuerMap.set(c.issuer_id, {
-          id: c.issuer_id,
-          name: c.issuer.name,
-          cardNames: [c.name],
-        })
-      }
-    }
-    return Array.from(issuerMap.values()).sort((a, b) => a.name.localeCompare(b.name))
-  }, [cards, walletCards, filterByCurrencyId])
+    const cardsById = new Map(cards.map((c) => [c.id, c]))
+    return travelPortals
+      .map((portal) => {
+        const matchingCardNames: string[] = []
+        for (const cid of portal.card_ids) {
+          if (!inWalletCardIds.has(cid)) continue
+          const c = cardsById.get(cid)
+          if (!c) continue
+          if (filterByCurrencyId != null && c.currency_id !== filterByCurrencyId) continue
+          const portalMults = (c.multipliers ?? []).filter(
+            (m) => (m as { is_portal?: boolean }).is_portal,
+          )
+          if (portalMults.length === 0) continue
+          matchingCardNames.push(c.name)
+        }
+        return { id: portal.id, name: portal.name, cardNames: matchingCardNames }
+      })
+      .filter((p) => p.cardNames.length > 0)
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [cards, walletCards, travelPortals, filterByCurrencyId])
 
   const { data: shares = [] } = useQuery({
     queryKey: queryKeys.walletPortalShares(walletId),
@@ -87,14 +86,14 @@ export function WalletPortalSharesEditor({
     enabled: walletId != null,
   })
 
-  const sharesByIssuer = useMemo(() => {
+  const sharesByPortal = useMemo(() => {
     const out = new Map<number, WalletPortalShare>()
-    for (const s of shares) out.set(s.issuer_id, s)
+    for (const s of shares) out.set(s.travel_portal_id, s)
     return out
   }, [shares])
 
   const upsertMutation = useMutation({
-    mutationFn: (payload: { issuer_id: number; share: number }) =>
+    mutationFn: (payload: { travel_portal_id: number; share: number }) =>
       walletPortalShareApi.upsert(walletId!, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.walletPortalShares(walletId) })
@@ -103,9 +102,9 @@ export function WalletPortalSharesEditor({
   })
 
   // Local edit buffer so the slider doesn't fire requests on every drag.
-  const [pendingByIssuer, setPendingByIssuer] = useState<Record<number, number>>({})
+  const [pendingByPortal, setPendingByPortal] = useState<Record<number, number>>({})
 
-  if (walletId == null || portalIssuers.length === 0) return null
+  if (walletId == null || visiblePortals.length === 0) return null
 
   return (
     <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-3 mt-3">
@@ -114,20 +113,21 @@ export function WalletPortalSharesEditor({
       </p>
       <p className="text-[11px] text-slate-400 mb-3">
         What fraction of your travel-coverable spend do you book through each
-        issuer's portal? Cards earn elevated rates only on the portal portion.
+        travel portal? Cards earn elevated rates only on the portal portion.
       </p>
       <ul className="space-y-3">
-        {portalIssuers.map((iss) => {
-          const existing = sharesByIssuer.get(iss.id)
-          const value = pendingByIssuer[iss.id] ?? existing?.share ?? 0
+        {visiblePortals.map((portal) => {
+          const existing = sharesByPortal.get(portal.id)
+          const value = pendingByPortal[portal.id] ?? existing?.share ?? 0
           const pct = Math.round(value * 100)
           return (
-            <li key={iss.id}>
+            <li key={portal.id}>
               <div className="flex items-center justify-between text-xs text-slate-300 mb-1">
                 <span>
-                  {iss.name} Travel
+                  {portal.name}
                   <span className="text-slate-500 ml-1">
-                    ({iss.cardNames.length} card{iss.cardNames.length === 1 ? '' : 's'})
+                    ({portal.cardNames.length} card
+                    {portal.cardNames.length === 1 ? '' : 's'})
                   </span>
                 </span>
                 <span className="text-indigo-300 tabular-nums">{pct}%</span>
@@ -139,24 +139,27 @@ export function WalletPortalSharesEditor({
                 step={5}
                 value={pct}
                 onChange={(e) =>
-                  setPendingByIssuer((prev) => ({
+                  setPendingByPortal((prev) => ({
                     ...prev,
-                    [iss.id]: Number(e.target.value) / 100,
+                    [portal.id]: Number(e.target.value) / 100,
                   }))
                 }
                 onMouseUp={(e) => {
-                  // Read directly from the input — pendingByIssuer may still
-                  // be stale here because onChange's setState hasn't flushed
-                  // a re-render before onMouseUp fires.
                   const next = Number((e.target as HTMLInputElement).value) / 100
                   if (next !== (existing?.share ?? 0)) {
-                    upsertMutation.mutate({ issuer_id: iss.id, share: next })
+                    upsertMutation.mutate({
+                      travel_portal_id: portal.id,
+                      share: next,
+                    })
                   }
                 }}
                 onTouchEnd={(e) => {
                   const next = Number((e.target as HTMLInputElement).value) / 100
                   if (next !== (existing?.share ?? 0)) {
-                    upsertMutation.mutate({ issuer_id: iss.id, share: next })
+                    upsertMutation.mutate({
+                      travel_portal_id: portal.id,
+                      share: next,
+                    })
                   }
                 }}
                 className="w-full"
