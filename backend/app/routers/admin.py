@@ -104,7 +104,7 @@ async def admin_create_spend_category(
     existing = await db.execute(select(SpendCategory).where(SpendCategory.category == payload.category.strip()))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail=f"SpendCategory '{payload.category}' already exists")
-    sc = SpendCategory(category=payload.category.strip())
+    sc = SpendCategory(category=payload.category.strip(), is_housing=payload.is_housing)
     db.add(sc)
     await db.commit()
     await db.refresh(sc)
@@ -138,6 +138,11 @@ async def admin_create_card(
         if not nt.scalar_one_or_none():
             raise HTTPException(status_code=404, detail=f"NetworkTier id={payload.network_tier_id} not found")
 
+    if payload.secondary_currency_id is not None:
+        sec_cur = await db.execute(select(Currency).where(Currency.id == payload.secondary_currency_id))
+        if not sec_cur.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail=f"Secondary currency id={payload.secondary_currency_id} not found")
+
     card = Card(
         name=payload.name.strip(),
         issuer_id=payload.issuer_id,
@@ -155,6 +160,13 @@ async def admin_create_card(
         annual_bonus_percent=payload.annual_bonus_percent,
         annual_bonus_first_year_only=payload.annual_bonus_first_year_only,
         transfer_enabler=payload.transfer_enabler,
+        secondary_currency_id=payload.secondary_currency_id,
+        secondary_currency_rate=payload.secondary_currency_rate,
+        secondary_currency_cap_rate=payload.secondary_currency_cap_rate,
+        accelerator_cost=payload.accelerator_cost,
+        accelerator_spend_limit=payload.accelerator_spend_limit,
+        accelerator_bonus_multiplier=payload.accelerator_bonus_multiplier,
+        accelerator_max_activations=payload.accelerator_max_activations,
         sub_recurrence_months=payload.sub_recurrence_months,
         sub_family=payload.sub_family,
     )

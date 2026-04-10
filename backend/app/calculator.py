@@ -149,6 +149,21 @@ class CardData:
     # True if this card enables partner transfers for its currency (e.g. Sapphire Reserve for UR)
     transfer_enabler: bool = False
 
+    # Secondary currency earned at a flat rate on all allocated spend
+    # (e.g. Bilt Cash at 4% alongside Bilt Points via multipliers)
+    secondary_currency: Optional[CurrencyData] = None
+    secondary_currency_rate: float = 0.0  # e.g. 0.04 for 4%
+    # Conversion cap: secondary currency can only convert to points when non-housing
+    # spend on this card ≤ cap_rate × housing spend. 0 = no cap. (e.g. 0.75 for Bilt)
+    secondary_currency_cap_rate: float = 0.0
+
+    # Point accelerator: spend secondary currency to earn bonus primary points
+    # (e.g. Bilt: $200 Bilt Cash for +1x on next $5,000, up to 5x/year)
+    accelerator_cost: int = 0           # secondary currency points per activation
+    accelerator_spend_limit: float = 0.0  # spend cap per activation in dollars
+    accelerator_bonus_multiplier: float = 0.0  # extra primary multiplier per activation
+    accelerator_max_activations: int = 0  # max activations per year
+
     # Wallet-specific date context (None = active for the full calculation window)
     wallet_added_date: Optional[date] = None
     wallet_closed_date: Optional[date] = None
@@ -195,6 +210,16 @@ class CardResult:
     # Per-category earn breakdown: (category_name, annual_points), sorted desc by points
     category_earn: list[tuple[str, float]] = field(default_factory=list)
 
+    # Secondary currency earn
+    secondary_currency_earn: float = 0.0        # gross secondary pts over projection window
+    secondary_currency_name: str = ""
+    secondary_currency_id: int = 0
+    accelerator_activations: int = 0            # how many accelerator activations used
+    accelerator_bonus_points: float = 0.0       # extra primary currency pts earned
+    accelerator_cost_points: float = 0.0        # secondary currency pts spent on accelerator
+    secondary_currency_net_earn: float = 0.0    # gross secondary pts minus accelerator cost
+    secondary_currency_value_dollars: float = 0.0  # annualized dollar value of net secondary earn
+
 
 @dataclass
 class WalletResult:
@@ -211,6 +236,9 @@ class WalletResult:
     # currency_name -> total points over the projection period (spend + SUB/bonuses, net of SUB opp cost).
     currency_pts: dict[str, float] = field(default_factory=dict)
     currency_pts_by_id: dict[int, float] = field(default_factory=dict)
+    # Secondary currency totals (e.g. Bilt Cash earned across all cards)
+    secondary_currency_pts: dict[str, float] = field(default_factory=dict)
+    secondary_currency_pts_by_id: dict[int, float] = field(default_factory=dict)
     card_results: list[CardResult] = field(default_factory=list)
 
 
@@ -1213,6 +1241,120 @@ def calc_total_points(
     )
 
 
+# ---------------------------------------------------------------------------
+# Secondary currency and accelerator helpers
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _SecondaryResult:
+    """Output from secondary currency + accelerator computation."""
+    gross_annual_pts: float = 0.0       # gross secondary currency pts earned per year
+    net_annual_pts: float = 0.0         # after subtracting accelerator cost per year
+    dollar_value_annual: float = 0.0    # annualized dollar contribution
+    activations: int = 0                # accelerator activations per year
+    bonus_pts_annual: float = 0.0       # extra primary currency pts per year from accelerator
+    cost_pts_annual: float = 0.0        # secondary currency pts spent on accelerator per year
+
+
+def _calc_secondary_currency(
+    card: CardData,
+    allocated_annual_spend: float,
+    wallet_currency_ids: set[int],
+    housing_spend: float = 0.0,
+) -> _SecondaryResult:
+    """
+    Compute secondary currency earn and accelerator net value for a card.
+
+    The secondary currency earns at a flat rate on all spend allocated to this
+    card. The accelerator lets the user spend secondary currency points to earn
+    bonus primary currency points.
+
+    housing_spend: total annual housing spend (Rent + Mortgage) in the wallet.
+    When card.secondary_currency_cap_rate > 0, conversion to points is only
+    possible up to cap_rate × housing_spend worth of non-housing spend. Beyond
+    that, the secondary currency is valued at 0.
+    """
+    if card.secondary_currency is None or card.secondary_currency_rate <= 0:
+        return _SecondaryResult()
+
+    # Secondary currency earn: rate is a fraction of dollars (e.g. 0.04 for 4%).
+    # For cash-kind currencies, 1 point = 1 cent, so $1 at 4% = 4 cents = 4 pts.
+    annual_secondary_dollars = allocated_annual_spend * card.secondary_currency_rate
+    annual_secondary_pts = annual_secondary_dollars * 100  # dollars to cents (cash points)
+
+    # Conversion cap: only a portion of the secondary earn may be convertible.
+    # When cap_rate > 0, convertible spend is capped at cap_rate × housing_spend.
+    # Secondary pts from spend beyond the cap are valued at 0.
+    if card.secondary_currency_cap_rate > 0 and housing_spend > 0:
+        convertible_spend = min(allocated_annual_spend, card.secondary_currency_cap_rate * housing_spend)
+    elif card.secondary_currency_cap_rate > 0 and housing_spend <= 0:
+        # No housing spend means nothing can convert
+        convertible_spend = 0.0
+    else:
+        # No cap
+        convertible_spend = allocated_annual_spend
+    convertible_pts = convertible_spend * card.secondary_currency_rate * 100
+
+    # Accelerator: spend secondary currency to earn bonus primary points.
+    # Accelerator cost is deducted from convertible secondary pts.
+    activations = 0
+    bonus_pts_annual = 0.0
+    cost_pts_annual = 0.0
+    if (
+        card.accelerator_cost > 0
+        and card.accelerator_spend_limit > 0
+        and card.accelerator_bonus_multiplier > 0
+        and card.accelerator_max_activations > 0
+    ):
+        # How many activations can the spend profile support?
+        max_by_spend = int(allocated_annual_spend / card.accelerator_spend_limit) if card.accelerator_spend_limit > 0 else 0
+        max_possible = min(card.accelerator_max_activations, max_by_spend)
+
+        # Each activation: benefit = extra primary pts valued in dollars,
+        # cost = secondary pts converted to dollars.
+        primary_currency = _effective_currency(card, wallet_currency_ids)
+        primary_cpp = primary_currency.cents_per_point
+        benefit_pts_per = card.accelerator_spend_limit * card.accelerator_bonus_multiplier
+        benefit_dollars_per = benefit_pts_per * primary_cpp / 100.0
+
+        # Cost: accelerator_cost is in secondary currency points.
+        # Value the cost via the secondary currency's conversion or CPP.
+        sec_cur = card.secondary_currency
+        if sec_cur.converts_to_currency:
+            cost_dollars_per = card.accelerator_cost * sec_cur.converts_at_rate * sec_cur.converts_to_currency.cents_per_point / 100.0
+        else:
+            cost_dollars_per = card.accelerator_cost * sec_cur.cents_per_point / 100.0
+
+        # Only activate when benefit exceeds cost and we have convertible pts to spend
+        if benefit_dollars_per > cost_dollars_per:
+            # Limit activations by available convertible secondary pts
+            max_by_pts = int(convertible_pts / card.accelerator_cost) if card.accelerator_cost > 0 else 0
+            activations = min(max_possible, max_by_pts)
+        bonus_pts_annual = activations * benefit_pts_per
+        cost_pts_annual = activations * card.accelerator_cost
+
+    # Net convertible pts after accelerator cost
+    net_convertible_pts = max(0.0, convertible_pts - cost_pts_annual)
+
+    # Value: only convertible portion is valued (via conversion to points or CPP).
+    # Non-convertible portion is valued at 0.
+    sec_cur = card.secondary_currency
+    if sec_cur.converts_to_currency:
+        dollar_value_annual = net_convertible_pts * sec_cur.converts_at_rate * sec_cur.converts_to_currency.cents_per_point / 100.0
+    else:
+        dollar_value_annual = net_convertible_pts * sec_cur.cents_per_point / 100.0
+
+    return _SecondaryResult(
+        gross_annual_pts=annual_secondary_pts,
+        net_annual_pts=annual_secondary_pts - cost_pts_annual,
+        dollar_value_annual=dollar_value_annual,
+        activations=activations,
+        bonus_pts_annual=bonus_pts_annual,
+        cost_pts_annual=cost_pts_annual,
+    )
+
+
 def _average_annual_net_dollars(
     card: CardData,
     spend: dict[str, float],
@@ -1220,6 +1362,7 @@ def _average_annual_net_dollars(
     wallet_currency_ids: set[int],
     selected_cards: list[CardData],
     precomputed_earn: Optional[float] = None,
+    housing_spend: float = 0.0,
 ) -> float:
     """
     Average annual net dollar benefit over `years`, amortising SUB and first-year fee.
@@ -1231,6 +1374,9 @@ def _average_annual_net_dollars(
     so the annual bonus is naturally amortised over `years` via the earn × years term.
 
     precomputed_earn: if provided, used in place of _effective_annual_earn_allocated.
+
+    housing_spend: total annual housing spend (Rent + Mortgage) in the wallet,
+    used for secondary currency conversion cap calculations.
 
     Formula:
       ( effective_earn * cpp / 100 * years
@@ -1264,6 +1410,14 @@ def _average_annual_net_dollars(
     if card.annual_bonus_percent and card.annual_bonus_first_year_only and rate:
         raw_cat_pts = effective_earn / rate - card.annual_bonus
         fy_bonus_eff = _first_year_pct_bonus(card, raw_cat_pts) * rate
+    # Secondary currency: flat-rate earn on allocated spend + accelerator net value.
+    # dollar_value_annual covers the net secondary currency earn (gross minus accelerator cost).
+    # bonus_pts_annual covers extra primary currency pts earned via the accelerator.
+    allocated_spend = calc_annual_allocated_spend(card, selected_cards, spend, wallet_currency_ids)
+    sec = _calc_secondary_currency(card, allocated_spend, wallet_currency_ids, housing_spend=housing_spend)
+    # Accelerator bonus points are primary currency points; value them at primary CPP.
+    accel_bonus_dollars_annual = sec.bonus_pts_annual * cpp / 100.0
+
     value = (
         (effective_earn / 100 * cpp) * years
         + effective_sub / 100 * cpp
@@ -1271,6 +1425,8 @@ def _average_annual_net_dollars(
         + fy_bonus_eff / 100 * cpp
         + annual_credits * years
         + one_time_credits
+        + sec.dollar_value_annual * years
+        + accel_bonus_dollars_annual * years
         - total_fees
     ) / years
     return value
@@ -2249,6 +2405,7 @@ def _segmented_card_net_per_year(
     window_end: date,
     precomputed_seg_alloc: list[dict[int, dict[str, float]]] | None = None,
     precomputed_seg_alloc_balance: list[dict[int, dict[str, float]]] | None = None,
+    housing_spend: float = 0.0,
 ) -> tuple[float, float, float]:
     """
     Returns (average_annual_net_dollars, annualized_point_earn, annualized_point_earn_for_balance)
@@ -2283,7 +2440,8 @@ def _segmented_card_net_per_year(
             card, spend, selected_cards, wallet_currency_ids, for_balance=True
         )
         net = _average_annual_net_dollars(
-            card, spend, 1, wallet_currency_ids, selected_cards, precomputed_earn=earn
+            card, spend, 1, wallet_currency_ids, selected_cards, precomputed_earn=earn,
+            housing_spend=housing_spend,
         )
         return net, earn, earn_for_balance
 
@@ -2395,6 +2553,20 @@ def _segmented_card_net_per_year(
         fee = card.annual_fee if card.annual_fee is not None else 0.0
         total_fee = fee / 365.25 * active_days
 
+    # Secondary currency: flat-rate earn prorated to the card's active window.
+    # Use the full annual allocated spend scaled by active fraction of the window.
+    if card.secondary_currency and card.secondary_currency_rate > 0 and card_ever_active:
+        annual_alloc = calc_annual_allocated_spend(card, selected_cards, spend, active_wallet_currency_ids)
+        active_fraction = active_days / 365.25 if active_days > 0 else 0.0
+        # Compute housing spend from spend dict using housing_category_names
+        # (passed through from compute_wallet; not available here, so use the
+        # card-level cap with full wallet housing spend passed as param)
+        sec = _calc_secondary_currency(card, annual_alloc, active_wallet_currency_ids, housing_spend=housing_spend)
+        total_earn_dollars += sec.dollar_value_annual * active_fraction * total_years
+        # Accelerator bonus: extra primary pts valued at primary CPP
+        eff_currency_sec = _effective_currency(card, active_wallet_currency_ids)
+        total_earn_dollars += sec.bonus_pts_annual * eff_currency_sec.cents_per_point / 100.0 * active_fraction * total_years
+
     total_net = total_earn_dollars + total_credits - total_fee
     return total_net / total_years, annualized_earn_pts, annualized_earn_pts_for_balance
 
@@ -2412,6 +2584,7 @@ def compute_wallet(
     window_start: Optional[date] = None,
     window_end: Optional[date] = None,
     sub_priority_card_ids: set[int] | None = None,
+    housing_category_names: set[str] | None = None,
 ) -> WalletResult:
     """
     Compute results for every card in `all_cards`.
@@ -2439,6 +2612,13 @@ def compute_wallet(
     selected_cards = [c for c in all_cards if c.id in selected_ids]
 
     active_wallet_currency_ids = _wallet_currency_ids(selected_cards)
+
+    # Compute total housing spend for secondary currency conversion cap.
+    _housing_names = housing_category_names or set()
+    housing_spend_total = sum(
+        s for cat, s in spend.items()
+        if cat.lower() in {n.lower() for n in _housing_names} and s > 0
+    )
 
     # Use segmented calculation when window dates are available and either:
     #   (a) any card has date context (open/close), or
@@ -2538,6 +2718,7 @@ def compute_wallet(
                 window_start, window_end,  # type: ignore[arg-type]
                 precomputed_seg_alloc=seg_alloc_cache,
                 precomputed_seg_alloc_balance=seg_alloc_cache_balance,
+                housing_spend=housing_spend_total,
             )
             effective_annual_fee = round(-net_annual, 4)
             # total_points: annualized earn (default CPP) × total window years + one-time SUB bonus.
@@ -2558,6 +2739,7 @@ def compute_wallet(
             net_annual = _average_annual_net_dollars(
                 card, spend, years, active_wallet_currency_ids, selected_cards,
                 precomputed_earn=annual_point_earn,
+                housing_spend=housing_spend_total,
             )
             effective_annual_fee = round(-net_annual, 4)
             total_points = calc_total_points(
@@ -2602,6 +2784,18 @@ def compute_wallet(
         # the raw library values here would let the UI double-subtract them.
         reported_sub = card.sub if card.sub_earnable else 0
         reported_sub_spend_earn = card.sub_spend_earn if card.sub_earnable else 0
+
+        # Secondary currency result for this card
+        sec_alloc = calc_annual_allocated_spend(card, selected_cards, spend, active_wallet_currency_ids)
+        sec = _calc_secondary_currency(card, sec_alloc, active_wallet_currency_ids, housing_spend=housing_spend_total)
+        sec_cur_name = card.secondary_currency.name if card.secondary_currency else ""
+        sec_cur_id = card.secondary_currency.id if card.secondary_currency else 0
+        # Total secondary pts over the projection window
+        sec_gross_total = sec.gross_annual_pts * years
+        sec_net_total = sec.net_annual_pts * years
+        sec_cost_total = sec.cost_pts_annual * years
+        sec_bonus_total = sec.bonus_pts_annual * years
+
         card_results.append(
             CardResult(
                 card_id=card.id,
@@ -2627,6 +2821,14 @@ def compute_wallet(
                 effective_currency_id=eff_currency.id,
                 effective_reward_kind=eff_currency.reward_kind,
                 category_earn=cat_earn,
+                secondary_currency_earn=round(sec_gross_total, 2),
+                secondary_currency_name=sec_cur_name,
+                secondary_currency_id=sec_cur_id,
+                accelerator_activations=sec.activations,
+                accelerator_bonus_points=round(sec_bonus_total, 2),
+                accelerator_cost_points=round(sec_cost_total, 2),
+                secondary_currency_net_earn=round(sec_net_total, 2),
+                secondary_currency_value_dollars=round(sec.dollar_value_annual * years, 2),
             )
         )
 
@@ -2658,6 +2860,20 @@ def compute_wallet(
     currency_pts = {k: round(v, 2) for k, v in currency_pts.items()}
     currency_pts_by_id = {k: round(v, 2) for k, v in currency_pts_by_id.items()}
 
+    # Secondary currency totals (e.g. Bilt Cash across all cards)
+    secondary_currency_pts: dict[str, float] = {}
+    secondary_currency_pts_by_id: dict[int, float] = {}
+    for r in selected_results:
+        if r.secondary_currency_id and r.secondary_currency_net_earn:
+            name = (r.secondary_currency_name or "").strip()
+            if name:
+                secondary_currency_pts[name] = secondary_currency_pts.get(name, 0.0) + r.secondary_currency_net_earn
+            secondary_currency_pts_by_id[r.secondary_currency_id] = (
+                secondary_currency_pts_by_id.get(r.secondary_currency_id, 0.0) + r.secondary_currency_net_earn
+            )
+    secondary_currency_pts = {k: round(v, 2) for k, v in secondary_currency_pts.items()}
+    secondary_currency_pts_by_id = {k: round(v, 2) for k, v in secondary_currency_pts_by_id.items()}
+
     return WalletResult(
         years_counted=years,
         total_effective_annual_fee=total_effective_annual_fee,
@@ -2667,5 +2883,7 @@ def compute_wallet(
         total_reward_value_usd=total_reward_value_usd,
         currency_pts=currency_pts,
         currency_pts_by_id=currency_pts_by_id,
+        secondary_currency_pts=secondary_currency_pts,
+        secondary_currency_pts_by_id=secondary_currency_pts_by_id,
         card_results=card_results,
     )

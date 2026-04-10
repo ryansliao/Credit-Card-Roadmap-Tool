@@ -205,6 +205,23 @@ class Card(Base):
     # (e.g. Sapphire Reserve for Chase UR, Strata Premier for Citi TY)
     transfer_enabler: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Secondary currency: optional second currency earned at a flat rate on all spend
+    # (e.g. Bilt Cash at 4% on all everyday spending, alongside Bilt Points via multipliers)
+    secondary_currency_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("currencies.id", ondelete="SET NULL"), nullable=True
+    )
+    secondary_currency_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Conversion cap: secondary currency can only convert to points when non-housing
+    # spend on this card stays below cap_rate × housing spend. 0 = no cap. (e.g. 0.75 for Bilt)
+    secondary_currency_cap_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Point accelerator: spend secondary currency to earn bonus primary points
+    # (e.g. Bilt: $200 Bilt Cash for +1x on next $5,000, up to 5x/year)
+    accelerator_cost: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    accelerator_spend_limit: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    accelerator_bonus_multiplier: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    accelerator_max_activations: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     # Roadmap: how many months before the SUB can be earned again (e.g. 48 for Sapphire family)
     sub_recurrence_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # Roadmap: SUB eligibility family (cards in same family share a cooldown, e.g. "sapphire")
@@ -218,6 +235,9 @@ class Card(Base):
     )
     currency_obj: Mapped["Currency"] = relationship(
         back_populates="cards", foreign_keys=[currency_id]
+    )
+    secondary_currency_obj: Mapped[Optional["Currency"]] = relationship(
+        "Currency", foreign_keys=[secondary_currency_id]
     )
     network_tier: Mapped[Optional["NetworkTier"]] = relationship(
         "NetworkTier", foreign_keys=[network_tier_id]
@@ -467,6 +487,9 @@ class SpendCategory(Base):
         ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=True
     )
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    # True for housing categories (Rent, Mortgage) — used to compute secondary
+    # currency conversion caps (e.g. Bilt Cash 75% of housing rule).
+    is_housing: Mapped[bool] = mapped_column(Boolean, default=False)
 
     parent: Mapped[Optional["SpendCategory"]] = relationship(
         "SpendCategory",
@@ -575,6 +598,9 @@ class WalletCard(Base):
     # Optional fee overrides (null = use Card's annual_fee / first_year_fee)
     annual_fee: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     first_year_fee: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Optional secondary currency rate override (null = use Card's secondary_currency_rate)
+    secondary_currency_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # Roadmap tracking
     sub_earned_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

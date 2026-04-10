@@ -62,6 +62,7 @@ export function WalletCardModal({
   const [annualBonus, setAnnualBonus] = useState('')
   const [annualFee, setAnnualFee] = useState('')
   const [firstYearFee, setFirstYearFee] = useState('')
+  const [secondaryCurrencyRate, setSecondaryCurrencyRate] = useState('')
   // Selected statement credits for this wallet card: library_credit_id -> value.
   // The presence of a key means the credit is attached to this wallet card.
   const [selectedCredits, setSelectedCredits] = useState<Record<number, number>>({})
@@ -189,6 +190,7 @@ export function WalletCardModal({
       setAnnualBonus(lib.annual_bonus != null ? String(lib.annual_bonus) : '')
       setAnnualFee(String(lib.annual_fee))
       setFirstYearFee(lib.first_year_fee != null ? String(lib.first_year_fee) : '')
+      setSecondaryCurrencyRate(lib.secondary_currency_rate != null ? String(lib.secondary_currency_rate) : '')
       // Auto-attach the default statement credits this card natively offers,
       // based on the global card_credits link table.
       const defaults: Record<number, number> = {}
@@ -220,6 +222,8 @@ export function WalletCardModal({
       setAnnualFee(String(effAf))
       const effFy = walletCard.first_year_fee ?? lib.first_year_fee
       setFirstYearFee(effFy != null ? String(effFy) : '')
+      const effSecRate = walletCard.secondary_currency_rate ?? lib.secondary_currency_rate
+      setSecondaryCurrencyRate(effSecRate != null ? String(effSecRate) : '')
       setSelectedCredits({})
       setGroupSelections({})
       setFormError(null)
@@ -297,6 +301,7 @@ export function WalletCardModal({
         annual_bonus: built.annual_bonus,
         annual_fee: built.annual_fee,
         first_year_fee: built.first_year_fee,
+        secondary_currency_rate: secondaryCurrencyRate.trim() ? Number(secondaryCurrencyRate) : null,
         credits: Object.entries(selectedCredits).map(([id, value]) => ({
           library_credit_id: Number(id),
           value,
@@ -357,7 +362,8 @@ export function WalletCardModal({
     queryClient.invalidateQueries({
       queryKey: queryKeys.walletCardCredits(walletCard.wallet_id, walletCard.card_id),
     })
-    onSaveEdit(walletFormToUpdatePayload(built, lib, addedDate, acquisitionType))
+    const secRate = secondaryCurrencyRate.trim() ? Number(secondaryCurrencyRate) : null
+    onSaveEdit(walletFormToUpdatePayload(built, lib, addedDate, acquisitionType, secRate))
   }
 
   const formDisabled = !lib
@@ -589,6 +595,30 @@ export function WalletCardModal({
                   />
                 </div>
               </div>
+
+              {/* Secondary currency rate override (only shown when the card has one) */}
+              {lib && lib.secondary_currency_id != null && (
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">
+                    {lib.secondary_currency_obj?.name ?? 'Secondary Currency'} Rate (%)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    disabled={formDisabled}
+                    className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 disabled:opacity-50"
+                    placeholder="e.g. 4 for 4%"
+                    value={secondaryCurrencyRate ? String(Number(secondaryCurrencyRate) * 100) : ''}
+                    onChange={(e) => {
+                      const v = e.target.value.trim()
+                      if (v === '') setSecondaryCurrencyRate('')
+                      else setSecondaryCurrencyRate(String(Number(v) / 100))
+                    }}
+                  />
+                </div>
+              )}
 
               {/* Statement Credits inline collapsible */}
               {lib && (

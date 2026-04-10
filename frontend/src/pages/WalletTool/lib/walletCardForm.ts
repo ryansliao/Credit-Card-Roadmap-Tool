@@ -99,7 +99,8 @@ export function walletFormToUpdatePayload(
   built: BuiltWalletFields,
   lib: Card,
   addedDate: string,
-  acquisitionType: WalletCardAcquisitionType
+  acquisitionType: WalletCardAcquisitionType,
+  secondaryCurrencyRate?: number | null,
 ): UpdateWalletCardPayload {
   return {
     added_date: addedDate,
@@ -110,5 +111,8 @@ export function walletFormToUpdatePayload(
     annual_bonus: intOverride(built.annual_bonus, lib.annual_bonus ?? undefined),
     annual_fee: floatOverride(built.annual_fee, lib.annual_fee),
     first_year_fee: floatOverride(built.first_year_fee, lib.first_year_fee ?? undefined),
+    secondary_currency_rate: secondaryCurrencyRate !== undefined
+      ? floatOverride(secondaryCurrencyRate, lib.secondary_currency_rate ?? undefined)
+      : undefined,
   }
 }

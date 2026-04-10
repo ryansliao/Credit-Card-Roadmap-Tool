@@ -138,6 +138,14 @@ export interface Card {
   sub_spend_earn: number | null
   annual_bonus: number | null
   transfer_enabler: boolean
+  secondary_currency_id: number | null
+  secondary_currency_rate: number | null
+  secondary_currency_cap_rate: number | null
+  secondary_currency_obj: CurrencyRead | null
+  accelerator_cost: number | null
+  accelerator_spend_limit: number | null
+  accelerator_bonus_multiplier: number | null
+  accelerator_max_activations: number | null
   sub_recurrence_months: number | null
   sub_family: string | null
   multipliers: CardMultiplier[]
@@ -149,6 +157,7 @@ export interface SpendCategory {
   category: string
   parent_id: number | null
   is_system: boolean
+  is_housing: boolean
   children: SpendCategory[]
 }
 
@@ -196,6 +205,14 @@ export interface CardResult {
   effective_currency_id?: number
   effective_reward_kind?: 'points' | 'cash'
   category_earn: CategoryEarnItem[]
+  secondary_currency_earn: number
+  secondary_currency_name: string
+  secondary_currency_id: number
+  accelerator_activations: number
+  accelerator_bonus_points: number
+  accelerator_cost_points: number
+  secondary_currency_net_earn: number
+  secondary_currency_value_dollars: number
 }
 
 export interface WalletResult {
@@ -208,6 +225,8 @@ export interface WalletResult {
   currency_pts: Record<string, number>
   /** Same as currency_pts but keyed by currency id (stable vs renames). */
   currency_pts_by_id?: Record<string, number>
+  secondary_currency_pts: Record<string, number>
+  secondary_currency_pts_by_id?: Record<string, number>
   card_results: CardResult[]
 }
 
@@ -231,6 +250,8 @@ export interface WalletCard {
   annual_fee: number | null
   /** Null = use library card first-year fee */
   first_year_fee: number | null
+  /** Null = use library card secondary currency rate */
+  secondary_currency_rate: number | null
   sub_earned_date: string | null
   /** Auto-calculated projected SUB earn date based on wallet spend profile */
   sub_projected_earn_date: string | null
@@ -292,6 +313,7 @@ export interface AddCardToWalletPayload {
   years_counted?: number
   annual_fee?: number | null
   first_year_fee?: number | null
+  secondary_currency_rate?: number | null
   sub_earned_date?: string | null
   closed_date?: string | null
   acquisition_type?: WalletCardAcquisitionType
@@ -326,6 +348,7 @@ export interface UpdateWalletCardPayload {
   years_counted?: number | null
   annual_fee?: number | null
   first_year_fee?: number | null
+  secondary_currency_rate?: number | null
   sub_earned_date?: string | null
   closed_date?: string | null
   acquisition_type?: WalletCardAcquisitionType | null

@@ -13,8 +13,8 @@ function formatDuration(years: number, months: number): string {
   const total = years * 12 + months
   const y = Math.floor(total / 12)
   const m = total % 12
-  if (y === 0) return `${m} mo`
-  if (m === 0) return `${y} yr`
+  if (y === 0) return `${m} Months`
+  if (m === 0) return `${y} Years`
   return `${y} yr ${m} mo`
 }
 
@@ -216,12 +216,12 @@ export function WalletResultsAndCurrenciesPanel({
             className="w-full h-1.5 accent-indigo-500 cursor-pointer"
           />
           <div className="flex justify-between text-[10px] text-slate-600 mt-1">
-            <span>1 mo</span>
-            <span>1 yr</span>
-            <span>2 yr</span>
-            <span>3 yr</span>
-            <span>4 yr</span>
-            <span>5 yr</span>
+            <span>1M</span>
+            <span>1Y</span>
+            <span>2Y</span>
+            <span>3Y</span>
+            <span>4Y</span>
+            <span>5Y</span>
           </div>
         </div>
       )}
@@ -378,6 +378,17 @@ export function WalletResultsAndCurrenciesPanel({
                                         </>
                                       )}
                                     </p>
+                                    {card.secondary_currency_name && card.secondary_currency_net_earn > 0 && (
+                                      <p className="text-xs text-indigo-400/70 mt-0.5">
+                                        {formatPoints(Math.round(card.secondary_currency_net_earn / totalYears))} {card.secondary_currency_name}/Year
+                                        {card.secondary_currency_value_dollars > 0 && (
+                                          <span className="text-slate-500"> ≈ {formatMoney(card.secondary_currency_value_dollars / totalYears)}/Year</span>
+                                        )}
+                                        {card.accelerator_activations > 0 && (
+                                          <span className="text-slate-500"> · {card.accelerator_activations}x Accelerator</span>
+                                        )}
+                                      </p>
+                                    )}
                                   </div>
                                   <div className="flex items-center shrink-0">
                                     <span className="text-xs text-slate-500 tabular-nums">

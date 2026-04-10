@@ -120,6 +120,13 @@ class UpdateCardLibraryPayload(BaseModel):
     annual_bonus: Optional[int] = Field(default=None, ge=0)
     annual_bonus_percent: Optional[float] = Field(default=None, ge=0)
     annual_bonus_first_year_only: Optional[bool] = None
+    secondary_currency_id: Optional[int] = None
+    secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    secondary_currency_cap_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    accelerator_cost: Optional[int] = Field(default=None, ge=0)
+    accelerator_spend_limit: Optional[float] = Field(default=None, ge=0)
+    accelerator_bonus_multiplier: Optional[float] = Field(default=None, ge=0)
+    accelerator_max_activations: Optional[int] = Field(default=None, ge=0)
 
 
 class CardMultiplierSchema(BaseModel):
@@ -263,12 +270,20 @@ class CardRead(BaseModel):
     annual_bonus_percent: Optional[float] = None
     annual_bonus_first_year_only: Optional[bool] = None
     transfer_enabler: bool = False
+    secondary_currency_id: Optional[int] = None
+    secondary_currency_rate: Optional[float] = None
+    secondary_currency_cap_rate: Optional[float] = None
+    accelerator_cost: Optional[int] = None
+    accelerator_spend_limit: Optional[float] = None
+    accelerator_bonus_multiplier: Optional[float] = None
+    accelerator_max_activations: Optional[int] = None
     sub_recurrence_months: Optional[int] = None
     sub_family: Optional[str] = None
 
     issuer: IssuerRead
     co_brand: Optional[CoBrandRead] = None
     currency_obj: CurrencyRead
+    secondary_currency_obj: Optional[CurrencyRead] = None
     network_tier: Optional[NetworkTierRead] = None
 
     multipliers: list[CardMultiplierSchema] = []
@@ -329,6 +344,7 @@ class SpendCategoryRead(BaseModel):
     category: str
     parent_id: Optional[int] = None
     is_system: bool = False
+    is_housing: bool = False
     children: list["SpendCategoryRead"] = []
 
     @model_validator(mode="wrap")
@@ -341,6 +357,7 @@ class SpendCategoryRead(BaseModel):
                     "id": data.id,
                     "category": data.category,
                     "parent_id": data.parent_id,
+                    "is_housing": getattr(data, "is_housing", False),
                     "is_system": data.is_system,
                     "children": children,
                 }
@@ -519,6 +536,7 @@ class AdminCreateIssuerPayload(BaseModel):
 
 class AdminCreateSpendCategoryPayload(BaseModel):
     category: str = Field(..., max_length=80)
+    is_housing: bool = False
 
 
 class AdminCreateCurrencyPayload(BaseModel):
@@ -550,6 +568,13 @@ class AdminCreateCardPayload(BaseModel):
     annual_bonus: Optional[int] = Field(default=None, ge=0)
     annual_bonus_percent: Optional[float] = Field(default=None, ge=0)
     annual_bonus_first_year_only: Optional[bool] = None
+    secondary_currency_id: Optional[int] = None
+    secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    secondary_currency_cap_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    accelerator_cost: Optional[int] = Field(default=None, ge=0)
+    accelerator_spend_limit: Optional[float] = Field(default=None, ge=0)
+    accelerator_bonus_multiplier: Optional[float] = Field(default=None, ge=0)
+    accelerator_max_activations: Optional[int] = Field(default=None, ge=0)
     sub_recurrence_months: Optional[int] = Field(default=None, ge=1)
     sub_family: Optional[str] = Field(default=None, max_length=80)
 
@@ -729,6 +754,7 @@ class WalletCardBase(BaseModel):
     years_counted: int = Field(default=2, ge=1, le=20)
     annual_fee: Optional[float] = Field(default=None, ge=0)
     first_year_fee: Optional[float] = Field(default=None, ge=0)
+    secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
     sub_earned_date: Optional[date] = None
     sub_projected_earn_date: Optional[date] = None
     closed_date: Optional[date] = None
@@ -758,6 +784,7 @@ class WalletCardUpdate(BaseModel):
     years_counted: Optional[int] = Field(default=None, ge=1, le=20)
     annual_fee: Optional[float] = Field(default=None, ge=0)
     first_year_fee: Optional[float] = Field(default=None, ge=0)
+    secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
     sub_earned_date: Optional[date] = None
     closed_date: Optional[date] = None
     acquisition_type: Optional[Literal["opened", "product_change"]] = None
@@ -861,6 +888,16 @@ class CardResultSchema(BaseModel):
     effective_reward_kind: str = "points"
     category_earn: list[CategoryEarnItem] = []
 
+    # Secondary currency earn
+    secondary_currency_earn: float = 0.0
+    secondary_currency_name: str = ""
+    secondary_currency_id: int = 0
+    accelerator_activations: int = 0
+    accelerator_bonus_points: float = 0.0
+    accelerator_cost_points: float = 0.0
+    secondary_currency_net_earn: float = 0.0
+    secondary_currency_value_dollars: float = 0.0
+
 
 class WalletResultSchema(BaseModel):
     years_counted: int
@@ -872,6 +909,9 @@ class WalletResultSchema(BaseModel):
     # currency name -> total points over the projection window (spend + bonuses, by effective currency).
     currency_pts: dict[str, float] = {}
     currency_pts_by_id: dict[int, float] = {}
+    # secondary currency totals (e.g. Bilt Cash)
+    secondary_currency_pts: dict[str, float] = {}
+    secondary_currency_pts_by_id: dict[int, float] = {}
     card_results: list[CardResultSchema] = []
 
 

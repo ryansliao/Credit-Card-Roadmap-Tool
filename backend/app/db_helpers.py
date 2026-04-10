@@ -103,6 +103,8 @@ async def load_card_data(
             selectinload(Card.issuer),
             selectinload(Card.currency_obj)
             .selectinload(Currency.converts_to_currency),
+            selectinload(Card.secondary_currency_obj)
+            .selectinload(Currency.converts_to_currency),
             selectinload(Card.multipliers).selectinload(CardCategoryMultiplier.spend_category),
             selectinload(Card.multiplier_groups).selectinload(CardMultiplierGroup.categories).selectinload(CardCategoryMultiplier.spend_category),
             selectinload(Card.rotating_categories).selectinload(RotatingCategory.spend_category),
@@ -362,9 +364,24 @@ async def load_card_data(
                 portal_categories=portal_categories,
                 portal_premiums=portal_premiums_list,
                 transfer_enabler=bool(getattr(card, "transfer_enabler", False)),
+                secondary_currency=_currency_data(card.secondary_currency_obj, cpp_overrides) if card.secondary_currency_obj else None,
+                secondary_currency_rate=float(card.secondary_currency_rate) if card.secondary_currency_rate else 0.0,
+                secondary_currency_cap_rate=float(card.secondary_currency_cap_rate) if card.secondary_currency_cap_rate else 0.0,
+                accelerator_cost=card.accelerator_cost or 0,
+                accelerator_spend_limit=float(card.accelerator_spend_limit) if card.accelerator_spend_limit else 0.0,
+                accelerator_bonus_multiplier=float(card.accelerator_bonus_multiplier) if card.accelerator_bonus_multiplier else 0.0,
+                accelerator_max_activations=card.accelerator_max_activations or 0,
             )
         )
     return out
+
+
+async def load_housing_category_names(session: AsyncSession) -> set[str]:
+    """Return the set of spend category names marked as housing (Rent, Mortgage)."""
+    result = await session.execute(
+        select(SpendCategory.category).where(SpendCategory.is_housing == True)  # noqa: E712
+    )
+    return {row[0] for row in result.all()}
 
 
 async def ensure_all_other_wallet_spend_category(session: AsyncSession, wallet_id: int) -> None:
@@ -582,6 +599,11 @@ def apply_wallet_card_overrides(
                 annual_fee=annual_fee,
                 first_year_fee=first_year_fee,
                 credit_lines=merged_lines,
+                secondary_currency_rate=(
+                    wc.secondary_currency_rate
+                    if wc.secondary_currency_rate is not None
+                    else cd.secondary_currency_rate
+                ),
                 wallet_added_date=wc.added_date,
                 wallet_closed_date=wc.closed_date,
                 sub_projected_earn_date=wc.sub_projected_earn_date,

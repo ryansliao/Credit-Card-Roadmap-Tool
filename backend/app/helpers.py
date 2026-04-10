@@ -99,6 +99,8 @@ def card_load_opts():
         selectinload(Card.co_brand),
         selectinload(Card.currency_obj),
         selectinload(Card.currency_obj).selectinload(Currency.converts_to_currency),
+        selectinload(Card.secondary_currency_obj),
+        selectinload(Card.secondary_currency_obj).selectinload(Currency.converts_to_currency),
         selectinload(Card.network_tier),
         selectinload(Card.multipliers).selectinload(CardCategoryMultiplier.spend_category),
         selectinload(Card.multiplier_groups).selectinload(CardMultiplierGroup.categories).selectinload(CardCategoryMultiplier.spend_category),

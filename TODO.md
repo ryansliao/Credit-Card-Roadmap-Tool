@@ -1,3 +1,3 @@
 # To-Do List
 
-- BILT Cash integration.
+- ~~BILT Cash integration.~~
