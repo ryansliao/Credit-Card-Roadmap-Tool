@@ -6,17 +6,11 @@ import { formatCashRewardUnits, formatMoney, formatPoints } from '../../../../ut
 import { queryKeys } from '../../lib/queryKeys'
 import { CurrencySettingsModal } from '../summary/CurrencySettingsModal'
 import { SpendTabContent } from '../spend/SpendTabContent'
+import { InfoIconButton, InfoPopover } from '../../../../components/InfoPopover'
+
+type StatTopic = 'eaf' | 'income' | 'fees' | null
 
 type WalletSummaryTab = 'summary' | 'spend'
-
-function formatDuration(years: number, months: number): string {
-  const total = years * 12 + months
-  const y = Math.floor(total / 12)
-  const m = total % 12
-  if (y === 0) return `${m} Months`
-  if (m === 0) return `${y} Years`
-  return `${y} Years, ${m} Months`
-}
 
 /** Annual point income for a card (excludes SUB points). */
 function cardAnnualPointIncome(c: CardResult, totalYears: number): number {
@@ -30,8 +24,7 @@ interface Props {
   isCalculating: boolean
   durationYears: number
   durationMonths: number
-  onDurationChange: (years: number, months: number) => void
-  onDurationCommit: (years: number, months: number) => void
+  onOpenSettings: () => void
   onCppChange: () => void
   onSpendChange: () => void
 }
@@ -43,14 +36,14 @@ export function WalletResultsAndCurrenciesPanel({
   isCalculating,
   durationYears,
   durationMonths,
-  onDurationChange,
-  onDurationCommit,
+  onOpenSettings,
   onCppChange,
   onSpendChange,
 }: Props) {
   const [editingCurrencyId, setEditingCurrencyId] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<WalletSummaryTab>('summary')
-  const [showDurationSlider, setShowDurationSlider] = useState(false)
+  const [showBiltCashInfo, setShowBiltCashInfo] = useState(false)
+  const [statTopic, setStatTopic] = useState<StatTopic>(null)
 
   const { data: currencies = [], isLoading: currenciesLoading } = useQuery({
     queryKey: queryKeys.walletCurrencies(walletId),
@@ -64,11 +57,20 @@ export function WalletResultsAndCurrenciesPanel({
     enabled: walletId != null,
   })
 
+  // Bilt Cash is shown nested under Bilt Rewards rather than as its own
+  // top-level entry in the wallet summary.
   const sortedBalances = useMemo(
     () =>
-      [...balances].sort(
-        (a, b) => b.balance - a.balance || a.currency_name.localeCompare(b.currency_name)
-      ),
+      [...balances]
+        .filter((b) => b.currency_name !== 'Bilt Cash')
+        .sort(
+          (a, b) => b.balance - a.balance || a.currency_name.localeCompare(b.currency_name)
+        ),
+    [balances]
+  )
+
+  const biltCashBalance = useMemo(
+    () => balances.find((b) => b.currency_name === 'Bilt Cash') ?? null,
     [balances]
   )
 
@@ -175,10 +177,10 @@ export function WalletResultsAndCurrenciesPanel({
           <div className="flex items-center gap-6">
             <button
               type="button"
-              onClick={() => setShowDurationSlider((v) => !v)}
-              className={`p-1 rounded transition-colors ${showDurationSlider ? 'text-indigo-400 bg-slate-700' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-700'}`}
-              title="Duration"
-              aria-label="Toggle duration setting"
+              onClick={onOpenSettings}
+              className="p-1 rounded transition-colors text-slate-500 hover:text-slate-200 hover:bg-slate-700"
+              title="Wallet Settings"
+              aria-label="Open wallet settings"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="4" y1="6" x2="20" y2="6"/>
@@ -192,43 +194,6 @@ export function WalletResultsAndCurrenciesPanel({
           </div>
         )}
       </div>
-      {showDurationSlider && walletId != null && (
-        <div className="shrink-0 mb-3 px-1">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-slate-400">Duration</span>
-            <span className="text-xs font-medium text-slate-200 tabular-nums">
-              {formatDuration(durationYears, durationMonths)}
-            </span>
-          </div>
-          <input
-            type="range"
-            min={1}
-            max={60}
-            value={durationYears * 12 + durationMonths}
-            onChange={(e) => {
-              const total = Number(e.target.value)
-              onDurationChange(Math.floor(total / 12), total % 12)
-            }}
-            onMouseUp={(e) => {
-              const total = Number((e.target as HTMLInputElement).value)
-              onDurationCommit(Math.floor(total / 12), total % 12)
-            }}
-            onTouchEnd={(e) => {
-              const total = Number((e.target as HTMLInputElement).value)
-              onDurationCommit(Math.floor(total / 12), total % 12)
-            }}
-            className="w-full h-1.5 accent-indigo-500 cursor-pointer"
-          />
-          <div className="flex justify-between text-[10px] text-slate-600 mt-1">
-            <span>1M</span>
-            <span>1Y</span>
-            <span>2Y</span>
-            <span>3Y</span>
-            <span>4Y</span>
-            <span>5Y</span>
-          </div>
-        </div>
-      )}
       <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-y-auto pr-0.5 -mr-0.5">
         {walletId == null ? (
           <div className="text-slate-500 text-sm py-4">Select a wallet.</div>
@@ -244,7 +209,10 @@ export function WalletResultsAndCurrenciesPanel({
               {result || isCalculating ? (
                 <div className="grid grid-cols-3 gap-3">
                   <div className="bg-indigo-900/40 border border-indigo-700 rounded-xl p-3 text-center">
-                    <p className="text-[10px] text-indigo-300 uppercase tracking-wider">Effective Annual Fee</p>
+                    <div className="flex items-center justify-center gap-1">
+                      <p className="text-[10px] text-indigo-300 uppercase tracking-wider">Effective Annual Fee</p>
+                      <InfoIconButton onClick={() => setStatTopic('eaf')} label="How Effective Annual Fee is calculated" size={11} />
+                    </div>
                     {result ? (
                       <p className="text-xl font-bold text-indigo-100 mt-0.5">{formatMoney(totalEffectiveAF)}</p>
                     ) : (
@@ -254,7 +222,10 @@ export function WalletResultsAndCurrenciesPanel({
                     )}
                   </div>
                   <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">Annual Point Income</p>
+                    <div className="flex items-center justify-center gap-1">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider">Annual Point Income</p>
+                      <InfoIconButton onClick={() => setStatTopic('income')} label="How Annual Point Income is calculated" size={11} />
+                    </div>
                     {result ? (
                       <p className="text-xl font-bold text-white mt-0.5">{formatPoints(Math.round(totalAnnualPoints))}</p>
                     ) : (
@@ -264,7 +235,10 @@ export function WalletResultsAndCurrenciesPanel({
                     )}
                   </div>
                   <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Annual Fees</p>
+                    <div className="flex items-center justify-center gap-1">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Annual Fees</p>
+                      <InfoIconButton onClick={() => setStatTopic('fees')} label="How Total Annual Fees is calculated" size={11} />
+                    </div>
                     {result ? (
                       <p className="text-xl font-bold text-white mt-0.5">{formatMoney(totalAnnualFees)}</p>
                     ) : (
@@ -358,9 +332,44 @@ export function WalletResultsAndCurrenciesPanel({
                           </div>
                         ) : !hasResultData && isCash && estValue > 0 ? (
                           <div className="text-xs text-slate-500 mt-0.5 tabular-nums">
-                            {formatMoney(estValue)} face value
+                            {formatMoney(estValue)} Face Value
                           </div>
                         ) : null}
+                        {/* Nested Bilt Cash row, only on Bilt Rewards */}
+                        {b.currency_name === 'Bilt Rewards' && biltCashBalance && (() => {
+                          const biltCashAnnual = cards.reduce(
+                            (s, c) =>
+                              s + (c.secondary_currency_name === 'Bilt Cash'
+                                ? (c.secondary_currency_value_dollars || 0) / totalYears
+                                : 0),
+                            0
+                          )
+                          const biltCashCpp = cppForName('Bilt Cash')
+                          return (
+                            <div className="mt-1.5 pt-1.5 border-t border-slate-700/40 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <span className="text-xs text-slate-400 truncate">Bilt Cash</span>
+                                <InfoIconButton
+                                  onClick={() => setShowBiltCashInfo(true)}
+                                  label="How Bilt Cash is calculated"
+                                />
+                              </div>
+                              <div className="flex items-center shrink-0">
+                                {hasResultData && biltCashAnnual > 0 && (
+                                  <>
+                                    <span className="text-xs text-slate-500 tabular-nums">
+                                      +{formatMoney(biltCashAnnual)} /Year
+                                    </span>
+                                    <span className="text-slate-600 mx-2">·</span>
+                                  </>
+                                )}
+                                <span className="text-xs font-semibold text-slate-300 tabular-nums">
+                                  {formatCashRewardUnits(biltCashBalance.balance, biltCashCpp)}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </div>
 
                       {/* Nested card rows */}
@@ -464,6 +473,140 @@ export function WalletResultsAndCurrenciesPanel({
             onCppChange()
           }}
         />
+      )}
+
+      {showBiltCashInfo && (
+        <InfoPopover title="How Bilt Cash is Calculated" onClose={() => setShowBiltCashInfo(false)} zIndex="z-50">
+          <p>
+            Bilt cards earn <span className="text-indigo-300">4% Bilt Cash</span> on all
+            spend allocated to the card, on top of the regular Bilt Points multipliers.
+          </p>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">Conversion cap</p>
+            <p>
+              Bilt Cash can only be redeemed for value when paired with housing spend.
+              The convertible amount is capped at:
+            </p>
+            <p className="mt-1 px-2 py-1 bg-slate-800 rounded font-mono text-[11px] text-slate-300">
+              min(allocated_spend, 0.75 × housing_spend)
+            </p>
+            <p className="mt-1">
+              Bilt Cash earned beyond this cap is valued at <span className="text-slate-300">$0</span>.
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">No housing spend?</p>
+            <p>
+              If your wallet has no <span className="text-slate-300">Rent</span> or
+              {' '}<span className="text-slate-300">Mortgage</span> spend, Bilt Cash
+              cannot convert and is excluded from allocation scoring entirely — so
+              the calculator won't over-allocate spend to Bilt cards.
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">Example</p>
+            <p>
+              With <span className="text-slate-300">$24k</span> annual rent, the cap is
+              {' '}<span className="text-slate-300">0.75 × $24k = $18k</span> of
+              convertible non-housing spend. At 4%, that's
+              {' '}<span className="text-slate-300">$720</span> of realizable Bilt Cash
+              per year.
+            </p>
+          </div>
+        </InfoPopover>
+      )}
+
+      {statTopic === 'eaf' && (
+        <InfoPopover title="Effective Annual Fee" onClose={() => setStatTopic(null)}>
+          <p>
+            The wallet's net annual cost (or value) after credits, sign-up
+            bonuses, and category earn are subtracted from annual fees.
+            A negative value means the wallet returns more than it costs.
+          </p>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">Per-card formula</p>
+            <p className="px-2 py-1 bg-slate-800 rounded font-mono text-[11px] text-slate-300 leading-snug">
+              −(category_earn × cpp + sub/years + credits − fees) / years
+            </p>
+            <p className="mt-1">
+              One-time benefits (SUB, first-year bonus, one-time credits)
+              are amortised over the projection duration. Recurring credits
+              and category earn count fully each year.
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">Wallet total</p>
+            <p>
+              Sum of every selected card's individual EAF. Each category's
+              spend is allocated to the card with the best
+              {' '}<span className="font-mono text-[11px] text-slate-300">multiplier × CPP</span>,
+              so the same dollar isn't double-counted across cards.
+            </p>
+          </div>
+        </InfoPopover>
+      )}
+
+      {statTopic === 'income' && (
+        <InfoPopover title="Annual Point Income" onClose={() => setStatTopic(null)}>
+          <p>
+            Points and miles earned per year from category spend across all
+            selected cards (excludes one-time SUB bonuses).
+          </p>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">How it's allocated</p>
+            <p>
+              Each spend category goes to the card(s) with the highest
+              {' '}<span className="font-mono text-[11px] text-slate-300">multiplier × CPP</span>{' '}
+              score. Tied cards split the category dollars evenly. Annual
+              bonuses (fixed and percentage-based) are added on top.
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">Currency upgrades</p>
+            <p>
+              When a card's currency converts to another currency in the
+              wallet (e.g. Chase Freedom UR Cash → Chase UR with a Sapphire),
+              earn is converted at the upgrade rate and valued at the
+              target's CPP.
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">SUB exclusion</p>
+            <p>
+              Sign-up bonuses are not counted here — they show up in the
+              currency balance totals and contribute to EAF as one-time
+              amortised benefits.
+            </p>
+          </div>
+        </InfoPopover>
+      )}
+
+      {statTopic === 'fees' && (
+        <InfoPopover title="Total Annual Fees" onClose={() => setStatTopic(null)}>
+          <p>
+            Sum of the listed annual fee for every active card in the wallet,
+            before any credits, sign-up bonuses, or category earn are netted
+            out. This is what you'd pay your issuers each year.
+          </p>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">First-year fee</p>
+            <p>
+              Cards with a first-year fee waiver still appear at their full
+              annual fee here. The waiver is reflected in the EAF
+              calculation, where year-1 uses the waived fee and subsequent
+              years use the recurring fee.
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">Future cards</p>
+            <p>
+              Cards in the <span className="text-slate-300">future</span> panel
+              count once they become active inside the projection window.
+              Cards in the <span className="text-slate-300">considering</span>{' '}
+              panel are excluded from this total.
+            </p>
+          </div>
+        </InfoPopover>
       )}
 
     </div>

@@ -20,6 +20,7 @@ from .models import (
     Card,
     CardCategoryMultiplier,
     CardMultiplierGroup,
+    NetworkTier,
     RotatingCategory,
     Currency,
     SpendCategory,
@@ -115,6 +116,7 @@ async def load_card_data(
             selectinload(Card.multipliers).selectinload(CardCategoryMultiplier.spend_category),
             selectinload(Card.multiplier_groups).selectinload(CardMultiplierGroup.categories).selectinload(CardCategoryMultiplier.spend_category),
             selectinload(Card.rotating_categories).selectinload(RotatingCategory.spend_category),
+            selectinload(Card.network_tier).selectinload(NetworkTier.network),
         )
     )
     cards = result.scalars().all()
@@ -350,6 +352,11 @@ async def load_card_data(
         # apply_wallet_card_overrides), so the library card has no credit_lines.
         credit_lines: list[CreditLine] = []
 
+        # Resolve network name from the card's network tier relationship.
+        _net_tier = getattr(card, "network_tier", None)
+        _network = getattr(_net_tier, "network", None) if _net_tier else None
+        _network_name = _network.name if _network else None
+
         out.append(
             CardData(
                 id=card.id,
@@ -379,6 +386,9 @@ async def load_card_data(
                 accelerator_spend_limit=float(card.accelerator_spend_limit) if card.accelerator_spend_limit else 0.0,
                 accelerator_bonus_multiplier=float(card.accelerator_bonus_multiplier) if card.accelerator_bonus_multiplier else 0.0,
                 accelerator_max_activations=card.accelerator_max_activations or 0,
+                has_foreign_transaction_fee=bool(getattr(card, "foreign_transaction_fee", False)),
+                network_name=_network_name,
+                foreign_multiplier_bonus=multipliers.get("Foreign Transactions", 0.0),
             )
         )
     return out

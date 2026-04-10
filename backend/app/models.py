@@ -229,6 +229,10 @@ class Card(Base):
     accelerator_bonus_multiplier: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     accelerator_max_activations: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # True when the card charges a foreign transaction fee (typically ~3%).
+    # False = no FTF (preferred for international spend).
+    foreign_transaction_fee: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
     # Roadmap: how many months before the SUB can be earned again (e.g. 48 for Sapphire family)
     sub_recurrence_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # Roadmap: SUB eligibility family (cards in same family share a cooldown, e.g. "sapphire")
@@ -561,6 +565,9 @@ class Wallet(Base):
     calc_duration_years: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
     calc_duration_months: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     calc_window_mode: Mapped[str] = mapped_column(String(20), default="duration", server_default="duration")
+
+    # Percentage of total spend that occurs as foreign transactions (0–100).
+    foreign_spend_percent: Mapped[float] = mapped_column(Float, default=0, server_default="0")
 
     user: Mapped["User"] = relationship(back_populates="wallets")
     wallet_cards: Mapped[list["WalletCard"]] = relationship(

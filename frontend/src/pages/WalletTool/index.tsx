@@ -13,6 +13,7 @@ import {
 import { today } from '../../utils/format'
 import { WalletCardModal } from './components/cards/WalletCardModal'
 import { CreateWalletModal } from './components/wallet/CreateWalletModal'
+import { WalletSettingsModal } from './components/wallet/WalletSettingsModal'
 import { WalletResultsAndCurrenciesPanel } from './components/summary/WalletResultsAndCurrenciesPanel'
 import { CardsListPanel } from './components/cards/CardsListPanel'
 import { DeleteCardWarningModal } from './components/cards/DeleteCardWarningModal'
@@ -38,6 +39,8 @@ export default function WalletToolPage() {
   const [walletCardModal, setWalletCardModal] = useState<WalletCardModalOpen | null>(null)
   const [durationYears, setDurationYears] = useState(2)
   const [durationMonths, setDurationMonths] = useState(0)
+  const [foreignSpendPercent, setForeignSpendPercent] = useState(0)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [result, setResult] = useState<WalletResultResponse | null>(null)
   const [closeCardId, setCloseCardId] = useState<number | null>(null)
   const [closeDateInput, setCloseDateInput] = useState('')
@@ -178,6 +181,7 @@ export default function WalletToolPage() {
 
     setDurationYears(selectedWallet.calc_duration_years)
     setDurationMonths(selectedWallet.calc_duration_months)
+    setForeignSpendPercent(selectedWallet.foreign_spend_percent ?? 0)
 
     if (selectedWallet.calc_start_date) {
       // Auto-run the last calculation from today
@@ -274,11 +278,7 @@ export default function WalletToolPage() {
                 isCalculating={resultsMutation.isPending}
                 durationYears={durationYears}
                 durationMonths={durationMonths}
-                onDurationChange={(y, m) => {
-                  setDurationYears(y)
-                  setDurationMonths(m)
-                }}
-                onDurationCommit={(y, m) => runCalculation(y, m)}
+                onOpenSettings={() => setShowSettingsModal(true)}
                 onCppChange={() => runCalculation()}
                 onSpendChange={() => runCalculation()}
               />
@@ -354,6 +354,26 @@ export default function WalletToolPage() {
               { onSuccess: () => setPendingRemoval(null) },
             )
           }}
+        />
+      )}
+
+      {showSettingsModal && selectedWallet && (
+        <WalletSettingsModal
+          durationYears={durationYears}
+          durationMonths={durationMonths}
+          foreignSpendPercent={foreignSpendPercent}
+          onDurationChange={(y, m) => {
+            setDurationYears(y)
+            setDurationMonths(m)
+          }}
+          onDurationCommit={(y, m) => runCalculation(y, m)}
+          onForeignSpendChange={(pct) => setForeignSpendPercent(pct)}
+          onForeignSpendCommit={(pct) => {
+            setForeignSpendPercent(pct)
+            walletsApi.update(selectedWallet.id, { foreign_spend_percent: pct })
+            runCalculation()
+          }}
+          onClose={() => setShowSettingsModal(false)}
         />
       )}
 

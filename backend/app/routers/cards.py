@@ -16,7 +16,7 @@ _CARD_LIBRARY_PATCH_FIELDS = frozenset(
      "annual_bonus", "annual_bonus_percent", "annual_bonus_first_year_only",
      "secondary_currency_id", "secondary_currency_rate", "secondary_currency_cap_rate",
      "accelerator_cost", "accelerator_spend_limit", "accelerator_bonus_multiplier",
-     "accelerator_max_activations"}
+     "accelerator_max_activations", "foreign_transaction_fee"}
 )
 
 

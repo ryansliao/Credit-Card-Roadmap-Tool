@@ -216,6 +216,7 @@ export interface Card {
   accelerator_spend_limit: number | null
   accelerator_bonus_multiplier: number | null
   accelerator_max_activations: number | null
+  foreign_transaction_fee: boolean
   sub_recurrence_months: number | null
   sub_family: string | null
   multipliers: CardMultiplier[]
@@ -343,6 +344,7 @@ export interface Wallet {
   calc_duration_years: number
   calc_duration_months: number
   calc_window_mode: 'duration' | 'end'
+  foreign_spend_percent: number
 }
 
 export interface WalletResultResponse {
@@ -364,6 +366,13 @@ export interface CreateWalletPayload {
   name: string
   description?: string | null
   as_of_date?: string | null
+}
+
+export interface UpdateWalletPayload {
+  name?: string
+  description?: string | null
+  as_of_date?: string | null
+  foreign_spend_percent?: number
 }
 
 export interface InitialWalletCardCredit {
@@ -430,7 +439,7 @@ export const walletsApi = {
   get: (id: number) => request<Wallet>(`/wallets/${id}`),
   create: (payload: CreateWalletPayload) =>
     request<Wallet>('/wallets', { method: 'POST', body: JSON.stringify(payload) }),
-  update: (id: number, payload: Partial<CreateWalletPayload>) =>
+  update: (id: number, payload: UpdateWalletPayload) =>
     request<Wallet>(`/wallets/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   delete: (id: number) => request<void>(`/wallets/${id}`, { method: 'DELETE' }),
   addCard: (walletId: number, payload: AddCardToWalletPayload) =>

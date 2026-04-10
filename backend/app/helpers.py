@@ -200,6 +200,7 @@ async def effective_earn_currency_ids_for_wallet(
     """
     Currency IDs this wallet's in-wallet cards effectively earn (upgrade rule
     matches calculator: e.g. UR Cash -> UR when a UR card is also in the wallet).
+    Includes both primary currencies and secondary currencies (e.g. Bilt Cash).
     Considering cards are excluded -- only in_wallet and future cards count.
     """
     result = await db.execute(
@@ -227,6 +228,10 @@ async def effective_earn_currency_ids_for_wallet(
             effective_ids.add(conv.id)
         else:
             effective_ids.add(cur.id)
+        # Also include secondary currencies earned by this card (e.g. Bilt Cash)
+        sec_id = wc.card.secondary_currency_id
+        if sec_id is not None:
+            effective_ids.add(sec_id)
     return effective_ids
 
 
@@ -288,6 +293,7 @@ async def sync_wallet_balances_from_currency_pts(
     for row in rows:
         if row.currency_id not in active_currency_ids and not row.user_tracked:
             await db.delete(row)
+            by_cid.pop(row.currency_id, None)
             continue
         earn = float(currency_pts_by_id.get(row.currency_id, 0.0))
         row.projection_earn = earn

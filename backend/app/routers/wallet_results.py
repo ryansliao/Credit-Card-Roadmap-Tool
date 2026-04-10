@@ -301,6 +301,7 @@ async def wallet_results(
         window_end=window_end,
         sub_priority_card_ids=sub_priority_card_ids,
         housing_category_names=housing_names,
+        foreign_spend_pct=wallet.foreign_spend_percent or 0.0,
     )
 
     # Merge secondary currency points into the balance sync map

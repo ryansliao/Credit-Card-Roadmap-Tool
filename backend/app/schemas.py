@@ -161,6 +161,7 @@ class UpdateCardLibraryPayload(BaseModel):
     accelerator_spend_limit: Optional[float] = Field(default=None, ge=0)
     accelerator_bonus_multiplier: Optional[float] = Field(default=None, ge=0)
     accelerator_max_activations: Optional[int] = Field(default=None, ge=0)
+    foreign_transaction_fee: Optional[bool] = None
 
 
 class CardMultiplierSchema(BaseModel):
@@ -312,6 +313,7 @@ class CardRead(BaseModel):
     accelerator_spend_limit: Optional[float] = None
     accelerator_bonus_multiplier: Optional[float] = None
     accelerator_max_activations: Optional[int] = None
+    foreign_transaction_fee: bool = False
     sub_recurrence_months: Optional[int] = None
     sub_family: Optional[str] = None
 
@@ -545,6 +547,7 @@ class AdminCreateCardPayload(BaseModel):
     accelerator_spend_limit: Optional[float] = Field(default=None, ge=0)
     accelerator_bonus_multiplier: Optional[float] = Field(default=None, ge=0)
     accelerator_max_activations: Optional[int] = Field(default=None, ge=0)
+    foreign_transaction_fee: bool = False
     sub_recurrence_months: Optional[int] = Field(default=None, ge=1)
     sub_family: Optional[str] = Field(default=None, max_length=80)
 
@@ -783,6 +786,7 @@ class WalletUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     as_of_date: Optional[date] = None
+    foreign_spend_percent: Optional[float] = None
 
 
 class WalletSettingsCurrencyIds(BaseModel):
@@ -801,6 +805,7 @@ class WalletRead(WalletBase):
     calc_duration_years: int = 2
     calc_duration_months: int = 0
     calc_window_mode: str = "duration"
+    foreign_spend_percent: float = 0
 
 
 class WalletResultResponseSchema(BaseModel):

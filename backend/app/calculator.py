@@ -18,7 +18,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
 from typing import Optional
 
-from .constants import ALL_OTHER_CATEGORY
+from .constants import ALL_OTHER_CATEGORY, FOREIGN_TRANSACTION_FEE_PERCENT, PREFERRED_FOREIGN_NETWORKS
 from .date_utils import add_months
 
 
@@ -151,6 +151,13 @@ class CardData:
     portal_memberships: dict[int, float] = field(default_factory=dict)
     # True if this card enables partner transfers for its currency (e.g. Sapphire Reserve for UR)
     transfer_enabler: bool = False
+
+    # Foreign transaction fee: True = card charges ~3% FTF on foreign spend
+    has_foreign_transaction_fee: bool = False
+    # Payment network name (e.g. "Visa", "Mastercard") for FTF allocation priority
+    network_name: Optional[str] = None
+    # Bonus multiplier from a "Foreign Transactions" category (e.g. Summit 5x foreign)
+    foreign_multiplier_bonus: float = 0.0
 
     # Secondary currency earned at a flat rate on all allocated spend
     # (e.g. Bilt Cash at 4% alongside Bilt Points via multipliers)
@@ -796,9 +803,6 @@ def _secondary_currency_comparison_bonus(
     Returns the additional value (in cents) that each dollar spent on this card
     generates via the secondary currency. This is added to the primary
     ``multiplier × CPP`` score so allocation accounts for the secondary earn.
-
-    Assumes the conversion cap is not binding (optimistic; the real cap is
-    enforced when computing dollar values after allocation).
     """
     if card.secondary_currency is None or card.secondary_currency_rate <= 0:
         return 0.0
@@ -2661,6 +2665,118 @@ def _segmented_card_net_per_year(
 # ---------------------------------------------------------------------------
 
 
+FOREIGN_CAT_PREFIX = "__foreign__"
+
+
+def _split_spend_for_foreign(
+    cards: list[CardData],
+    selected_ids: set[int],
+    spend: dict[str, float],
+    foreign_spend_pct: float,
+) -> tuple[list[CardData], dict[str, float]]:
+    """
+    Split each spend category into a domestic portion and a foreign portion.
+
+    The foreign portion is given a unique key prefix (``__foreign__``) so the
+    existing allocation logic treats it as a separate category. Each card's
+    multipliers dict is augmented with an explicit entry for every foreign
+    category, computed as:
+
+      - 0 (effectively excluded) if the card has FTF and any selected no-FTF
+        card exists, OR if the card is not on a preferred network and any
+        selected no-FTF Visa/Mastercard exists.
+      - Otherwise: max(card's category multiplier, card's "Foreign Transactions"
+        multiplier) — so a card like Summit with 3x Foreign Transactions still
+        earns its base 3x Dining on foreign Dining (no double-up), but earns
+        3x on foreign Groceries (replacing 1x All Other).
+    """
+    if foreign_spend_pct <= 0:
+        return cards, spend
+    frac = max(0.0, min(1.0, foreign_spend_pct / 100.0))
+    if frac <= 0:
+        return cards, spend
+
+    selected = [c for c in cards if c.id in selected_ids]
+    has_no_ftf = any(not c.has_foreign_transaction_fee for c in selected)
+    has_no_ftf_visa_mc = any(
+        (not c.has_foreign_transaction_fee)
+        and c.network_name in PREFERRED_FOREIGN_NETWORKS
+        for c in selected
+    )
+
+    # Build modified spend dict with split categories
+    new_spend: dict[str, float] = {}
+    foreign_keys: dict[str, str] = {}  # category -> foreign key
+    for cat, amt in spend.items():
+        if amt > 0:
+            new_spend[cat] = amt * (1 - frac)
+            fk = f"{FOREIGN_CAT_PREFIX}{cat}"
+            new_spend[fk] = amt * frac
+            foreign_keys[cat] = fk
+        else:
+            new_spend[cat] = amt
+
+    # Build modified card list with explicit foreign multipliers per category
+    new_cards: list[CardData] = []
+    for card in cards:
+        # Eligibility for foreign spend allocation:
+        # - If any no-FTF card exists, FTF cards are excluded
+        # - If any no-FTF Visa/MC card exists, non-Visa/MC cards are excluded
+        eligible = True
+        if has_no_ftf and card.has_foreign_transaction_fee:
+            eligible = False
+        elif has_no_ftf_visa_mc and (
+            not card.network_name or card.network_name not in PREFERRED_FOREIGN_NETWORKS
+        ):
+            eligible = False
+
+        # The "foreign rate" any selected card uses on a foreign category C is
+        # max(its multiplier on C, its Foreign Transactions multiplier).
+        foreign_base = card.foreign_multiplier_bonus  # from "Foreign Transactions"
+        # Compute the card's All Other rate (used as fallback for categories
+        # not explicitly in the multipliers dict).
+        ao_rate = _all_other_multiplier(card.multipliers)
+
+        new_mults = dict(card.multipliers)
+        for orig_cat, fk in foreign_keys.items():
+            if not eligible:
+                new_mults[fk] = 0.0
+                continue
+            # Effective per-category rate: explicit if present, else All Other
+            cat_rate = card.multipliers.get(orig_cat, ao_rate)
+            # Case-insensitive lookup fallback
+            if orig_cat not in card.multipliers:
+                for k, v in card.multipliers.items():
+                    if k.strip().lower() == orig_cat.strip().lower():
+                        cat_rate = v
+                        break
+            new_mults[fk] = max(cat_rate, foreign_base)
+
+        new_cards.append(replace(card, multipliers=new_mults))
+
+    return new_cards, new_spend
+
+
+def _merge_foreign_breakdown(
+    breakdown: list[tuple[str, float]],
+) -> list[tuple[str, float]]:
+    """Combine ``__foreign__X`` entries back into ``X`` for display."""
+    merged: dict[str, float] = {}
+    order: list[str] = []
+    for label, pts in breakdown:
+        if label.startswith(FOREIGN_CAT_PREFIX):
+            base = label[len(FOREIGN_CAT_PREFIX):]
+        else:
+            base = label
+        if base not in merged:
+            merged[base] = 0.0
+            order.append(base)
+        merged[base] += pts
+    out = [(name, round(merged[name], 2)) for name in order if merged[name] > 0]
+    out.sort(key=lambda x: x[1], reverse=True)
+    return out
+
+
 def compute_wallet(
     all_cards: list[CardData],
     selected_ids: set[int],
@@ -2670,6 +2786,7 @@ def compute_wallet(
     window_end: Optional[date] = None,
     sub_priority_card_ids: set[int] | None = None,
     housing_category_names: set[str] | None = None,
+    foreign_spend_pct: float = 0.0,
 ) -> WalletResult:
     """
     Compute results for every card in `all_cards`.
@@ -2679,6 +2796,15 @@ def compute_wallet(
     the earn calculation is time-weighted across segments based on card open/close
     and SUB earn boundaries (per-day optimisation).
     """
+    selected_cards = [c for c in all_cards if c.id in selected_ids]
+
+    # Foreign spend: split each category into a domestic and a foreign portion,
+    # injecting per-card "foreign category" multipliers that account for
+    # FTF priority filtering (no-FTF cards win all foreign spend if any exist;
+    # no-FTF Visa/MC win over no-FTF other networks).
+    all_cards, spend = _split_spend_for_foreign(
+        all_cards, selected_ids, spend, foreign_spend_pct,
+    )
     selected_cards = [c for c in all_cards if c.id in selected_ids]
 
     # Adjust CPP for currencies that lack a transfer enabler in the wallet.
@@ -2699,11 +2825,29 @@ def compute_wallet(
     active_wallet_currency_ids = _wallet_currency_ids(selected_cards)
 
     # Compute total housing spend for secondary currency conversion cap.
+    # When foreign spend split is in effect, housing categories may exist as both
+    # "Rent" and "__foreign__Rent" entries; both contribute to total housing.
     _housing_names = housing_category_names or set()
+    _housing_lower = {n.lower() for n in _housing_names}
+    def _is_housing(cat: str) -> bool:
+        base = cat[len(FOREIGN_CAT_PREFIX):] if cat.startswith(FOREIGN_CAT_PREFIX) else cat
+        return base.lower() in _housing_lower
     housing_spend_total = sum(
-        s for cat, s in spend.items()
-        if cat.lower() in {n.lower() for n in _housing_names} and s > 0
+        s for cat, s in spend.items() if _is_housing(cat) and s > 0
     )
+
+    # When the wallet has no housing spend, any card whose secondary currency
+    # requires a housing-spend cap (cap_rate > 0) cannot realize that value.
+    # Zero its secondary_currency_rate so allocation scoring (the LP) doesn't
+    # treat it as if the secondary earn were realizable.
+    if housing_spend_total <= 0:
+        all_cards = [
+            replace(c, secondary_currency_rate=0.0)
+            if c.secondary_currency is not None and c.secondary_currency_cap_rate > 0
+            else c
+            for c in all_cards
+        ]
+        selected_cards = [c for c in all_cards if c.id in selected_ids]
 
     # Use segmented calculation when window dates are available and either:
     #   (a) any card has date context (open/close), or
@@ -2861,6 +3005,10 @@ def compute_wallet(
             if fy_bonus > 0:
                 cat_earn = list(cat_earn) + [(f"First Year Match ({card.annual_bonus_percent:g}%)", round(fy_bonus, 2))]
                 cat_earn.sort(key=lambda x: x[1], reverse=True)
+
+        # Merge any "__foreign__X" entries back into "X" for display
+        if foreign_spend_pct > 0:
+            cat_earn = _merge_foreign_breakdown(cat_earn)
 
         # Surface only the SUB values that were actually counted in totals.
         # When sub_earnable is False (e.g. in-wallet cards whose SUB is historical
