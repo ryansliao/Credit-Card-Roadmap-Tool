@@ -76,42 +76,78 @@ class CardCreditRead(BaseModel):
 
     id: int
     credit_name: str
-    credit_value: float
+    value: Optional[float] = None
+    excludes_first_year: bool = False
+    is_one_time: bool = False
+    credit_currency_id: Optional[int] = None
     card_ids: list[int] = Field(default_factory=list)
+    # Per-card values: {card_id: dollar_value}. Only includes cards with a non-null value.
+    card_values: dict[int, float] = Field(default_factory=dict)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def populate_card_fields(cls, data: Any, handler: Any) -> Any:
+        if not isinstance(data, dict) and hasattr(data, "card_links"):
+            links = data.card_links or []
+            return handler(
+                {
+                    **{k: getattr(data, k) for k in (
+                        "id", "credit_name", "value", "excludes_first_year",
+                        "is_one_time", "credit_currency_id",
+                    )},
+                    "card_ids": sorted(link.card_id for link in links),
+                    "card_values": {
+                        link.card_id: link.value
+                        for link in links
+                        if link.value is not None
+                    },
+                }
+            )
+        return handler(data)
 
 
 class CreateCreditPayload(BaseModel):
     credit_name: str = Field(..., max_length=120)
-    credit_value: float = Field(default=0.0, ge=0)
+    value: Optional[float] = Field(default=None, ge=0)
+    excludes_first_year: bool = False
+    is_one_time: bool = False
+    credit_currency_id: Optional[int] = None
     card_ids: list[int] = Field(default_factory=list)
+    card_values: dict[int, float] = Field(default_factory=dict)
 
 
 class UpdateCreditPayload(BaseModel):
     """Update a global library credit (at least one field required)."""
 
-    credit_value: Optional[float] = Field(default=None, ge=0)
+    value: Optional[float] = Field(default=None, ge=0)
     credit_name: Optional[str] = Field(None, max_length=120)
+    excludes_first_year: Optional[bool] = None
+    is_one_time: Optional[bool] = None
+    credit_currency_id: Optional[int] = None
     card_ids: Optional[list[int]] = None
+    card_values: Optional[dict[int, float]] = None
 
     @model_validator(mode="after")
     def at_least_one_field(self):
-        if (
-            self.credit_value is None
-            and self.credit_name is None
-            and self.card_ids is None
-        ):
-            raise ValueError(
-                "At least one of credit_value, credit_name, or card_ids must be set"
+        has_any = len(self.model_fields_set) > 0 or any(
+            v is not None for v in (
+                self.value, self.credit_name, self.excludes_first_year,
+                self.is_one_time, self.credit_currency_id,
+                self.card_ids, self.card_values,
             )
+        )
+        if not has_any:
+            raise ValueError("At least one field must be set")
         return self
 
 
 class UpdateCardLibraryPayload(BaseModel):
     """Partial update for card library fields (PATCH /cards/{id})."""
 
-    sub: Optional[int] = Field(default=None, ge=0)
+    sub_points: Optional[int] = Field(default=None, ge=0)
     sub_min_spend: Optional[int] = Field(default=None, ge=0)
     sub_months: Optional[int] = Field(default=None, ge=0)
+    sub_cash: Optional[float] = Field(default=None, ge=0)
     annual_fee: Optional[float] = Field(default=None, ge=0)
     first_year_fee: Optional[float] = Field(default=None, ge=0)
     transfer_enabler: Optional[bool] = None
@@ -260,10 +296,11 @@ class CardRead(BaseModel):
     first_year_fee: Optional[float] = None
     business: bool = False
     network_tier_id: Optional[int] = None
-    sub: Optional[int] = None
+    sub_points: Optional[int] = None
     sub_min_spend: Optional[int] = None
     sub_months: Optional[int] = None
     sub_spend_earn: Optional[int] = None
+    sub_cash: Optional[float] = None
     annual_bonus: Optional[int] = None
     annual_bonus_percent: Optional[float] = None
     annual_bonus_first_year_only: Optional[bool] = None
@@ -493,10 +530,11 @@ class AdminCreateCardPayload(BaseModel):
     business: bool = False
     network_tier_id: Optional[int] = None
     transfer_enabler: bool = False
-    sub: Optional[int] = Field(default=None, ge=0)
+    sub_points: Optional[int] = Field(default=None, ge=0)
     sub_min_spend: Optional[int] = Field(default=None, ge=0)
     sub_months: Optional[int] = Field(default=None, ge=1)
     sub_spend_earn: Optional[int] = Field(default=None, ge=0)
+    sub_cash: Optional[float] = Field(default=None, ge=0)
     annual_bonus: Optional[int] = Field(default=None, ge=0)
     annual_bonus_percent: Optional[float] = Field(default=None, ge=0)
     annual_bonus_first_year_only: Optional[bool] = None
@@ -676,7 +714,7 @@ class WalletCardGroupSelectionSet(BaseModel):
 class WalletCardBase(BaseModel):
     card_id: int
     added_date: date
-    sub: Optional[int] = None
+    sub_points: Optional[int] = None
     sub_min_spend: Optional[int] = None
     sub_months: Optional[int] = None
     sub_spend_earn: Optional[int] = None
@@ -706,7 +744,7 @@ class WalletCardCreate(WalletCardBase):
 class WalletCardUpdate(BaseModel):
     """Partial update for a wallet card. All fields optional."""
     added_date: Optional[date] = None
-    sub: Optional[int] = None
+    sub_points: Optional[int] = None
     sub_min_spend: Optional[int] = None
     sub_months: Optional[int] = None
     sub_spend_earn: Optional[int] = None
@@ -802,7 +840,7 @@ class CardResultSchema(BaseModel):
     credit_valuation: float = 0.0
     annual_fee: float = 0.0
     first_year_fee: Optional[float] = None
-    sub: int = 0
+    sub_points: int = 0
     annual_bonus: int = 0
     annual_bonus_percent: float = 0.0
     annual_bonus_first_year_only: bool = False

@@ -17,7 +17,7 @@ export function buildWalletCardFields(
 ):
   | {
       ok: true
-      sub: number | null
+      sub_points: number | null
       sub_min_spend: number | null
       sub_months: number | null
       annual_bonus: number | null
@@ -67,7 +67,7 @@ export function buildWalletCardFields(
 
   return {
     ok: true,
-    sub: subPoints.trim() === '' ? null : sub,
+    sub_points: subPoints.trim() === '' ? null : sub,
     sub_min_spend: subMinSpend.trim() === '' ? null : sub_min_spend,
     sub_months: subMonths.trim() === '' ? null : sub_months,
     annual_bonus: annualBonus.trim() === '' ? null : annual_bonus,
@@ -105,7 +105,7 @@ export function walletFormToUpdatePayload(
   return {
     added_date: addedDate,
     acquisition_type: acquisitionType,
-    sub: intOverride(built.sub, lib.sub ?? undefined),
+    sub_points: intOverride(built.sub_points, lib.sub_points ?? undefined),
     sub_min_spend: intOverride(built.sub_min_spend, lib.sub_min_spend ?? undefined),
     sub_months: intOverride(built.sub_months, lib.sub_months ?? undefined),
     annual_bonus: intOverride(built.annual_bonus, lib.annual_bonus ?? undefined),

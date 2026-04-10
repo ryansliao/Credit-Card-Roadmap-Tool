@@ -10,6 +10,7 @@ import {
   type WalletCard,
   type WalletCardAcquisitionType,
   creditsApi,
+  currenciesApi,
   walletCardCreditApi,
   walletCardGroupSelectionApi,
 } from '../../../../api/client'
@@ -28,6 +29,7 @@ export function WalletCardModal({
   mode,
   walletCard,
   existingCardIds,
+  walletCardIds,
   onClose,
   onAdd,
   onSaveEdit,
@@ -36,6 +38,8 @@ export function WalletCardModal({
   mode: 'add' | 'edit'
   walletCard?: WalletCard
   existingCardIds: number[]
+  /** Card IDs currently in the wallet (used to derive wallet currency set). */
+  walletCardIds: number[]
   onClose: () => void
   onAdd: (payload: AddCardToWalletPayload) => void
   onSaveEdit: (payload: UpdateWalletCardPayload) => void
@@ -43,6 +47,17 @@ export function WalletCardModal({
 }) {
   const { data: cards } = useCardLibrary()
   const queryClient = useQueryClient()
+
+  // Currency IDs present in the wallet (from existing wallet cards + the card being added/edited)
+  const walletCurrencyIds = useMemo(() => {
+    if (!cards) return new Set<number>()
+    const ids = new Set<number>()
+    for (const wcId of walletCardIds) {
+      const c = cards.find((card) => card.id === wcId)
+      if (c) ids.add(c.currency_id)
+    }
+    return ids
+  }, [cards, walletCardIds])
 
   const [cardId, setCardId] = useState<number | ''>('')
   const [cardSearch, setCardSearch] = useState('')
@@ -69,6 +84,7 @@ export function WalletCardModal({
   const [creditsExpanded, setCreditsExpanded] = useState(false)
   const [creditPickerOpen, setCreditPickerOpen] = useState(false)
   const [creditSearch, setCreditSearch] = useState('')
+  const [creditOptionsOpen, setCreditOptionsOpen] = useState<number | null>(null)
   const [groupSelectionsExpanded, setGroupSelectionsExpanded] = useState(false)
   // group_id -> array of selected spend_category_ids (length == top_n)
   const [groupSelections, setGroupSelections] = useState<Record<number, number[]>>({})
@@ -91,12 +107,17 @@ export function WalletCardModal({
     for (const c of creditLibrary ?? []) m.set(c.id, c)
     return m
   }, [creditLibrary])
+  const { data: currencies } = useQuery({
+    queryKey: ['currencies'],
+    queryFn: () => currenciesApi.list(),
+    staleTime: Infinity,
+  })
 
   const createCreditMutation = useMutation({
-    mutationFn: (credit_name: string) => creditsApi.create({ credit_name, credit_value: 0 }),
+    mutationFn: (credit_name: string) => creditsApi.create({ credit_name, value: 0 }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.credits() })
-      setSelectedCredits((prev) => ({ ...prev, [created.id]: created.credit_value }))
+      setSelectedCredits((prev) => ({ ...prev, [created.id]: created.value ?? 0 }))
       setCreditPickerOpen(false)
       setCreditSearch('')
     },
@@ -184,7 +205,7 @@ export function WalletCardModal({
       const key = `add:${cardId}`
       if (hydratedKey.current === key) return
       hydratedKey.current = key
-      setSubPoints(lib.sub != null ? String(lib.sub) : '')
+      setSubPoints(lib.sub_points != null ? String(lib.sub_points) : '')
       setSubMinSpend(lib.sub_min_spend != null ? String(lib.sub_min_spend) : '')
       setSubMonths(lib.sub_months != null ? String(lib.sub_months) : '')
       setAnnualBonus(lib.annual_bonus != null ? String(lib.annual_bonus) : '')
@@ -196,7 +217,7 @@ export function WalletCardModal({
       const defaults: Record<number, number> = {}
       for (const c of creditLibrary) {
         if (c.card_ids.includes(cardId)) {
-          defaults[c.id] = c.credit_value
+          defaults[c.id] = c.card_values[cardId] ?? c.value ?? 0
         }
       }
       setSelectedCredits(defaults)
@@ -213,7 +234,7 @@ export function WalletCardModal({
       hydratedKey.current = key
       setAddedDate(walletCard.added_date)
       setAcquisitionType(walletCard.acquisition_type)
-      const effSub = walletCard.sub ?? lib.sub
+      const effSub = walletCard.sub_points ?? lib.sub_points
       setSubPoints(effSub != null ? String(effSub) : '')
       const effMin = walletCard.sub_min_spend ?? lib.sub_min_spend
       setSubMinSpend(effMin != null ? String(effMin) : '')
@@ -293,7 +314,7 @@ export function WalletCardModal({
         card_id: cardId,
         added_date: addedDate,
         acquisition_type: acquisitionType,
-        sub: built.sub,
+        sub_points: built.sub_points,
         sub_min_spend: built.sub_min_spend,
         sub_months: built.sub_months,
         annual_bonus: built.annual_bonus,
@@ -676,55 +697,142 @@ export function WalletCardModal({
                           No credits selected. Add credits this card grants from the picker below.
                         </p>
                       ) : (
-                        <ul className="divide-y divide-slate-700/40 max-h-48 overflow-y-auto">
+                        <ul className="divide-y divide-slate-700/40 max-h-56 overflow-y-auto">
                           {Object.entries(selectedCredits).map(([idStr, value]) => {
                             const libId = Number(idStr)
                             const lc = creditLibraryById.get(libId)
+                            const isExpanded = creditOptionsOpen === libId
                             return (
-                              <li
-                                key={libId}
-                                className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
-                              >
-                                <span className="text-slate-200 truncate min-w-0 flex-1">
-                                  {lc?.credit_name ?? `Credit #${libId}`}
-                                </span>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <div className="relative">
-                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none">
-                                      $
-                                    </span>
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      step="0.01"
-                                      value={value === 0 ? '' : value}
-                                      placeholder="0"
-                                      onChange={(e) => {
-                                        const raw = e.target.value
-                                        const parsed = raw === '' ? 0 : Number.parseFloat(raw)
-                                        if (Number.isNaN(parsed) || parsed < 0) return
-                                        setSelectedCredits((prev) => ({
-                                          ...prev,
-                                          [libId]: parsed,
-                                        }))
-                                      }}
-                                      className="w-24 bg-slate-700 border border-slate-600 text-white text-xs tabular-nums pl-5 pr-2 py-1 rounded outline-none focus:border-indigo-500 placeholder:text-slate-500"
-                                    />
-                                  </div>
+                              <li key={libId}>
+                                <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                                  {/* Expand arrow */}
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      setSelectedCredits((prev) => {
-                                        const next = { ...prev }
-                                        delete next[libId]
-                                        return next
-                                      })
-                                    }
-                                    className="text-slate-500 hover:text-red-400 text-xs px-2 py-1 rounded-md hover:bg-slate-700/80"
+                                    onClick={() => setCreditOptionsOpen(isExpanded ? null : libId)}
+                                    className="text-slate-500 hover:text-slate-300 shrink-0"
                                   >
-                                    Remove
+                                    <svg
+                                      className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                    </svg>
                                   </button>
+                                  <span className="text-slate-200 truncate min-w-0 flex-1">
+                                    {lc?.credit_name ?? `Credit #${libId}`}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <div className="relative">
+                                      {(() => {
+                                        const cur = lc?.credit_currency_id != null ? currencies?.find(c => c.id === lc.credit_currency_id) : null
+                                        const isCash = !cur || cur.reward_kind === 'cash'
+                                        return isCash ? (
+                                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none">$</span>
+                                        ) : null
+                                      })()}
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        step={(() => {
+                                          const cur = lc?.credit_currency_id != null ? currencies?.find(c => c.id === lc.credit_currency_id) : null
+                                          return (!cur || cur.reward_kind === 'cash') ? '0.01' : '1'
+                                        })()}
+                                        value={value === 0 ? '' : value}
+                                        placeholder="0"
+                                        onChange={(e) => {
+                                          const raw = e.target.value
+                                          const parsed = raw === '' ? 0 : Number.parseFloat(raw)
+                                          if (Number.isNaN(parsed) || parsed < 0) return
+                                          setSelectedCredits((prev) => ({
+                                            ...prev,
+                                            [libId]: parsed,
+                                          }))
+                                        }}
+                                        className={`w-24 bg-slate-700 border border-slate-600 text-white text-xs tabular-nums pr-2 py-1 rounded outline-none focus:border-indigo-500 placeholder:text-slate-500 ${
+                                          (() => {
+                                            const cur = lc?.credit_currency_id != null ? currencies?.find(c => c.id === lc.credit_currency_id) : null
+                                            return (!cur || cur.reward_kind === 'cash') ? 'pl-5' : 'pl-2'
+                                          })()
+                                        }`}
+                                      />
+                                    </div>
+                                    {/* Remove (X icon) */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedCredits((prev) => {
+                                          const next = { ...prev }
+                                          delete next[libId]
+                                          return next
+                                        })
+                                        if (isExpanded) setCreditOptionsOpen(null)
+                                      }}
+                                      className="text-slate-500 hover:text-red-400 p-0.5 rounded hover:bg-slate-700/80"
+                                      title="Remove credit"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                      </svg>
+                                    </button>
+                                  </div>
                                 </div>
+                                {/* Expanded options row */}
+                                {isExpanded && (
+                                  <div className="flex items-center justify-between px-3 pb-2 pl-8 text-xs">
+                                    <div className="flex flex-col gap-1">
+                                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                        <input
+                                          type="checkbox"
+                                          checked={lc?.excludes_first_year ?? false}
+                                          onChange={() => {
+                                            if (!lc) return
+                                            creditsApi.update(lc.id, { excludes_first_year: !lc.excludes_first_year })
+                                              .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.credits() }))
+                                          }}
+                                          className="accent-amber-500 w-3 h-3"
+                                        />
+                                        <span className="text-slate-400">After Year 1</span>
+                                      </label>
+                                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                        <input
+                                          type="checkbox"
+                                          checked={lc?.is_one_time ?? false}
+                                          onChange={() => {
+                                            if (!lc) return
+                                            creditsApi.update(lc.id, { is_one_time: !lc.is_one_time })
+                                              .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.credits() }))
+                                          }}
+                                          className="accent-indigo-500 w-3 h-3"
+                                        />
+                                        <span className="text-slate-400">One-Time</span>
+                                      </label>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-slate-500 whitespace-nowrap">Currency</span>
+                                      <select
+                                        value={lc?.credit_currency_id ?? 'null'}
+                                        onChange={(e) => {
+                                          if (!lc) return
+                                          const cid = e.target.value === 'null' ? null : Number(e.target.value)
+                                          creditsApi.update(lc.id, { credit_currency_id: cid })
+                                            .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.credits() }))
+                                        }}
+                                        className="bg-slate-700 border border-slate-600 text-white text-xs px-1.5 py-0.5 rounded outline-none focus:border-indigo-500 max-w-[160px]"
+                                      >
+                                        {(currencies ?? []).filter((cur) => {
+                                          // Show Cash + currencies in the wallet + the selected card's currency
+                                          if (cur.reward_kind === 'cash') return true
+                                          if (walletCurrencyIds.has(cur.id)) return true
+                                          const selectedCard = cardId ? cards?.find((c) => c.id === cardId) : null
+                                          if (selectedCard && cur.id === selectedCard.currency_id) return true
+                                          return false
+                                        }).map((cur) => (
+                                          <option key={cur.id} value={cur.id}>{cur.name}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                )}
                               </li>
                             )
                           })}
@@ -788,9 +896,10 @@ export function WalletCardModal({
                                       <button
                                         type="button"
                                         onClick={() => {
+                                          const cardVal = cardId ? (c.card_values[cardId] ?? c.value ?? 0) : (c.value ?? 0)
                                           setSelectedCredits((prev) => ({
                                             ...prev,
-                                            [c.id]: c.credit_value,
+                                            [c.id]: cardVal,
                                           }))
                                           setCreditPickerOpen(false)
                                           setCreditSearch('')
@@ -799,7 +908,7 @@ export function WalletCardModal({
                                       >
                                         <span className="truncate min-w-0">{c.credit_name}</span>
                                         <span className="text-slate-500 tabular-nums shrink-0">
-                                          {formatMoney(c.credit_value)}
+                                          {formatMoney(cardId ? (c.card_values[cardId] ?? c.value ?? 0) : (c.value ?? 0))}
                                         </span>
                                       </button>
                                     </li>

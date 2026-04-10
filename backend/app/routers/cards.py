@@ -12,7 +12,7 @@ from ..schemas import CardRead, UpdateCardLibraryPayload
 router = APIRouter(tags=["cards"])
 
 _CARD_LIBRARY_PATCH_FIELDS = frozenset(
-    {"sub", "sub_min_spend", "sub_months", "annual_fee", "first_year_fee", "transfer_enabler",
+    {"sub_points", "sub_min_spend", "sub_months", "sub_cash", "annual_fee", "first_year_fee", "transfer_enabler",
      "annual_bonus", "annual_bonus_percent", "annual_bonus_first_year_only",
      "secondary_currency_id", "secondary_currency_rate", "secondary_currency_cap_rate",
      "accelerator_cost", "accelerator_spend_limit", "accelerator_bonus_multiplier",

@@ -174,7 +174,7 @@ async def add_card_to_wallet(
         wallet_id=wallet_id,
         card_id=payload.card_id,
         added_date=payload.added_date,
-        sub=payload.sub,
+        sub_points=payload.sub_points,
         sub_min_spend=payload.sub_min_spend,
         sub_months=payload.sub_months,
         sub_spend_earn=payload.sub_spend_earn,

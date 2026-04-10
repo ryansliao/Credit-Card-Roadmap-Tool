@@ -34,6 +34,8 @@ class CreditLine:
     library_credit_id: int
     name: str
     value: float
+    excludes_first_year: bool = False
+    is_one_time: bool = False
 
 
 @dataclass
@@ -72,7 +74,8 @@ class CardData:
     currency: CurrencyData
 
     annual_fee: float
-    sub: int
+    sub_points: int
+    sub_cash: float  # dollar-denominated SUB bonus (e.g. $200 cash back), added at face value
     sub_min_spend: Optional[int]
     sub_months: Optional[int]
     sub_spend_earn: int
@@ -189,7 +192,7 @@ class CardResult:
     credit_valuation: float = 0.0
     annual_fee: float = 0.0
     first_year_fee: Optional[float] = None
-    sub: int = 0
+    sub_points: int = 0
     annual_bonus: int = 0
     annual_bonus_percent: float = 0.0
     annual_bonus_first_year_only: bool = False
@@ -1106,10 +1109,30 @@ def calc_annual_point_earn(
     return float(card.annual_bonus) + cat_pts + _pct_bonus(card, cat_pts)
 
 
-def _credit_annual_and_one_time_totals(card: CardData) -> tuple[float, float]:
-    """All credits are recurring; one-time bucket is always 0."""
-    annual = sum(line.value for line in card.credit_lines)
-    return annual, 0.0
+def _credit_annual_and_one_time_totals(
+    card: CardData,
+) -> tuple[float, float, float]:
+    """Return (annual_all_years, annual_skip_first_year, one_time).
+
+    Credits with ``excludes_first_year=True`` (e.g. anniversary free night
+    awards) are separated into the second bucket so callers can count them
+    for ``years - 1`` instead of ``years``.
+
+    Credits with ``is_one_time=True`` go into the one-time bucket and are
+    amortised over the projection period (not multiplied by years).
+    """
+    annual = sum(
+        line.value for line in card.credit_lines
+        if not line.excludes_first_year and not line.is_one_time
+    )
+    annual_skip = sum(
+        line.value for line in card.credit_lines
+        if line.excludes_first_year and not line.is_one_time
+    )
+    one_time = sum(
+        line.value for line in card.credit_lines if line.is_one_time
+    )
+    return annual, annual_skip, one_time
 
 
 def calc_credit_valuation(card: CardData) -> float:
@@ -1273,7 +1296,7 @@ def calc_total_points(
     rate = _conversion_rate(card, wallet_currency_ids)
     # When the SUB is not earnable, exclude the SUB bonus and its earn contribution
     effective_sub = (card.sub_spend_earn * rate) if card.sub_earnable else 0.0
-    effective_sub_pts = card.sub if card.sub_earnable else 0
+    effective_sub_pts = card.sub_points if card.sub_earnable else 0
     # First-year-only percentage bonus: one-time points based on annual category earn.
     fy_bonus = 0.0
     if card.annual_bonus_percent and card.annual_bonus_first_year_only and rate:
@@ -1439,12 +1462,13 @@ def _average_annual_net_dollars(
         if precomputed_earn is not None
         else _effective_annual_earn_allocated(card, spend, selected_cards, wallet_currency_ids)
     )
-    annual_credits, one_time_credits = _credit_annual_and_one_time_totals(card)
+    annual_credits, annual_credits_skip, one_time_credits = _credit_annual_and_one_time_totals(card)
 
     rate = _conversion_rate(card, wallet_currency_ids)
     # When the SUB is not earnable, exclude the SUB bonus and its earn contribution
     effective_sub = (card.sub_spend_earn * rate) if card.sub_earnable else 0.0
-    effective_sub_pts = card.sub if card.sub_earnable else 0
+    effective_sub_pts = card.sub_points if card.sub_earnable else 0
+    effective_sub_cash = card.sub_cash if card.sub_earnable else 0.0
     fee_y1 = card.first_year_fee if card.first_year_fee is not None else card.annual_fee
     total_fees = fee_y1 + (years - 1) * card.annual_fee
     # effective_earn (from _effective_annual_earn_allocated) already includes card.annual_bonus
@@ -1468,8 +1492,10 @@ def _average_annual_net_dollars(
         (effective_earn / 100 * cpp) * years
         + effective_sub / 100 * cpp
         + effective_sub_pts * cpp / 100
+        + effective_sub_cash
         + fy_bonus_eff / 100 * cpp
         + annual_credits * years
+        + annual_credits_skip * max(years - 1, 0)
         + one_time_credits
         + sec.dollar_value_annual * years
         + accel_bonus_dollars_annual * years
@@ -2354,7 +2380,7 @@ def _is_sub_active_in_segment(card: CardData, seg_start: date) -> bool:
     and the SUB has not yet been earned before this segment starts.
     """
     if (
-        not card.sub
+        not card.sub_points
         or not card.sub_min_spend
         or not card.sub_earnable
         or not card.wallet_added_date
@@ -2552,11 +2578,21 @@ def _segmented_card_net_per_year(
         annualized_earn_pts_for_balance += seg_pts_balance * 365.25 / total_days
         annualized_raw_cat_pts += seg_cat_pts_raw * 365.25 / total_days
 
-        annual_credits, _ = _credit_annual_and_one_time_totals(card)
+        annual_credits, annual_credits_skip, _ = _credit_annual_and_one_time_totals(card)
         total_credits += annual_credits * seg_days / 365.25
+        # Anniversary-only credits: only count days after the card's 1-year mark.
+        if annual_credits_skip and card.wallet_added_date:
+            anniversary = add_months(card.wallet_added_date, 12)
+            if seg_end > anniversary:
+                eligible_start = max(seg_start, anniversary)
+                eligible_days = (seg_end - eligible_start).days
+                total_credits += annual_credits_skip * eligible_days / 365.25
+        elif annual_credits_skip and not card.wallet_added_date:
+            # No date context: assume card is past its first year.
+            total_credits += annual_credits_skip * seg_days / 365.25
 
     # One-time credits
-    _, one_time_credits = _credit_annual_and_one_time_totals(card)
+    _, _, one_time_credits = _credit_annual_and_one_time_totals(card)
     if card_ever_active:
         total_credits += one_time_credits
 
@@ -2567,11 +2603,13 @@ def _segmented_card_net_per_year(
     # sub_spend_earn would double-count those points, and subtracting net_opp
     # would double-count the cost already reflected in other cards' reduced
     # segment earn.
-    if card.sub_earnable and card.sub:
+    if card.sub_earnable and card.sub_points:
         earned = card.sub_projected_earn_date
         if earned is None or window_start <= earned <= window_end:
             eff_currency = _effective_currency(card, active_wallet_currency_ids)
-            total_earn_dollars += card.sub * eff_currency.cents_per_point / 100.0
+            total_earn_dollars += card.sub_points * eff_currency.cents_per_point / 100.0
+    if card.sub_earnable and card.sub_cash:
+        total_credits += card.sub_cash
 
     # First-year-only percentage bonus: one-time earn based on annualized category
     # earn rate, counted once regardless of window length (like SUB).
@@ -2748,7 +2786,7 @@ def compute_wallet(
                     selected=False,
                     annual_fee=card.annual_fee,
                     first_year_fee=card.first_year_fee,
-                    sub=card.sub,
+                    sub_points=card.sub_points,
                     cents_per_point=card.currency.cents_per_point,
                     effective_currency_name=card.currency.name,
                     effective_currency_id=card.currency.id,
@@ -2772,7 +2810,7 @@ def compute_wallet(
             # Uses for_balance earn so point totals are independent of wallet CPP overrides.
             # sub_spend_earn and net_opp are excluded (already captured in segment earn).
             total_years_window = (window_end - window_start).days / 365.25  # type: ignore[operator]
-            sub_earnable_pts = card.sub if card.sub_earnable else 0
+            sub_earnable_pts = card.sub_points if card.sub_earnable else 0
             total_points = annual_point_earn_for_balance * total_years_window + sub_earnable_pts
         else:
             annual_point_earn = _effective_annual_earn_allocated(
@@ -2829,7 +2867,7 @@ def compute_wallet(
         # or cards the user can't reach the min spend on), the calculator already
         # excluded these from total_points and effective_annual_fee — reporting
         # the raw library values here would let the UI double-subtract them.
-        reported_sub = card.sub if card.sub_earnable else 0
+        reported_sub = card.sub_points if card.sub_earnable else 0
         reported_sub_spend_earn = card.sub_spend_earn if card.sub_earnable else 0
 
         # Secondary currency result for this card
@@ -2854,7 +2892,7 @@ def compute_wallet(
                 credit_valuation=round(credit_val, 2),
                 annual_fee=card.annual_fee,
                 first_year_fee=card.first_year_fee,
-                sub=reported_sub,
+                sub_points=reported_sub,
                 annual_bonus=card.annual_bonus,
                 annual_bonus_percent=card.annual_bonus_percent,
                 annual_bonus_first_year_only=card.annual_bonus_first_year_only,

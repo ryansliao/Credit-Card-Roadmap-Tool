@@ -352,6 +352,7 @@ export default function WalletToolPage() {
             walletCardModal.mode === 'edit' ? walletCardModal.walletCard : undefined
           }
           existingCardIds={selectedWallet.wallet_cards.map((wc) => wc.card_id)}
+          walletCardIds={selectedWallet.wallet_cards.map((wc) => wc.card_id)}
           onClose={() => setWalletCardModal(null)}
           onAdd={(payload) =>
             addCardMutation.mutate({ walletId: selectedWallet.id, payload })

@@ -87,6 +87,18 @@ async def load_wallet_cpp_overrides(
     return {row.currency_id: row.cents_per_point for row in rows}
 
 
+async def load_currency_defaults(session: AsyncSession) -> dict[int, float]:
+    """Load default cents-per-point for all currencies: currency_id -> cents_per_point."""
+    result = await session.execute(select(Currency))
+    return {c.id: c.cents_per_point for c in result.scalars()}
+
+
+async def load_currency_kinds(session: AsyncSession) -> dict[int, str]:
+    """Load reward_kind for all currencies: currency_id -> 'cash' | 'points'."""
+    result = await session.execute(select(Currency))
+    return {c.id: c.reward_kind for c in result.scalars()}
+
+
 async def load_card_data(
     session: AsyncSession, cpp_overrides: dict[int, float] | None = None
 ) -> list[CardData]:
@@ -346,10 +358,11 @@ async def load_card_data(
                 currency=currency,
                 annual_fee=card.annual_fee,
                 first_year_fee=card.first_year_fee,
-                sub=card.sub if card.sub is not None else 0,
+                sub_points=card.sub_points if card.sub_points is not None else 0,
                 sub_min_spend=card.sub_min_spend,
                 sub_months=card.sub_months,
                 sub_spend_earn=card.sub_spend_earn if card.sub_spend_earn is not None else 0,
+                sub_cash=card.sub_cash if card.sub_cash is not None else 0.0,
                 annual_bonus=card.annual_bonus if card.annual_bonus is not None else 0,
                 annual_bonus_percent=card.annual_bonus_percent if card.annual_bonus_percent is not None else 0.0,
                 annual_bonus_first_year_only=bool(card.annual_bonus_first_year_only) if card.annual_bonus_first_year_only is not None else False,
@@ -465,6 +478,9 @@ def apply_wallet_card_overrides(
     wallet_cards: list["WalletCard"],
     library_cards_by_id: dict[int, Card] | None = None,
     wallet_credit_rows: dict[int, list[WalletCardCredit]] | None = None,
+    cpp_overrides: dict[int, float] | None = None,
+    currency_defaults: dict[int, float] | None = None,
+    currency_kinds: dict[int, str] | None = None,
 ) -> list[CardData]:
     """
     Return CardData copies with wallet-level overrides: SUB fields, fees, statement credits.
@@ -473,6 +489,10 @@ def apply_wallet_card_overrides(
     Statement credits live exclusively on wallet cards: each WalletCardCredit row
     (joined to its Credit library entry) becomes one CreditLine on the
     resulting CardData. wallet_credit_rows: dict keyed by wallet_card_id.
+
+    For point-based credits (point_value + credit_currency_id set on the library
+    credit), the dollar value is computed as ``point_value * cpp / 100`` using the
+    wallet CPP override or the currency's default CPP.
     """
     wc_by_card_id: dict[int, "WalletCard"] = {wc.card_id: wc for wc in wallet_cards}
     rows_by_wc_id: dict[int, list[WalletCardCredit]] = wallet_credit_rows or {}
@@ -492,22 +512,35 @@ def apply_wallet_card_overrides(
         )
 
         merged_lines: list[CreditLine] = []
+        _cpp = cpp_overrides or {}
+        _cur_defaults = currency_defaults or {}
+        _kinds = currency_kinds or {}
         for row in rows_by_wc_id.get(wc.id, []):
             lib_credit = row.library_credit
             if lib_credit is None:
                 continue
+            # wallet_card_credits.value is stored in the credit's native
+            # currency (dollars for Cash, points for points currencies).
+            # Resolve to dollars here using the wallet's CPP.
+            dollar_value = row.value
+            cur_id = lib_credit.credit_currency_id
+            if cur_id is not None and _kinds.get(cur_id) != "cash":
+                cpp = _cpp.get(cur_id) or _cur_defaults.get(cur_id, 1.0)
+                dollar_value = row.value * cpp / 100.0
             merged_lines.append(
                 CreditLine(
                     library_credit_id=row.library_credit_id,
                     name=lib_credit.credit_name,
-                    value=row.value,
+                    value=dollar_value,
+                    excludes_first_year=lib_credit.excludes_first_year,
+                    is_one_time=lib_credit.is_one_time,
                 )
             )
 
         out.append(
             dataclasses.replace(
                 cd,
-                sub=wc.sub if wc.sub is not None else cd.sub,
+                sub_points=wc.sub_points if wc.sub_points is not None else cd.sub_points,
                 sub_min_spend=(
                     wc.sub_min_spend
                     if wc.sub_min_spend is not None

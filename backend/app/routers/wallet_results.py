@@ -26,6 +26,8 @@ from ..db_helpers import (
     load_wallet_card_credits,
     load_wallet_card_group_selections,
     load_wallet_card_multipliers,
+    load_currency_defaults,
+    load_currency_kinds,
     load_wallet_cpp_overrides,
     load_wallet_portal_shares,
     load_wallet_spend_items,
@@ -177,8 +179,12 @@ async def wallet_results(
     )
     library_cards_by_id = {c.id: c for c in lib_for_overrides.scalars().all()}
     wallet_credit_rows = await load_wallet_card_credits(db, wallet_id)
+    currency_defaults = await load_currency_defaults(db)
+    currency_kinds = await load_currency_kinds(db)
     modified_cards = apply_wallet_card_overrides(
-        all_cards, active_wallet_cards, library_cards_by_id, wallet_credit_rows
+        all_cards, active_wallet_cards, library_cards_by_id, wallet_credit_rows,
+        cpp_overrides=cpp_overrides, currency_defaults=currency_defaults,
+        currency_kinds=currency_kinds,
     )
     wallet_multiplier_rows = await load_wallet_card_multipliers(db, wallet_id)
     modified_cards = apply_wallet_card_multiplier_overrides(modified_cards, wallet_multiplier_rows)
@@ -209,7 +215,7 @@ async def wallet_results(
             return False
         if cd.id in sub_already_earned_ids:
             return False
-        if not cd.sub or not cd.sub_min_spend or not cd.wallet_added_date:
+        if not cd.sub_points or not cd.sub_min_spend or not cd.wallet_added_date:
             return False
         if cd.sub_months:
             window_end_dt = add_months(cd.wallet_added_date, cd.sub_months)
@@ -247,7 +253,7 @@ async def wallet_results(
             lib = library_cards_by_id.get(wc.card_id)
             eff_min = wc.sub_min_spend if wc.sub_min_spend is not None else (lib.sub_min_spend if lib else None)
             eff_months = wc.sub_months if wc.sub_months is not None else (lib.sub_months if lib else None)
-            eff_sub = wc.sub if wc.sub is not None else (lib.sub if lib else None)
+            eff_sub = wc.sub_points if wc.sub_points is not None else (lib.sub_points if lib else None)
             if wc.card_id in plan_earn_dates:
                 proj = plan_earn_dates[wc.card_id]
             elif not eff_sub or not eff_min:
@@ -370,7 +376,7 @@ async def wallet_roadmap(
         if not card.business and wc.added_date >= cutoff_24mo and wc.acquisition_type == "opened":
             personal_cards_24mo.append(card.name)
 
-        eff_sub = wc.sub if wc.sub is not None else (card.sub or 0)
+        eff_sub = wc.sub_points if wc.sub_points is not None else (card.sub_points or 0)
         eff_sub_months = wc.sub_months if wc.sub_months is not None else card.sub_months
         eff_sub_min = wc.sub_min_spend if wc.sub_min_spend is not None else card.sub_min_spend
 

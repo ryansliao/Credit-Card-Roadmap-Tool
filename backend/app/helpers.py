@@ -70,7 +70,7 @@ def wc_read(wc: WalletCard, card: Card) -> WalletCardRead:
         card_name=card.name,
         transfer_enabler=bool(getattr(card, "transfer_enabler", False)),
         added_date=wc.added_date,
-        sub=_inh(wc.sub, card.sub),
+        sub_points=_inh(wc.sub_points, card.sub_points),
         sub_min_spend=_inh(wc.sub_min_spend, card.sub_min_spend),
         sub_months=_inh(wc.sub_months, card.sub_months),
         sub_spend_earn=_inh(wc.sub_spend_earn, card.sub_spend_earn),
@@ -142,14 +142,31 @@ async def validate_card_ids(db: AsyncSession, card_ids: list[int]) -> list[int]:
 
 
 async def set_credit_card_links(
-    db: AsyncSession, credit: Credit, card_ids: list[int]
+    db: AsyncSession,
+    credit: Credit,
+    card_ids: list[int],
+    card_values: dict[int, float] | None = None,
 ) -> None:
-    """Replace this credit's card_credit_cards rows with the given card_ids."""
+    """Replace this credit's card_credit_cards rows with the given card_ids.
+
+    ``card_values`` maps card_id -> issuer-stated dollar value for that card.
+    Omitted cards get NULL (inherit from ``credits.value``).
+    """
+    # Preserve existing per-card values for cards that remain
+    existing_values: dict[int, float | None] = {}
+    for link in credit.card_links:
+        existing_values[link.card_id] = link.value
+
     await db.execute(
         delete(CardCredit).where(CardCredit.credit_id == credit.id)
     )
+    merged_values = {**existing_values, **(card_values or {})}
     for cid in card_ids:
-        db.add(CardCredit(credit_id=credit.id, card_id=cid))
+        db.add(CardCredit(
+            credit_id=credit.id,
+            card_id=cid,
+            value=merged_values.get(cid),
+        ))
 
 
 # ---------------------------------------------------------------------------
@@ -348,7 +365,7 @@ def wallet_to_schema(wallet) -> WalletResultSchema:
             credit_valuation=cr.credit_valuation,
             annual_fee=cr.annual_fee,
             first_year_fee=cr.first_year_fee,
-            sub=cr.sub,
+            sub_points=cr.sub_points,
             annual_bonus=cr.annual_bonus,
             annual_bonus_percent=cr.annual_bonus_percent,
             annual_bonus_first_year_only=cr.annual_bonus_first_year_only,

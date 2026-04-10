@@ -20,7 +20,7 @@ function formatDuration(years: number, months: number): string {
 
 /** Annual point income for a card (excludes SUB points). */
 function cardAnnualPointIncome(c: CardResult, totalYears: number): number {
-  return (c.total_points - c.sub - c.sub_spend_earn) / totalYears
+  return (c.total_points - c.sub_points - c.sub_spend_earn) / totalYears
 }
 
 interface Props {
@@ -94,7 +94,7 @@ export function WalletResultsAndCurrenciesPanel({
 
   const cardsByCurrency = useMemo(() => {
     if (!result) return {} as Record<string, CardResult[]>
-    return result.card_results
+    const grouped = result.card_results
       .filter((c) => c.selected)
       .reduce(
         (acc, card) => {
@@ -104,6 +104,10 @@ export function WalletResultsAndCurrenciesPanel({
         },
         {} as Record<string, CardResult[]>
       )
+    for (const cur of Object.keys(grouped)) {
+      grouped[cur].sort((a, b) => a.effective_annual_fee - b.effective_annual_fee)
+    }
+    return grouped
   }, [result])
 
   const editingBalance = balances.find((b) => b.currency_id === editingCurrencyId) ?? null

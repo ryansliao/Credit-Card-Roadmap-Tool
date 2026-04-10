@@ -152,7 +152,7 @@ async def admin_create_card(
         first_year_fee=payload.first_year_fee,
         business=payload.business,
         network_tier_id=payload.network_tier_id,
-        sub=payload.sub,
+        sub_points=payload.sub_points,
         sub_min_spend=payload.sub_min_spend,
         sub_months=payload.sub_months,
         sub_spend_earn=payload.sub_spend_earn,

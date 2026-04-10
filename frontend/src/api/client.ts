@@ -81,9 +81,18 @@ export interface TravelPortal {
 export interface CardCredit {
   id: number
   credit_name: string
-  credit_value: number
+  /** Default dollar value (null = varies by card, see card_values). */
+  value: number | null
+  /** When true, this credit is not counted in the first year (e.g. anniversary free nights). */
+  excludes_first_year: boolean
+  /** When true, this credit is counted only once (not annually). */
+  is_one_time: boolean
+  /** Currency this credit is denominated in. Cash = dollar credit, points currency = converted via CPP. */
+  credit_currency_id: number | null
   /** IDs of cards in the global library that natively offer this credit. */
   card_ids: number[]
+  /** Per-card issuer-stated values: {card_id: dollar_value}. */
+  card_values: Record<number, number>
 }
 
 export interface IssuerRead {
@@ -132,10 +141,11 @@ export interface Card {
   business: boolean
   network_tier_id: number | null
   network_tier: NetworkTierRead | null
-  sub: number | null
+  sub_points: number | null
   sub_min_spend: number | null
   sub_months: number | null
   sub_spend_earn: number | null
+  sub_cash: number | null
   annual_bonus: number | null
   transfer_enabler: boolean
   secondary_currency_id: number | null
@@ -193,7 +203,7 @@ export interface CardResult {
   credit_valuation: number
   annual_fee: number
   first_year_fee: number | null
-  sub: number
+  sub_points: number
   annual_bonus: number
   sub_extra_spend: number
   sub_spend_earn: number
@@ -239,7 +249,7 @@ export interface WalletCard {
   card_id: number
   card_name: string | null
   added_date: string
-  sub: number | null
+  sub_points: number | null
   sub_min_spend: number | null
   sub_months: number | null
   sub_spend_earn: number | null
@@ -305,7 +315,7 @@ export interface InitialWalletCardCredit {
 export interface AddCardToWalletPayload {
   card_id: number
   added_date: string
-  sub?: number | null
+  sub_points?: number | null
   sub_min_spend?: number | null
   sub_months?: number | null
   sub_spend_earn?: number | null
@@ -340,7 +350,7 @@ export interface TrackWalletCurrencyPayload {
 
 export interface UpdateWalletCardPayload {
   added_date?: string | null
-  sub?: number | null
+  sub_points?: number | null
   sub_min_spend?: number | null
   sub_months?: number | null
   sub_spend_earn?: number | null
@@ -512,12 +522,20 @@ export const cardsApi = {
 
 export interface CreateCreditPayload {
   credit_name: string
-  credit_value?: number
+  value?: number | null
+  excludes_first_year?: boolean
+  is_one_time?: boolean
+  credit_currency_id?: number | null
+  card_values?: Record<number, number>
 }
 
 export interface UpdateCreditPayload {
   credit_name?: string
-  credit_value?: number
+  value?: number | null
+  excludes_first_year?: boolean
+  is_one_time?: boolean
+  credit_currency_id?: number | null
+  card_values?: Record<number, number>
 }
 
 export const creditsApi = {

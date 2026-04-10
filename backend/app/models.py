@@ -186,11 +186,13 @@ class Card(Base):
     )
 
     # Sign-up bonus (all optional)
-    sub: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    sub_points: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     sub_min_spend: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     sub_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # Amount earned just from hitting the SUB spend (e.g. BBP 2x on that spend; can be points or cash)
     sub_spend_earn: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Dollar-denominated SUB bonus (e.g. $200 cash back). Added at face value, not converted via CPP.
+    sub_cash: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # Recurring annual bonus (e.g. Chase Ink Preferred 10k points/year; can be points or cash)
     annual_bonus: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
@@ -431,14 +433,23 @@ class Credit(Base):
     (e.g. Priority Pass, Global Entry, Free Checked Bags, Uber Cash).
 
     `credit_value` is the default dollar valuation; users can override it on a
-    per-wallet-card basis via WalletCardCredit. All entries are recurring.
+    per-wallet-card basis via WalletCardCredit. Credits are recurring by default.
+    When `excludes_first_year` is True, the credit is not counted in the first
+    year of card ownership (e.g. anniversary free night awards).
     """
 
     __tablename__ = "credits"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     credit_name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
-    credit_value: Mapped[float] = mapped_column(Float, default=0)
+    value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    excludes_first_year: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    is_one_time: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Currency this credit is denominated in. Cash (id=1) = dollar amount used directly.
+    # Points currencies = value is in points, resolved via CPP.
+    credit_currency_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("currencies.id", ondelete="SET NULL"), nullable=True
+    )
 
     wallet_credit_overrides: Mapped[list["WalletCardCredit"]] = relationship(
         back_populates="library_credit", cascade="all, delete-orphan"
@@ -457,7 +468,12 @@ class Credit(Base):
 
 
 class CardCredit(Base):
-    """Join row linking a global library credit to a card that natively offers it."""
+    """Join row linking a global library credit to a card that natively offers it.
+
+    ``value`` is the issuer-stated dollar amount this specific card provides for
+    the credit (e.g. Amex Gold Dining = $120, Marriott Brilliant Dining = $300).
+    NULL means use the credit's default ``credits.value``.
+    """
 
     __tablename__ = "card_credits"
 
@@ -467,6 +483,7 @@ class CardCredit(Base):
     card_id: Mapped[int] = mapped_column(
         ForeignKey("cards.id", ondelete="CASCADE"), primary_key=True
     )
+    value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     credit: Mapped["Credit"] = relationship(back_populates="card_links")
 
@@ -584,7 +601,7 @@ class WalletCard(Base):
     added_date: Mapped[date] = mapped_column(Date, nullable=False)
 
     # Optional SUB overrides (null = use Card's value)
-    sub: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    sub_points: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     sub_min_spend: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     sub_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     sub_spend_earn: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
