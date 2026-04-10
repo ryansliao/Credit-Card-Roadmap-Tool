@@ -205,6 +205,9 @@ export function WalletCardModal({
       setFormError(null)
     } else {
       if (!walletCard || !lib) return
+      // Wait for credit overrides before hydrating so we populate credits in
+      // the same pass and never flash "0 credits".
+      if (existingCreditOverrides === undefined) return
       const key = `edit:${walletCard.id}`
       if (hydratedKey.current === key) return
       hydratedKey.current = key
@@ -224,21 +227,16 @@ export function WalletCardModal({
       setFirstYearFee(effFy != null ? String(effFy) : '')
       const effSecRate = walletCard.secondary_currency_rate ?? lib.secondary_currency_rate
       setSecondaryCurrencyRate(effSecRate != null ? String(effSecRate) : '')
-      setSelectedCredits({})
+      const m: Record<number, number> = {}
+      for (const o of existingCreditOverrides) {
+        m[o.library_credit_id] = o.value
+      }
+      setSelectedCredits(m)
+      setCreditsExpanded(Object.keys(m).length > 0)
       setGroupSelections({})
       setFormError(null)
     }
-  }, [mode, cardId, lib, walletCard, creditLibrary])
-
-  // Populate selected credits from the wallet-specific API data (edit mode).
-  useEffect(() => {
-    if (mode !== 'edit' || existingCreditOverrides === undefined) return
-    const m: Record<number, number> = {}
-    for (const o of existingCreditOverrides) {
-      m[o.library_credit_id] = o.value
-    }
-    setSelectedCredits(m)
-  }, [mode, existingCreditOverrides])
+  }, [mode, cardId, lib, walletCard, creditLibrary, existingCreditOverrides])
 
   // Populate group selection state from the wallet-specific API data (edit mode).
   useEffect(() => {
@@ -630,11 +628,13 @@ export function WalletCardModal({
                   >
                     <span>
                       Statement Credits
-                      {Object.keys(selectedCredits).length > 0 && (
+                      {(creditLibraryLoading || creditOverridesLoading) ? (
+                        <span className="text-slate-500 ml-1 text-xs">loading…</span>
+                      ) : Object.keys(selectedCredits).length > 0 ? (
                         <span className="text-indigo-300 ml-1">
                           ({Object.keys(selectedCredits).length})
                         </span>
-                      )}
+                      ) : null}
                     </span>
                     <svg
                       className={`w-4 h-4 text-slate-400 transition-transform ${creditsExpanded ? 'rotate-180' : ''}`}
