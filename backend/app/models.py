@@ -21,19 +21,22 @@ from .database import Base
 
 
 class User(Base):
-    """Minimal user model so wallets can be tied to a user (single-tenant: one default user)."""
+    """User model — authenticated via Google Sign-In."""
 
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False, default="Default User")
+    google_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    picture: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     wallets: Mapped[list["Wallet"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
-        return f"<User id={self.id} name={self.name!r}>"
+        return f"<User id={self.id} name={self.name!r} email={self.email!r}>"
 
 
 class Issuer(Base):

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import {
   walletsApi,
   type AddCardToWalletPayload,
@@ -16,7 +17,6 @@ import { WalletResultsAndCurrenciesPanel } from './components/summary/WalletResu
 import { CardsListPanel } from './components/cards/CardsListPanel'
 import { DeleteCardWarningModal } from './components/cards/DeleteCardWarningModal'
 import { ApplicationRuleWarningModal } from './components/roadmap/ApplicationRuleWarningModal'
-import { DEFAULT_USER_ID } from './constants'
 import { useCreditLibrary } from './hooks/useCreditLibrary'
 import { queryKeys } from './lib/queryKeys'
 
@@ -27,7 +27,13 @@ type WalletCardModalOpen =
 
 export default function WalletToolPage() {
   const queryClient = useQueryClient()
-  const [selectedWalletId, setSelectedWalletId] = useState<number | null>(null)
+  const navigate = useNavigate()
+  const { walletId: walletIdParam } = useParams<{ walletId: string }>()
+  const selectedWalletId = walletIdParam ? Number(walletIdParam) : null
+  const setSelectedWalletId = (id: number | null) => {
+    if (id == null) navigate('/')
+    else navigate(`/wallets/${id}`)
+  }
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [walletCardModal, setWalletCardModal] = useState<WalletCardModalOpen | null>(null)
   const [durationYears, setDurationYears] = useState(2)
@@ -44,7 +50,7 @@ export default function WalletToolPage() {
 
   const { data: wallets, isLoading: walletsLoading } = useQuery({
     queryKey: queryKeys.wallets(),
-    queryFn: () => walletsApi.list(DEFAULT_USER_ID),
+    queryFn: () => walletsApi.list(),
   })
 
   // Warm the global credit library cache so the credits picker inside
@@ -54,13 +60,12 @@ export default function WalletToolPage() {
   const createWalletMutation = useMutation({
     mutationFn: (payload: { name: string; description: string }) =>
       walletsApi.create({
-        user_id: DEFAULT_USER_ID,
         name: payload.name,
         description: payload.description || null,
       }),
     onSuccess: (wallet) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.wallets() })
-      setSelectedWalletId(wallet.id)
+      navigate(`/wallets/${wallet.id}`)
       setShowCreateModal(false)
     },
   })

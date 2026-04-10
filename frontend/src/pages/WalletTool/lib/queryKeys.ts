@@ -1,7 +1,5 @@
-import { DEFAULT_USER_ID } from '../constants'
-
 export const queryKeys = {
-  wallets: (userId: number = DEFAULT_USER_ID) => ['wallets', userId] as const,
+  wallets: () => ['wallets'] as const,
   wallet: (walletId: number) => ['wallet', walletId] as const,
   cards: () => ['cards'] as const,
   credits: () => ['credits'] as const,

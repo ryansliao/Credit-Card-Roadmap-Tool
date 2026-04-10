@@ -3,17 +3,60 @@
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api'
 
+const TOKEN_KEY = 'auth_token'
+
+export function getAuthToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+export function setAuthToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token)
+}
+
+export function clearAuthToken(): void {
+  localStorage.removeItem(TOKEN_KEY)
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-    ...init,
-  })
+  const token = getAuthToken()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(init?.headers as Record<string, string>),
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  const res = await fetch(`${BASE}${path}`, { ...init, headers })
+  if (res.status === 401) {
+    clearAuthToken()
+    window.location.href = '/'
+    throw new Error('Session expired')
+  }
   if (!res.ok) {
     const detail = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(detail?.detail ?? `HTTP ${res.status}`)
   }
   if (res.status === 204) return undefined as T
   return res.json()
+}
+
+// ─── Auth types ──────────────────────────────────────────────────────────────
+
+export interface AuthUser {
+  id: number
+  name: string
+  email: string
+  picture: string | null
+  token?: string | null
+}
+
+export const authApi = {
+  googleSignIn: (credential: string) =>
+    request<AuthUser>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
+    }),
+  me: () => request<AuthUser>('/auth/me'),
 }
 
 // ─── Types (mirror Pydantic schemas) ─────────────────────────────────────────
@@ -301,7 +344,6 @@ export interface WalletResultResponse {
 }
 
 export interface CreateWalletPayload {
-  user_id: number
   name: string
   description?: string | null
   as_of_date?: string | null
@@ -366,8 +408,8 @@ export interface UpdateWalletCardPayload {
 }
 
 export const walletsApi = {
-  list: (userId: number = 1) =>
-    request<Wallet[]>(`/wallets?user_id=${userId}`),
+  list: () =>
+    request<Wallet[]>('/wallets'),
   get: (id: number) => request<Wallet>(`/wallets/${id}`),
   create: (payload: CreateWalletPayload) =>
     request<Wallet>('/wallets', { method: 'POST', body: JSON.stringify(payload) }),

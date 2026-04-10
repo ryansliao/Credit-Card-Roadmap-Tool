@@ -7,13 +7,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..auth import get_current_user
 from ..database import get_db
 from ..helpers import (
     effective_earn_currency_ids_for_wallet,
     ensure_wallet_currency_rows_for_earning_currencies,
-    wallet_404,
+    get_user_wallet,
 )
-from ..models import Currency, Wallet, WalletCurrencyBalance, WalletCurrencyCpp
+from ..models import Currency, User, Wallet, WalletCurrencyBalance, WalletCurrencyCpp
 from ..schemas import (
     CurrencyRead,
     WalletCurrencyBalanceRead,
@@ -32,12 +33,11 @@ router = APIRouter(tags=["wallets"])
 )
 async def list_wallet_currency_balances(
     wallet_id: int,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Currencies you track or that have projection earn from the last calculate."""
-    w_result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    if not w_result.scalar_one_or_none():
-        raise wallet_404(wallet_id)
+    await get_user_wallet(wallet_id, user, db)
     await ensure_wallet_currency_rows_for_earning_currencies(db, wallet_id)
     await db.commit()
     result = await db.execute(
@@ -53,14 +53,16 @@ async def list_wallet_currency_balances(
     "/wallets/{wallet_id}/settings-currency-ids",
     response_model=WalletSettingsCurrencyIds,
 )
-async def wallet_settings_currency_ids(wallet_id: int, db: AsyncSession = Depends(get_db)):
+async def wallet_settings_currency_ids(
+    wallet_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
     IDs for currencies shown in wallet settings: earned by cards in this wallet,
     or explicitly user-tracked (added manually).
     """
-    w_result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    if not w_result.scalar_one_or_none():
-        raise wallet_404(wallet_id)
+    await get_user_wallet(wallet_id, user, db)
     earn = await effective_earn_currency_ids_for_wallet(db, wallet_id)
     tr = await db.execute(
         select(WalletCurrencyBalance.currency_id).where(
@@ -81,12 +83,11 @@ async def wallet_settings_currency_ids(wallet_id: int, db: AsyncSession = Depend
 async def track_wallet_currency_balance(
     wallet_id: int,
     payload: WalletCurrencyTrackCreate,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Start tracking a currency for this wallet (optional starting balance)."""
-    w_result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    if not w_result.scalar_one_or_none():
-        raise wallet_404(wallet_id)
+    await get_user_wallet(wallet_id, user, db)
     currency_result = await db.execute(
         select(Currency).where(Currency.id == payload.currency_id)
     )
@@ -135,12 +136,11 @@ async def set_wallet_currency_initial_balance(
     wallet_id: int,
     currency_id: int,
     payload: WalletCurrencyInitialSet,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update starting balance; total = initial + last projection earn from Calculate."""
-    w_result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    if not w_result.scalar_one_or_none():
-        raise wallet_404(wallet_id)
+    await get_user_wallet(wallet_id, user, db)
     currency_result = await db.execute(select(Currency).where(Currency.id == currency_id))
     if not currency_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail=f"Currency id={currency_id} not found")
@@ -176,9 +176,11 @@ async def set_wallet_currency_initial_balance(
 async def delete_wallet_currency_balance(
     wallet_id: int,
     currency_id: int,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Remove the wallet's balance record for a currency."""
+    await get_user_wallet(wallet_id, user, db)
     result = await db.execute(
         select(WalletCurrencyBalance).where(
             WalletCurrencyBalance.wallet_id == wallet_id,
@@ -207,12 +209,11 @@ async def delete_wallet_currency_balance(
 )
 async def list_wallet_currencies_with_cpp(
     wallet_id: int,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List all currencies with wallet-scoped CPP overrides applied."""
-    w_result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    if not w_result.scalar_one_or_none():
-        raise wallet_404(wallet_id)
+    await get_user_wallet(wallet_id, user, db)
 
     cpp_result = await db.execute(
         select(WalletCurrencyCpp).where(WalletCurrencyCpp.wallet_id == wallet_id)
@@ -244,12 +245,11 @@ async def set_wallet_cpp(
     wallet_id: int,
     currency_id: int,
     payload: WalletCurrencyCppSet,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Set or update wallet-scoped cents-per-point for a currency."""
-    w_result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    if not w_result.scalar_one_or_none():
-        raise wallet_404(wallet_id)
+    await get_user_wallet(wallet_id, user, db)
     cur_result = await db.execute(select(Currency).where(Currency.id == currency_id))
     if not cur_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail=f"Currency id={currency_id} not found")
@@ -280,9 +280,11 @@ async def set_wallet_cpp(
 async def delete_wallet_cpp(
     wallet_id: int,
     currency_id: int,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Remove wallet-scoped CPP override (reverts to currency default)."""
+    await get_user_wallet(wallet_id, user, db)
     result = await db.execute(
         select(WalletCurrencyCpp).where(
             WalletCurrencyCpp.wallet_id == wallet_id,

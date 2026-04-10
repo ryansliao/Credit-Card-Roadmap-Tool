@@ -5,11 +5,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..auth import get_current_user
 from ..database import get_db
 from ..db_helpers import ensure_all_other_wallet_spend_item
-from ..helpers import load_spend_item_opts, wallet_404
+from ..helpers import get_user_wallet, load_spend_item_opts
 from ..models import (
     SpendCategory,
+    User,
     Wallet,
     WalletSpendItem,
 )
@@ -28,12 +30,11 @@ router = APIRouter(tags=["wallet-spend"])
 )
 async def list_wallet_spend_items(
     wallet_id: int,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List wallet spend items. Auto-creates the 'All Other' item if missing."""
-    wallet_result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    if not wallet_result.scalar_one_or_none():
-        raise wallet_404(wallet_id)
+    await get_user_wallet(wallet_id, user, db)
     await ensure_all_other_wallet_spend_item(db, wallet_id)
     await db.commit()
     result = await db.execute(
@@ -54,12 +55,11 @@ async def list_wallet_spend_items(
 async def create_wallet_spend_item(
     wallet_id: int,
     payload: WalletSpendItemCreate,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Add a spend item to a wallet for a given app spend category."""
-    wallet_result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    if not wallet_result.scalar_one_or_none():
-        raise wallet_404(wallet_id)
+    await get_user_wallet(wallet_id, user, db)
 
     sc_result = await db.execute(
         select(SpendCategory).where(SpendCategory.id == payload.spend_category_id)
@@ -102,9 +102,11 @@ async def update_wallet_spend_item(
     wallet_id: int,
     item_id: int,
     payload: WalletSpendItemUpdate,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update the annual spend amount for a wallet spend item."""
+    await get_user_wallet(wallet_id, user, db)
     result = await db.execute(
         select(WalletSpendItem).where(
             WalletSpendItem.id == item_id,
@@ -131,9 +133,11 @@ async def update_wallet_spend_item(
 async def delete_wallet_spend_item(
     wallet_id: int,
     item_id: int,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Remove a spend item from a wallet. The 'All Other' item cannot be deleted."""
+    await get_user_wallet(wallet_id, user, db)
     result = await db.execute(
         select(WalletSpendItem)
         .options(selectinload(WalletSpendItem.spend_category))

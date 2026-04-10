@@ -5,9 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..auth import get_current_user
 from ..database import get_db
-from ..helpers import wallet_404
-from ..models import TravelPortal, Wallet, WalletPortalShare
+from ..helpers import get_user_wallet
+from ..models import TravelPortal, User, Wallet, WalletPortalShare
 from ..schemas import WalletPortalSharePayload, WalletPortalShareRead
 
 router = APIRouter()
@@ -19,11 +20,10 @@ router = APIRouter()
 )
 async def list_wallet_portal_shares(
     wallet_id: int,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    wallet_row = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    if not wallet_row.scalar_one_or_none():
-        raise wallet_404(wallet_id)
+    await get_user_wallet(wallet_id, user, db)
     result = await db.execute(
         select(WalletPortalShare)
         .options(selectinload(WalletPortalShare.travel_portal))
@@ -40,11 +40,10 @@ async def list_wallet_portal_shares(
 async def upsert_wallet_portal_share(
     wallet_id: int,
     payload: WalletPortalSharePayload,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    wallet_row = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    if not wallet_row.scalar_one_or_none():
-        raise wallet_404(wallet_id)
+    await get_user_wallet(wallet_id, user, db)
     portal_row = await db.execute(
         select(TravelPortal).where(TravelPortal.id == payload.travel_portal_id)
     )
@@ -85,8 +84,10 @@ async def upsert_wallet_portal_share(
 async def delete_wallet_portal_share(
     wallet_id: int,
     travel_portal_id: int,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await get_user_wallet(wallet_id, user, db)
     result = await db.execute(
         select(WalletPortalShare).where(
             WalletPortalShare.wallet_id == wallet_id,

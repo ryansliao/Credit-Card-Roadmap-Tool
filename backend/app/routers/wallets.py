@@ -4,15 +4,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..constants import DEFAULT_USER_ID
+from ..auth import get_current_user
 from ..database import get_db
 from ..db_helpers import ensure_all_other_wallet_spend_item
 from ..helpers import (
     card_404,
     effective_earn_currency_ids_for_wallet,
     ensure_wallet_currency_rows_for_earning_currencies,
+    get_user_wallet,
     wc_read,
-    wallet_404,
     wallet_load_opts,
 )
 from ..models import (
@@ -38,14 +38,14 @@ router = APIRouter(tags=["wallets"])
 
 @router.get("/wallets", response_model=list[WalletRead])
 async def list_wallets(
-    user_id: int = DEFAULT_USER_ID,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List wallets for the given user (default user_id=1 for single-tenant)."""
+    """List wallets for the authenticated user."""
     result = await db.execute(
         select(Wallet)
         .options(*wallet_load_opts())
-        .where(Wallet.user_id == user_id)
+        .where(Wallet.user_id == user.id)
         .order_by(Wallet.id)
     )
     wallets = result.scalars().all()
@@ -62,18 +62,13 @@ async def list_wallets(
     response_model=WalletRead,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_wallet(payload: WalletCreate, db: AsyncSession = Depends(get_db)):
-    user_result = await db.execute(select(User).where(User.id == payload.user_id))
-    user = user_result.scalar_one_or_none()
-    if not user:
-        if payload.user_id == DEFAULT_USER_ID:
-            user = User(id=DEFAULT_USER_ID, name="Default User")
-            db.add(user)
-            await db.flush()
-        else:
-            raise HTTPException(status_code=400, detail=f"User id={payload.user_id} not found")
+async def create_wallet(
+    payload: WalletCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     wallet = Wallet(
-        user_id=payload.user_id,
+        user_id=user.id,
         name=payload.name,
         description=payload.description,
         as_of_date=payload.as_of_date,
@@ -94,15 +89,18 @@ async def create_wallet(payload: WalletCreate, db: AsyncSession = Depends(get_db
 
 
 @router.get("/wallets/{wallet_id}", response_model=WalletRead)
-async def get_wallet(wallet_id: int, db: AsyncSession = Depends(get_db)):
+async def get_wallet(
+    wallet_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await get_user_wallet(wallet_id, user, db)
     result = await db.execute(
         select(Wallet)
         .options(*wallet_load_opts())
         .where(Wallet.id == wallet_id)
     )
-    wallet = result.scalar_one_or_none()
-    if not wallet:
-        raise wallet_404(wallet_id)
+    wallet = result.scalar_one()
     read = WalletRead.model_validate(wallet)
     read.wallet_cards = [wc_read(wc_item, wc_item.card) for wc_item in wallet.wallet_cards]
     return read
@@ -110,16 +108,18 @@ async def get_wallet(wallet_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.patch("/wallets/{wallet_id}", response_model=WalletRead)
 async def update_wallet(
-    wallet_id: int, payload: WalletUpdate, db: AsyncSession = Depends(get_db)
+    wallet_id: int,
+    payload: WalletUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    await get_user_wallet(wallet_id, user, db)
     result = await db.execute(
         select(Wallet)
         .options(*wallet_load_opts())
         .where(Wallet.id == wallet_id)
     )
-    wallet = result.scalar_one_or_none()
-    if not wallet:
-        raise wallet_404(wallet_id)
+    wallet = result.scalar_one()
     for field, value in payload.model_dump(exclude_none=True).items():
         setattr(wallet, field, value)
     await db.commit()
@@ -133,11 +133,12 @@ async def update_wallet(
     "/wallets/{wallet_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_wallet(wallet_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    wallet = result.scalar_one_or_none()
-    if not wallet:
-        raise wallet_404(wallet_id)
+async def delete_wallet(
+    wallet_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    wallet = await get_user_wallet(wallet_id, user, db)
     await db.delete(wallet)
     await db.commit()
 
@@ -150,11 +151,10 @@ async def delete_wallet(wallet_id: int, db: AsyncSession = Depends(get_db)):
 async def add_card_to_wallet(
     wallet_id: int,
     payload: WalletCardCreate,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    w_result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    if not w_result.scalar_one_or_none():
-        raise wallet_404(wallet_id)
+    await get_user_wallet(wallet_id, user, db)
     card_result = await db.execute(select(Card).where(Card.id == payload.card_id))
     card = card_result.scalar_one_or_none()
     if not card:
@@ -224,12 +224,14 @@ async def update_wallet_card(
     wallet_id: int,
     card_id: int,
     payload: WalletCardUpdate,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Partially update a wallet card. Supports updating SUB overrides, years_counted,
     sub_earned_date (mark when the SUB was earned), and closed_date (mark card as closed).
     """
+    await get_user_wallet(wallet_id, user, db)
     result = await db.execute(
         select(WalletCard).where(
             WalletCard.wallet_id == wallet_id,
@@ -257,8 +259,12 @@ async def update_wallet_card(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def remove_card_from_wallet(
-    wallet_id: int, card_id: int, db: AsyncSession = Depends(get_db)
+    wallet_id: int,
+    card_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    await get_user_wallet(wallet_id, user, db)
     result = await db.execute(
         select(WalletCard).where(
             WalletCard.wallet_id == wallet_id,

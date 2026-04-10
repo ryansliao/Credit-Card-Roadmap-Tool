@@ -5,8 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..auth import get_current_user
 from ..database import get_db
-from ..models import Credit, WalletCard, WalletCardCredit
+from ..helpers import get_user_wallet
+from ..models import Credit, User, WalletCard, WalletCardCredit
 from ..schemas import WalletCardCreditRead, WalletCardCreditUpsert
 
 router = APIRouter(tags=["wallet-credits"])
@@ -19,9 +21,11 @@ router = APIRouter(tags=["wallet-credits"])
 async def list_wallet_card_credits(
     wallet_id: int,
     card_id: int,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List credit overrides for a card in this wallet."""
+    await get_user_wallet(wallet_id, user, db)
     wc_result = await db.execute(
         select(WalletCard).where(
             WalletCard.wallet_id == wallet_id,
@@ -50,9 +54,11 @@ async def upsert_wallet_card_credit(
     card_id: int,
     library_credit_id: int,
     payload: WalletCardCreditUpsert,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Attach a standardized credit to this wallet card with a user-set value."""
+    await get_user_wallet(wallet_id, user, db)
     wc_result = await db.execute(
         select(WalletCard).where(
             WalletCard.wallet_id == wallet_id,
@@ -107,9 +113,11 @@ async def delete_wallet_card_credit(
     wallet_id: int,
     card_id: int,
     library_credit_id: int,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Detach a standardized credit from this wallet card."""
+    await get_user_wallet(wallet_id, user, db)
     wc_result = await db.execute(
         select(WalletCard).where(
             WalletCard.wallet_id == wallet_id,

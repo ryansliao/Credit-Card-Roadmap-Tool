@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .database import create_tables
+from .auth import router as auth_router
 from .routers import (
     admin,
     cards,
@@ -85,6 +86,7 @@ async def add_security_headers(request: Request, call_next) -> Response:
 # Register routers
 # ---------------------------------------------------------------------------
 
+app.include_router(auth_router)
 app.include_router(issuers.router)
 app.include_router(currencies.router)
 app.include_router(cards.router)

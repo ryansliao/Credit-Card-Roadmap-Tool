@@ -776,7 +776,7 @@ class WalletBase(BaseModel):
 
 
 class WalletCreate(WalletBase):
-    user_id: int
+    pass
 
 
 class WalletUpdate(BaseModel):

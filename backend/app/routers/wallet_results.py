@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..auth import get_current_user
 from ..calculator import calc_annual_allocated_spend, compute_wallet, plan_sub_targeting
 from ..database import get_db
 from ..date_utils import add_months
@@ -33,6 +34,7 @@ from ..db_helpers import (
     load_wallet_spend_items,
 )
 from ..helpers import (
+    get_user_wallet,
     is_sub_earnable,
     months_in_half_open_interval,
     projected_sub_earn_date,
@@ -41,7 +43,7 @@ from ..helpers import (
     wallet_to_schema,
     years_counted_from_total_months,
 )
-from ..models import Card, IssuerApplicationRule, Wallet, WalletCard
+from ..models import Card, IssuerApplicationRule, User, Wallet, WalletCard
 from ..schemas import (
     RoadmapCardStatus,
     RoadmapResponse,
@@ -67,6 +69,7 @@ async def wallet_results(
     projection_years: int = 2,
     projection_months: int = 0,
     spend_overrides: Optional[str] = None,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -81,14 +84,13 @@ async def wallet_results(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="spend_overrides must be valid JSON (e.g. '{\"Dining\": 5000}')",
             )
+    await get_user_wallet(wallet_id, user, db)
     result = await db.execute(
         select(Wallet)
         .options(selectinload(Wallet.wallet_cards))
         .where(Wallet.id == wallet_id)
     )
-    wallet = result.scalar_one_or_none()
-    if not wallet:
-        raise wallet_404(wallet_id)
+    wallet = result.scalar_one()
 
     if start_date is not None and reference_date is not None and start_date != reference_date:
         raise HTTPException(
@@ -333,12 +335,14 @@ async def wallet_results(
 async def wallet_roadmap(
     wallet_id: int,
     as_of_date: Optional[date] = None,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Compute roadmap status for the wallet: 5/24 count, per-card SUB status and
     next eligibility dates, and any issuer velocity rule violations.
     """
+    await get_user_wallet(wallet_id, user, db)
     result = await db.execute(
         select(Wallet)
         .options(
@@ -346,9 +350,7 @@ async def wallet_roadmap(
         )
         .where(Wallet.id == wallet_id)
     )
-    wallet = result.scalar_one_or_none()
-    if not wallet:
-        raise wallet_404(wallet_id)
+    wallet = result.scalar_one()
 
     today = as_of_date or date.today()
 

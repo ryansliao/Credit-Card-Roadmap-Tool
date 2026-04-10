@@ -5,12 +5,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..auth import get_current_user
 from ..database import get_db
+from ..helpers import get_user_wallet
 from ..models import (
     Card,
     CardCategoryMultiplier,
     CardMultiplierGroup,
     RotatingCategory,
+    User,
     WalletCard,
     WalletCardGroupSelection,
 )
@@ -26,8 +29,10 @@ router = APIRouter()
 async def list_wallet_card_group_selections(
     wallet_id: int,
     card_id: int,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await get_user_wallet(wallet_id, user, db)
     wc = await db.execute(
         select(WalletCard).where(
             WalletCard.wallet_id == wallet_id,
@@ -54,8 +59,10 @@ async def set_wallet_card_group_selections(
     card_id: int,
     group_id: int,
     payload: WalletCardGroupSelectionSet,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await get_user_wallet(wallet_id, user, db)
     wc = await db.execute(
         select(WalletCard).where(
             WalletCard.wallet_id == wallet_id,
@@ -143,8 +150,10 @@ async def delete_wallet_card_group_selections(
     wallet_id: int,
     card_id: int,
     group_id: int,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await get_user_wallet(wallet_id, user, db)
     wc = await db.execute(
         select(WalletCard).where(
             WalletCard.wallet_id == wallet_id,

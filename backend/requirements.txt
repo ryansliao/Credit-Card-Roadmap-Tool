@@ -27,6 +27,10 @@ scipy>=1.13.0                  # linprog: optimal cross-card allocation when cap
 orjson>=3.10.0                 # Fast JSON serializer; FastAPI uses it automatically
                                # when installed (significant speedup for large responses)
 
+# ── Authentication ────────────────────────────────────────────────────────────
+google-auth>=2.29.0            # Verify Google OAuth2 ID tokens server-side
+PyJWT>=2.8.0                   # Issue/verify stateless JWT session tokens
+
 # ── Configuration ─────────────────────────────────────────────────────────────
 python-dotenv>=1.0.1           # Load .env in local dev
 

@@ -19,6 +19,7 @@ from .models import (
     RotatingCategory,
     Credit,
     Currency,
+    User,
     Wallet,
     WalletCard,
     WalletCurrencyBalance,
@@ -45,6 +46,24 @@ def card_404(card_id: int) -> HTTPException:
 
 def wallet_404(wallet_id: int) -> HTTPException:
     return HTTPException(status_code=404, detail=f"Wallet {wallet_id} not found")
+
+
+async def get_user_wallet(
+    wallet_id: int,
+    user: User,
+    db: AsyncSession,
+) -> Wallet:
+    """Load a wallet by ID and verify it belongs to the given user.
+
+    Raises 404 if the wallet doesn't exist, 403 if owned by another user.
+    """
+    result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
+    wallet = result.scalar_one_or_none()
+    if not wallet:
+        raise wallet_404(wallet_id)
+    if wallet.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Not your wallet")
+    return wallet
 
 
 # ---------------------------------------------------------------------------
