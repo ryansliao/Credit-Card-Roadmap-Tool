@@ -504,21 +504,8 @@ export const currenciesApi = {
 
 // ─── Cards ────────────────────────────────────────────────────────────────────
 
-export interface UpdateCardLibraryPayload {
-  sub?: number | null
-  sub_min_spend?: number | null
-  sub_months?: number | null
-  annual_fee?: number | null
-  first_year_fee?: number | null
-}
-
 export const cardsApi = {
   list: () => request<Card[]>('/cards'),
-  update: (cardId: number, payload: UpdateCardLibraryPayload) =>
-    request<Card>(`/cards/${cardId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    }),
 }
 
 // ─── Standardized credit library ─────────────────────────────────────────────
@@ -551,10 +538,6 @@ export const creditsApi = {
 
 // ─── Spend categories ─────────────────────────────────────────────────────────
 
-export const spendApi = {
-  list: () => request<SpendCategory[]>('/spend'),
-}
-
 export const appSpendCategoriesApi = {
   list: () => request<SpendCategory[]>('/app-spend-categories'),
 }
@@ -576,57 +559,6 @@ export const walletSpendItemsApi = {
     request<void>(`/wallets/${walletId}/spend-items/${itemId}`, { method: 'DELETE' }),
 }
 
-
-// ─── Wallet spend categories ─────────────────────────────────────────────────
-
-export interface WalletSpendCategoryMapping {
-  id: number
-  spend_category_id: number
-  spend_category_name: string
-  allocation: number
-}
-
-export interface WalletSpendCategory {
-  id: number
-  wallet_id: number
-  name: string
-  amount: number
-  mappings: WalletSpendCategoryMapping[]
-}
-
-export interface WalletSpendCategoryMappingPayload {
-  spend_category_id: number
-  allocation: number
-}
-
-export interface CreateWalletSpendCategoryPayload {
-  name: string
-  amount?: number
-  mappings?: WalletSpendCategoryMappingPayload[]
-}
-
-export interface UpdateWalletSpendCategoryPayload {
-  name?: string
-  amount?: number
-  mappings?: WalletSpendCategoryMappingPayload[]
-}
-
-export const walletSpendCategoryApi = {
-  list: (walletId: number) =>
-    request<WalletSpendCategory[]>(`/wallets/${walletId}/spend-categories`),
-  create: (walletId: number, payload: CreateWalletSpendCategoryPayload) =>
-    request<WalletSpendCategory>(`/wallets/${walletId}/spend-categories`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  update: (walletId: number, id: number, payload: UpdateWalletSpendCategoryPayload) =>
-    request<WalletSpendCategory>(`/wallets/${walletId}/spend-categories/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-  delete: (walletId: number, id: number) =>
-    request<void>(`/wallets/${walletId}/spend-categories/${id}`, { method: 'DELETE' }),
-}
 
 // ─── Wallet CPP overrides ────────────────────────────────────────────────────
 
@@ -670,26 +602,6 @@ export const walletCardCreditApi = {
 
 // ─── Wallet card multiplier overrides ────────────────────────────────────────
 
-export interface WalletCardMultiplierOverride {
-  id: number
-  wallet_id: number
-  card_id: number
-  category_id: number
-  category_name: string
-  multiplier: number
-}
-
-export const walletCardMultiplierApi = {
-  list: (walletId: number) =>
-    request<WalletCardMultiplierOverride[]>(`/wallets/${walletId}/card-multipliers`),
-  upsert: (walletId: number, cardId: number, categoryId: number, multiplier: number) =>
-    request<WalletCardMultiplierOverride>(`/wallets/${walletId}/cards/${cardId}/multipliers/${categoryId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ multiplier }),
-    }),
-  delete: (walletId: number, cardId: number, categoryId: number) =>
-    request<void>(`/wallets/${walletId}/cards/${cardId}/multipliers/${categoryId}`, { method: 'DELETE' }),
-}
 
 // ─── Wallet card group category selections ─────────────────────────────────
 

@@ -35,8 +35,7 @@ in `main.py` on startup.
 
 **Wallet Spend**
 Each wallet has `WalletSpendItem` rows — one per `SpendCategory` — with an annual dollar
-amount. This replaced the legacy two-table structure (`WalletSpendCategory` +
-`WalletSpendCategoryMapping`), which still exists in the DB but is no longer used.
+amount.
 
 **Wallet**
 A named collection of cards to evaluate together. Each `WalletCard` has `added_date`,
@@ -170,7 +169,8 @@ and surfaced as `sub_opp_cost_dollars` / `sub_opp_cost_gross_dollars` on `CardRe
 - `WalletCardMultiplier` — per-wallet multiplier overrides per card/category
 
 **Legacy (still in DB, no longer used in code):**
-- `WalletSpendCategory` / `WalletSpendCategoryMapping` — replaced by `WalletSpendItem`
+- `WalletSpendCategory` / `WalletSpendCategoryMapping` — replaced by `WalletSpendItem`.
+  ORM models remain for schema generation; all endpoints and helper functions have been removed.
 
 ## Frontend Structure
 
@@ -182,15 +182,14 @@ frontend/src/
   components/
     ModalBackdrop.tsx                # Shared modal backdrop (Escape key, backdrop click)
   utils/
-    format.ts                        # formatMoney(), formatPoints(), today()
+    format.ts                        # formatMoney(), formatMoneyExact(), formatPoints(), formatPointsExact(), today()
   pages/WalletTool/
     index.tsx                        # Main page (wallet selector, layout, tabs)
     constants.ts                     # DEFAULT_USER_ID, LOCKED_USER_SPEND_CATEGORY_NAME
     hooks/
       useCardLibrary.ts              # Card library query
-      useSpendCategories.ts          # Wallet spend items query
       useAppSpendCategories.ts       # Hierarchical spend category tree query
-      useWalletSpendCategoriesTable.ts # Legacy spend categories (unused)
+      useWalletSpendCategoriesTable.ts # Wallet spend items table state (mutations, editing, picker)
     lib/
       queryKeys.ts                   # Centralised React Query key arrays
       walletCardForm.ts              # Form validation and payload building utilities
@@ -203,7 +202,7 @@ frontend/src/
       spend/
         AnnualSpendPanel.tsx         # Spend items table with inline editing
         AddSpendCategoryPicker.tsx   # Picker for adding a spend category
-        SpendCategoryMappingModal.tsx # Legacy: create/edit spend category with allocations
+        SpendCategoryMappingModal.tsx # Create/edit spend category with allocations
       summary/
         WalletResultsAndCurrenciesPanel.tsx  # Annual EV, fees, currency balances
         CurrencySettingsModal.tsx    # CPP overrides, initial balances, currency tracking
@@ -235,7 +234,7 @@ backend/app/
     spend.py           # GET /spend, GET /app-spend-categories
     travel_portals.py  # GET /travel-portals, POST/PUT/DELETE /admin/travel-portals
     wallets.py         # Wallet CRUD, add/update/remove wallet cards
-    wallet_spend.py    # Wallet spend categories (legacy) and spend items (current)
+    wallet_spend.py    # Wallet spend items CRUD
     wallet_currencies.py # Currency balances and CPP overrides
     wallet_credits.py  # Wallet card credit overrides
     wallet_multipliers.py # Wallet card multiplier overrides
@@ -261,15 +260,16 @@ functions, or hardcoded reference data in Python code. The `seed.py` file has be
 ## Known Conventions
 
 **React Query keys** — always use `queryKeys.*` from `lib/queryKeys.ts`:
-- `['wallets', userId]`, `['cards']`, `['spend', walletId]`, `['app-spend-categories']`
+- `['wallets', userId]`, `['cards']`, `['app-spend-categories']`
 - `['wallet-currency-balances', walletId]`, `['wallet-currencies', walletId]`
+- `['wallet-spend-items', walletId]`, `['wallet-card-credits', walletId, cardId]`
 - `['roadmap', walletId]`
 
 **Shared hooks** — avoid inline `useQuery` for data that multiple components need:
-- Use `useCardLibrary()`, `useSpendCategories()`, `useAppSpendCategories()` from `hooks/`
+- Use `useCardLibrary()`, `useAppSpendCategories()` from `hooks/`
 
-**Format utilities** — use `formatMoney`, `formatPoints`, `today()` from `utils/format.ts`;
-do not re-define them per component.
+**Format utilities** — use `formatMoney`, `formatMoneyExact`, `formatPoints`,
+`formatPointsExact`, `today()` from `utils/format.ts`; do not re-define them per component.
 
 **Modal pattern** — wrap all modal dialogs with `<ModalBackdrop>` from
 `components/ModalBackdrop.tsx` for consistent Escape-key handling and backdrop dismiss.

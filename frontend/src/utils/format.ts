@@ -13,6 +13,22 @@ export function formatCashRewardUnits(units: number, centsPerPoint = 1): string 
   return formatMoney(dollars)
 }
 
+/** Format a dollar amount as currency with cents (e.g. $1,234.56). */
+export function formatMoneyExact(n: number): string {
+  return n.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+/** Format a point count with no abbreviation (e.g. 12,345). Returns '0' for zero/non-finite. */
+export function formatPointsExact(n: number): string {
+  if (!Number.isFinite(n) || n === 0) return '0'
+  return n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+}
+
 /** Format a point balance with k/M suffix. Returns '0' for zero and non-finite values. */
 export function formatPoints(n: number): string {
   if (!Number.isFinite(n) || n === 0) return '0'

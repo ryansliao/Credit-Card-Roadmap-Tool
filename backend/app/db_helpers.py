@@ -29,13 +29,8 @@ from .models import (
     WalletCardMultiplier,
     WalletCurrencyCpp,
     WalletPortalShare,
-    WalletSpendCategory,
-    WalletSpendCategoryMapping,
     WalletSpendItem,
 )
-
-# Re-export for callers that import this name from db_helpers.
-ALL_OTHER_SPEND_NAME = ALL_OTHER_CATEGORY
 
 if TYPE_CHECKING:
     from .models import WalletCard
@@ -384,67 +379,6 @@ async def load_housing_category_names(session: AsyncSession) -> set[str]:
     return {row[0] for row in result.all()}
 
 
-async def ensure_all_other_wallet_spend_category(session: AsyncSession, wallet_id: int) -> None:
-    """
-    If the wallet has no spend category named 'All Other', create one with amount 0
-    and a single mapping: 100% to the global SpendCategory 'All Other'.
-    """
-    wallet_row = await session.execute(select(Wallet).where(Wallet.id == wallet_id))
-    if wallet_row.scalar_one_or_none() is None:
-        return
-    sc_result = await session.execute(
-        select(SpendCategory).where(SpendCategory.category == ALL_OTHER_SPEND_NAME)
-    )
-    sc = sc_result.scalar_one_or_none()
-    if sc is None:
-        return
-    existing = await session.execute(
-        select(WalletSpendCategory).where(
-            WalletSpendCategory.wallet_id == wallet_id,
-            WalletSpendCategory.name == ALL_OTHER_SPEND_NAME,
-        )
-    )
-    if existing.scalar_one_or_none() is not None:
-        return
-    wsc = WalletSpendCategory(
-        wallet_id=wallet_id, name=ALL_OTHER_SPEND_NAME, amount=0.0
-    )
-    session.add(wsc)
-    await session.flush()
-    session.add(
-        WalletSpendCategoryMapping(
-            wallet_spend_category_id=wsc.id,
-            spend_category_id=sc.id,
-            allocation=0.0,
-        )
-    )
-
-
-async def load_wallet_spend(
-    session: AsyncSession,
-    wallet_id: int,
-) -> dict[str, float]:
-    """
-    Load spend dict for a wallet by summing WalletSpendCategoryMapping allocations per card category.
-    Legacy function for backward compatibility with old WalletSpendCategory rows.
-    """
-    result = await session.execute(
-        select(WalletSpendCategory)
-        .options(
-            selectinload(WalletSpendCategory.mappings).selectinload(WalletSpendCategoryMapping.spend_category)
-        )
-        .where(WalletSpendCategory.wallet_id == wallet_id)
-    )
-    wallet_spend_categories = result.scalars().all()
-    spend: dict[str, float] = {}
-    for wsc in wallet_spend_categories:
-        for mapping in wsc.mappings:
-            if mapping.spend_category:
-                cat_name = mapping.spend_category.category
-                spend[cat_name] = spend.get(cat_name, 0.0) + mapping.allocation
-    return spend
-
-
 async def ensure_all_other_wallet_spend_item(session: AsyncSession, wallet_id: int) -> None:
     """
     Ensure the wallet has a WalletSpendItem for the 'All Other' SpendCategory.
@@ -454,7 +388,7 @@ async def ensure_all_other_wallet_spend_item(session: AsyncSession, wallet_id: i
     if wallet_row.scalar_one_or_none() is None:
         return
     sc_result = await session.execute(
-        select(SpendCategory).where(SpendCategory.category == ALL_OTHER_SPEND_NAME)
+        select(SpendCategory).where(SpendCategory.category == ALL_OTHER_CATEGORY)
     )
     sc = sc_result.scalar_one_or_none()
     if sc is None:
@@ -486,7 +420,7 @@ async def load_wallet_spend_items(
     items = result.scalars().all()
     spend: dict[str, float] = {}
     for item in items:
-        cat_name = item.spend_category.category if item.spend_category else ALL_OTHER_SPEND_NAME
+        cat_name = item.spend_category.category if item.spend_category else ALL_OTHER_CATEGORY
         spend[cat_name] = spend.get(cat_name, 0.0) + item.amount
     return spend
 

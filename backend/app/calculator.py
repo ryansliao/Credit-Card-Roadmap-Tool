@@ -754,9 +754,6 @@ def _effective_currency(card: CardData, wallet_currency_ids: set[int]) -> Curren
     return cur
 
 
-def _effective_cpp(card: CardData, wallet_currency_ids: set[int]) -> float:
-    return _effective_currency(card, wallet_currency_ids).cents_per_point
-
 
 def _comparison_cpp(card: CardData, wallet_currency_ids: set[int], for_balance: bool = False) -> float:
     """
@@ -1123,16 +1120,33 @@ def calc_credit_valuation(card: CardData) -> float:
 def calc_sub_extra_spend(
     card: CardData,
     spend: dict[str, float],
+    selected_cards: list[CardData] | None = None,
+    wallet_currency_ids: set[int] | None = None,
 ) -> float:
     """
     Additional dollars that must be spent to hit the SUB minimum spend,
     beyond what the card earns naturally from its category assignments.
+
+    When *selected_cards* is provided, uses allocation-aware logic so that
+    only categories where this card wins (or ties for) best earn rate count
+    toward "natural spend".  Without it, falls back to single-card logic.
     """
     if not card.sub_min_spend:
         return 0.0
-    natural_spend = sum(
-        v for cat, v in spend.items() if _multiplier_for_category(card, cat, spend) > 0
-    )
+    if selected_cards and len(selected_cards) > 1 and wallet_currency_ids is not None:
+        natural_spend = 0.0
+        for cat, s in spend.items():
+            if s <= 0:
+                continue
+            tied = _tied_cards_for_category(
+                selected_cards, spend, cat, wallet_currency_ids,
+            )
+            if tied and card.id in {c.id for c in tied}:
+                natural_spend += s / len(tied)
+    else:
+        natural_spend = sum(
+            v for cat, v in spend.items() if _multiplier_for_category(card, cat, spend) > 0
+        )
     return max(0.0, card.sub_min_spend - natural_spend)
 
 
@@ -1195,7 +1209,7 @@ def calc_sub_opportunity_cost(
     if not card.sub_earnable:
         return 0.0, 0.0
 
-    extra_spend = calc_sub_extra_spend(card, spend)
+    extra_spend = calc_sub_extra_spend(card, spend, selected_cards, wallet_currency_ids)
     if extra_spend <= 0:
         return 0.0, 0.0
 
@@ -2780,7 +2794,7 @@ def compute_wallet(
                 precomputed_earn=annual_point_earn_for_balance,
             )
         credit_val = calc_credit_valuation(card)
-        sub_extra = calc_sub_extra_spend(card, spend)
+        sub_extra = calc_sub_extra_spend(card, spend, selected_cards, active_wallet_currency_ids)
         gross_opp, net_opp = calc_sub_opportunity_cost(card, selected_cards, spend, active_wallet_currency_ids)
         avg_mult = calc_avg_spend_multiplier(card, spend)
         if use_segmentation:

@@ -69,7 +69,7 @@ export function WalletPortalSharesEditor({
           if (!c) continue
           if (filterByCurrencyId != null && c.currency_id !== filterByCurrencyId) continue
           const portalMults = (c.multipliers ?? []).filter(
-            (m) => (m as { is_portal?: boolean }).is_portal,
+            (m) => m.is_portal,
           )
           if (portalMults.length === 0) continue
           matchingCardNames.push(c.name)

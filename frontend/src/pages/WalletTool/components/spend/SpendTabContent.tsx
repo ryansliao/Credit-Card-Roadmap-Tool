@@ -1,19 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { CardResult, SpendCategory } from '../../../../api/client'
-
-function formatPointsExact(n: number): string {
-  if (!Number.isFinite(n) || n === 0) return '0'
-  return n.toLocaleString('en-US', { maximumFractionDigits: 0 })
-}
-
-function formatMoneyExact(n: number): string {
-  return n.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-}
+import { formatMoneyExact, formatPointsExact } from '../../../../utils/format'
 import { useAppSpendCategories } from '../../hooks/useAppSpendCategories'
 import { useWalletSpendCategoriesTable } from '../../hooks/useWalletSpendCategoriesTable'
 

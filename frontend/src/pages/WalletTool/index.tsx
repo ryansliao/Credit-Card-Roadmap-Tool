@@ -147,7 +147,7 @@ export default function WalletToolPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.roadmap(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
-      queryClient.invalidateQueries({ queryKey: ['wallet-card-credits'] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.walletCardCredits(walletId, null) })
       runCalculation()
     },
   })

@@ -7,8 +7,6 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .constants import ALLOCATION_SUM_TOLERANCE
-
 
 # ---------------------------------------------------------------------------
 # Issuer schemas
@@ -385,72 +383,6 @@ class WalletSpendItemCreate(BaseModel):
 
 class WalletSpendItemUpdate(BaseModel):
     amount: float = Field(..., ge=0.0)
-
-
-# ---------------------------------------------------------------------------
-# Wallet spend category schemas (wallet-scoped, replaces user-scoped)
-# ---------------------------------------------------------------------------
-
-
-class WalletSpendCategoryMappingCreate(BaseModel):
-    spend_category_id: int
-    allocation: float = Field(..., ge=0.0)
-
-
-class WalletSpendCategoryMappingRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    spend_category_id: int
-    spend_category_name: str = ""
-    allocation: float
-
-    @model_validator(mode="wrap")
-    @classmethod
-    def populate_category_name(cls, data: Any, handler: Any) -> Any:
-        if not isinstance(data, dict) and "spend_category" in getattr(data, "__dict__", {}):
-            sc = data.__dict__["spend_category"]
-            return handler(
-                {
-                    "id": data.id,
-                    "spend_category_id": data.spend_category_id,
-                    "spend_category_name": sc.category if sc else "",
-                    "allocation": data.allocation,
-                }
-            )
-        return handler(data)
-
-
-class WalletSpendCategoryCreate(BaseModel):
-    name: str
-    amount: float = Field(default=0.0, ge=0.0)
-    mappings: list[WalletSpendCategoryMappingCreate] = []
-
-    @model_validator(mode="after")
-    def validate_allocations_sum(self) -> "WalletSpendCategoryCreate":
-        if self.mappings:
-            total = sum(m.allocation for m in self.mappings)
-            if abs(total - self.amount) > ALLOCATION_SUM_TOLERANCE:
-                raise ValueError(
-                    f"Mapping allocations must sum to annual amount ${self.amount:.2f} (got ${total:.2f})"
-                )
-        return self
-
-
-class WalletSpendCategoryUpdate(BaseModel):
-    name: Optional[str] = None
-    amount: Optional[float] = Field(default=None, ge=0.0)
-    mappings: Optional[list[WalletSpendCategoryMappingCreate]] = None
-
-
-class WalletSpendCategoryRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    wallet_id: int
-    name: str
-    amount: float
-    mappings: list[WalletSpendCategoryMappingRead] = []
 
 
 # ---------------------------------------------------------------------------

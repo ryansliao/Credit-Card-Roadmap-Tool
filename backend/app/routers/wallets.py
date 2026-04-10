@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..constants import DEFAULT_USER_ID
 from ..database import get_db
-from ..db_helpers import ensure_all_other_wallet_spend_category
+from ..db_helpers import ensure_all_other_wallet_spend_item
 from ..helpers import (
     card_404,
     effective_earn_currency_ids_for_wallet,
@@ -80,7 +80,7 @@ async def create_wallet(payload: WalletCreate, db: AsyncSession = Depends(get_db
     )
     db.add(wallet)
     await db.flush()
-    await ensure_all_other_wallet_spend_category(db, wallet.id)
+    await ensure_all_other_wallet_spend_item(db, wallet.id)
     await db.commit()
     await db.refresh(wallet)
     return WalletRead(

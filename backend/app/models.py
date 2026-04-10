@@ -849,7 +849,6 @@ class WalletSpendCategory(Base):
 class WalletSpendCategoryMapping(Base):
     """
     Allocates part of a WalletSpendCategory bucket (annual $) to a global SpendCategory.
-    Allocates part of a WalletSpendCategory bucket (annual $) to a global SpendCategory.
     """
 
     __tablename__ = "wallet_spend_category_mappings"
