@@ -778,8 +778,9 @@ def _comparison_cpp(card: CardData, wallet_currency_ids: set[int], for_balance: 
     CPP used when comparing cards for category allocation.
     Cash should always compete at face value: 1 cent per point/unit.
 
-    When for_balance=True, uses comparison_cpp (default, non-user-overridden CPP) so that
-    point totals used for balance display are independent of wallet CPP overrides.
+    The ``for_balance`` flag is retained for call-site clarity, but ``comparison_cpp``
+    now mirrors the wallet-overridden ``cents_per_point`` so balance/total-points views
+    use the same wallet CPP as the EV view.
     """
     eff = _effective_currency(card, wallet_currency_ids)
     if for_balance:
@@ -2997,8 +2998,8 @@ def compute_wallet(
                 housing_spend=housing_spend_total,
             )
             effective_annual_fee = round(-net_annual, 4)
-            # total_points: annualized earn (default CPP) × total window years + one-time SUB bonus.
-            # Uses for_balance earn so point totals are independent of wallet CPP overrides.
+            # total_points: annualized earn × total window years + one-time SUB bonus.
+            # Uses the wallet's CPP overrides for allocation (same view as the EV path).
             # sub_spend_earn and net_opp are excluded (already captured in segment earn).
             total_years_window = (window_end - window_start).days / 365.25  # type: ignore[operator]
             sub_earnable_pts = card.sub_points if card.sub_earnable else 0

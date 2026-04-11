@@ -44,7 +44,9 @@ def _currency_data(
     """Convert a Currency ORM object to a CurrencyData (optional CPP overrides by currency id).
 
     Overrides apply to this row and any nested ``converts_to_currency`` (same as the calculator's
-    effective-currency CPP when a card upgrades).
+    effective-currency CPP when a card upgrades). ``comparison_cpp`` mirrors the wallet-aware
+    CPP so every wallet metric — including balance/total-points views — values points at the
+    wallet's chosen CPP rather than the library default.
     """
     oid = orm_currency.id
     cpp_override = cpp_overrides.get(oid) if cpp_overrides else None
@@ -67,7 +69,7 @@ def _currency_data(
         name=orm_currency.name,
         reward_kind=rk,
         cents_per_point=cpp,
-        comparison_cpp=default_cpp,
+        comparison_cpp=cpp,
         cash_transfer_rate=orm_currency.cash_transfer_rate if orm_currency.cash_transfer_rate is not None else 1.0,
         partner_transfer_rate=orm_currency.partner_transfer_rate,
         converts_to_currency=converts_to,
