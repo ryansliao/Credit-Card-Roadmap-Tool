@@ -36,6 +36,10 @@ email-validator>=2.0.0         # Pydantic EmailStr validation
 # ── Configuration ─────────────────────────────────────────────────────────────
 python-dotenv>=1.0.1           # Load .env in local dev
 
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest>=8.0                    # Snapshot + unit tests for calculator and helpers
+pytest-asyncio>=0.23           # Async fixtures for DB-backed snapshot tests
+
 # ── Azure ─────────────────────────────────────────────────────────────────────
 azure-identity>=1.17.0         # Managed Identity + service principal auth;
                                # enables passwordless connection to Azure PostgreSQL

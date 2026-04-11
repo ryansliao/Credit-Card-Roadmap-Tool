@@ -230,6 +230,7 @@ export interface SpendCategory {
   parent_id: number | null
   is_system: boolean
   is_housing: boolean
+  is_foreign_eligible: boolean
   children: SpendCategory[]
 }
 

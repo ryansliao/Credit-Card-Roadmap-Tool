@@ -521,6 +521,13 @@ class SpendCategory(Base):
     # True for housing categories (Rent, Mortgage) — used to compute secondary
     # currency conversion caps (e.g. Bilt Cash 75% of housing rule).
     is_housing: Mapped[bool] = mapped_column(Boolean, default=False)
+    # True when a category can plausibly have foreign spend (travel, dining,
+    # gas abroad). False for US-only recurring spend (Phone, Internet,
+    # Streaming, Amazon, etc.). Gates _split_spend_for_foreign so the
+    # wallet-level foreign-spend percentage only splits eligible categories.
+    is_foreign_eligible: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
 
     parent: Mapped[Optional["SpendCategory"]] = relationship(
         "SpendCategory",

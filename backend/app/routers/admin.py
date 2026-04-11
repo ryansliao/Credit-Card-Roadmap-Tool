@@ -104,7 +104,11 @@ async def admin_create_spend_category(
     existing = await db.execute(select(SpendCategory).where(SpendCategory.category == payload.category.strip()))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail=f"SpendCategory '{payload.category}' already exists")
-    sc = SpendCategory(category=payload.category.strip(), is_housing=payload.is_housing)
+    sc = SpendCategory(
+        category=payload.category.strip(),
+        is_housing=payload.is_housing,
+        is_foreign_eligible=payload.is_foreign_eligible,
+    )
     db.add(sc)
     await db.commit()
     await db.refresh(sc)

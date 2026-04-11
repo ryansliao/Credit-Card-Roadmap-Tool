@@ -109,15 +109,30 @@ rm deploy.zip
 ## Project Structure
 
 ```
-backend/app/
-  main.py              # App creation, lifespan, middleware, SPA serving
-  calculator.py        # Pure calculation engine (no DB dependency)
-  db_helpers.py        # DB -> calculator bridge
-  models.py            # SQLAlchemy ORM models
-  schemas.py           # Pydantic v2 request/response schemas
-  database.py          # Engine setup, session factory, migrations
-  helpers.py           # Shared endpoint helpers
-  routers/             # FastAPI route modules
+backend/
+  app/
+    main.py              # App creation, lifespan, middleware, SPA serving
+    calculator/          # Pure calculation engine (no DB dependency)
+      types.py           #   dataclasses (CardData, WalletResult, …)
+      multipliers.py     #   category multiplier + % bonus factors
+      currency.py        #   CPP, transfer enablement
+      allocation.py      #   simple-path winner-takes-category
+      credits.py         #   credits, SUB opp cost, total points
+      secondary.py       #   Bilt-style secondary + simple-path EV
+      sub_planner.py     #   EDF SUB spend scheduler
+      segments.py        #   segment builder + per-segment earn
+      segment_lp.py      #   scipy LP + greedy fallback
+      segmented_ev.py    #   time-weighted per-card net value
+      compute.py         #   foreign split + compute_wallet orchestrator
+    db_helpers.py        # DB -> calculator bridge
+    models.py            # SQLAlchemy ORM models
+    schemas.py           # Pydantic v2 request/response schemas
+    database.py          # Engine setup, session factory, migrations
+    helpers.py           # Shared endpoint helpers
+    routers/             # FastAPI route modules
+  migrations/            # Idempotent SQL migrations (run on startup)
+  tests/                 # pytest snapshot tests against the calculator
+  docs/                  # Backend design docs
 
 frontend/src/
   App.tsx              # Router, Nav, SignInDropdown, AuthGate
@@ -139,5 +154,6 @@ frontend/src/
 
 - **Authentication** — Google OAuth sign-in via navbar dropdown; protected routes redirect to the landing page
 - **Reference data** — cards, issuers, currencies, multipliers, and credits are managed via `/admin/*` endpoints; no seed files or xlsx import
-- **Calculation engine** — `calculator.py` is a pure function layer with no DB access; all data is loaded and passed in by `db_helpers.py`
+- **Calculation engine** — `app.calculator` is a pure subpackage with no DB access; data is loaded and passed in by `db_helpers.py`. Public surface (`compute_wallet`, `CardData`, …) is re-exported from `calculator/__init__.py` so callers import it as `from app.calculator import X`. See `backend/docs/calculator-refactor.md` for the module boundaries.
+- **Regression test** — `backend/tests/test_calculator_snapshot.py` pins `compute_wallet` output for Wallet 1 against a committed JSON fixture; run with `cd backend && pytest tests/` before shipping any calculator change, and with `--snapshot-update` to intentionally refresh the fixture.
 - **SPA serving** — in production, FastAPI serves the built frontend from `frontend/dist/`

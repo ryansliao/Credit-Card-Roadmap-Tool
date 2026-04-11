@@ -23,6 +23,7 @@ from ..db_helpers import (
     apply_wallet_portal_shares,
     load_card_data,
     load_card_ids_by_portal,
+    load_foreign_eligible_category_names,
     load_housing_category_names,
     load_wallet_card_credits,
     load_wallet_card_group_selections,
@@ -203,6 +204,7 @@ async def wallet_results(
     if overrides:
         spend.update(overrides)
     housing_names = await load_housing_category_names(db)
+    foreign_eligible_names = await load_foreign_eligible_category_names(db)
 
     selected_card_data = [c for c in modified_cards if c.id in card_ids_sel]
     wcids = {c.currency.id for c in selected_card_data}
@@ -302,6 +304,7 @@ async def wallet_results(
         sub_priority_card_ids=sub_priority_card_ids,
         housing_category_names=housing_names,
         foreign_spend_pct=wallet.foreign_spend_percent or 0.0,
+        foreign_eligible_categories=foreign_eligible_names,
     )
 
     # Merge secondary currency points into the balance sync map

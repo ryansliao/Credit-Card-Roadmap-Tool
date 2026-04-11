@@ -405,6 +405,18 @@ async def load_housing_category_names(session: AsyncSession) -> set[str]:
     return {row[0] for row in result.all()}
 
 
+async def load_foreign_eligible_category_names(session: AsyncSession) -> set[str]:
+    """Return the set of spend category names that can plausibly have foreign
+    spend (Travel, Dining, Gas, etc.). Used by the calculator to gate the
+    wallet-level foreign-spend percentage so US-only categories like Phone,
+    Internet, or Streaming are never split into a foreign bucket.
+    """
+    result = await session.execute(
+        select(SpendCategory.category).where(SpendCategory.is_foreign_eligible == True)  # noqa: E712
+    )
+    return {row[0] for row in result.all()}
+
+
 async def ensure_all_other_wallet_spend_item(session: AsyncSession, wallet_id: int) -> None:
     """
     Ensure the wallet has a WalletSpendItem for the 'All Other' SpendCategory.

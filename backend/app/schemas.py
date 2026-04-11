@@ -384,6 +384,7 @@ class SpendCategoryRead(BaseModel):
     parent_id: Optional[int] = None
     is_system: bool = False
     is_housing: bool = False
+    is_foreign_eligible: bool = False
     children: list["SpendCategoryRead"] = []
 
     @model_validator(mode="wrap")
@@ -397,6 +398,7 @@ class SpendCategoryRead(BaseModel):
                     "category": data.category,
                     "parent_id": data.parent_id,
                     "is_housing": getattr(data, "is_housing", False),
+                    "is_foreign_eligible": getattr(data, "is_foreign_eligible", False),
                     "is_system": data.is_system,
                     "children": children,
                 }
@@ -510,6 +512,7 @@ class AdminCreateIssuerPayload(BaseModel):
 class AdminCreateSpendCategoryPayload(BaseModel):
     category: str = Field(..., max_length=80)
     is_housing: bool = False
+    is_foreign_eligible: bool = False
 
 
 class AdminCreateCurrencyPayload(BaseModel):

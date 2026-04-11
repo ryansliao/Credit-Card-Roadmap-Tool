@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import importlib
 import os
 import re
 from datetime import datetime, timedelta, timezone
 
-import bcrypt
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from google.auth.transport import requests as google_requests
@@ -34,11 +34,13 @@ USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,30}$")
 
 
 def _hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    bcrypt_mod = importlib.import_module("bcrypt")
+    return bcrypt_mod.hashpw(password.encode(), bcrypt_mod.gensalt()).decode()
 
 
 def _verify_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed.encode())
+    bcrypt_mod = importlib.import_module("bcrypt")
+    return bcrypt_mod.checkpw(password.encode(), hashed.encode())
 
 
 # ---------------------------------------------------------------------------
