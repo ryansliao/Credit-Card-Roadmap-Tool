@@ -370,6 +370,7 @@ async def load_card_data(
                 sub_months=card.sub_months,
                 sub_spend_earn=card.sub_spend_earn if card.sub_spend_earn is not None else 0,
                 sub_cash=card.sub_cash if card.sub_cash is not None else 0.0,
+                sub_secondary_points=card.sub_secondary_points if card.sub_secondary_points is not None else 0,
                 annual_bonus=card.annual_bonus if card.annual_bonus is not None else 0,
                 annual_bonus_percent=card.annual_bonus_percent if card.annual_bonus_percent is not None else 0.0,
                 annual_bonus_first_year_only=bool(card.annual_bonus_first_year_only) if card.annual_bonus_first_year_only is not None else False,

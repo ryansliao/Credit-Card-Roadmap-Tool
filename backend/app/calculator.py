@@ -76,6 +76,7 @@ class CardData:
     annual_fee: float
     sub_points: int
     sub_cash: float  # dollar-denominated SUB bonus (e.g. $200 cash back), added at face value
+    sub_secondary_points: int  # SUB in the card's secondary currency (e.g. Bilt Cash)
     sub_min_spend: Optional[int]
     sub_months: Optional[int]
     sub_spend_earn: int
@@ -163,6 +164,13 @@ class CardData:
     # (e.g. Bilt Cash at 4% alongside Bilt Points via multipliers)
     secondary_currency: Optional[CurrencyData] = None
     secondary_currency_rate: float = 0.0  # e.g. 0.04 for 4%
+    # LP scoring factor for the secondary currency bonus. Accounts for the
+    # convertibility cap (cap_rate × housing_spend): when the cap binds across
+    # the wallet, the effective per-dollar Bilt Cash bonus is less than the
+    # full rate. Set by ``compute_wallet`` before LP scoring. 1.0 = uncapped.
+    # ``_calc_secondary_currency`` still uses the full rate and applies the
+    # real cap when computing the actual dollar value of the secondary earn.
+    secondary_scoring_factor: float = 1.0
     # Conversion cap: secondary currency can only convert to points when non-housing
     # spend on this card ≤ cap_rate × housing spend. 0 = no cap. (e.g. 0.75 for Bilt)
     secondary_currency_cap_rate: float = 0.0
@@ -803,6 +811,11 @@ def _secondary_currency_comparison_bonus(
     Returns the additional value (in cents) that each dollar spent on this card
     generates via the secondary currency. This is added to the primary
     ``multiplier × CPP`` score so allocation accounts for the secondary earn.
+
+    The value is scaled by ``card.secondary_scoring_factor``, which accounts
+    for the convertibility cap (cap_rate × housing_spend) so cards like Bilt
+    don't get credited with the full 4% bonus on every dollar when only a
+    portion of their winnings can actually convert to value.
     """
     if card.secondary_currency is None or card.secondary_currency_rate <= 0:
         return 0.0
@@ -812,9 +825,9 @@ def _secondary_currency_comparison_bonus(
     # Value those pts via conversion or CPP.
     if sec.converts_to_currency:
         target_cpp = sec.converts_to_currency.comparison_cpp if for_balance else sec.converts_to_currency.cents_per_point
-        return card.secondary_currency_rate * 100 * sec.converts_at_rate * target_cpp
+        return card.secondary_currency_rate * 100 * sec.converts_at_rate * target_cpp * card.secondary_scoring_factor
     cpp = sec.comparison_cpp if for_balance else sec.cents_per_point
-    return card.secondary_currency_rate * 100 * cpp
+    return card.secondary_currency_rate * 100 * cpp * card.secondary_scoring_factor
 
 
 def _tied_cards_for_category(
@@ -1473,6 +1486,14 @@ def _average_annual_net_dollars(
     effective_sub = (card.sub_spend_earn * rate) if card.sub_earnable else 0.0
     effective_sub_pts = card.sub_points if card.sub_earnable else 0
     effective_sub_cash = card.sub_cash if card.sub_earnable else 0.0
+    # Secondary-currency SUB (e.g. Bilt Cash): valued at the secondary currency's
+    # cents_per_point. Honors the housing-spend cap — if the card has a positive
+    # cap_rate and the wallet has no housing spend, the SUB is not redeemable.
+    effective_sub_secondary_dollars = 0.0
+    if card.sub_earnable and card.sub_secondary_points > 0 and card.secondary_currency is not None:
+        cap_blocks = card.secondary_currency_cap_rate > 0 and housing_spend <= 0
+        if not cap_blocks:
+            effective_sub_secondary_dollars = card.sub_secondary_points * card.secondary_currency.cents_per_point / 100.0
     fee_y1 = card.first_year_fee if card.first_year_fee is not None else card.annual_fee
     total_fees = fee_y1 + (years - 1) * card.annual_fee
     # effective_earn (from _effective_annual_earn_allocated) already includes card.annual_bonus
@@ -1497,6 +1518,7 @@ def _average_annual_net_dollars(
         + effective_sub / 100 * cpp
         + effective_sub_pts * cpp / 100
         + effective_sub_cash
+        + effective_sub_secondary_dollars
         + fy_bonus_eff / 100 * cpp
         + annual_credits * years
         + annual_credits_skip * max(years - 1, 0)
@@ -2614,6 +2636,12 @@ def _segmented_card_net_per_year(
             total_earn_dollars += card.sub_points * eff_currency.cents_per_point / 100.0
     if card.sub_earnable and card.sub_cash:
         total_credits += card.sub_cash
+    # Secondary-currency SUB (e.g. Bilt Cash): value at face via the secondary
+    # currency's CPP, subject to the same housing-spend cap as earned secondary.
+    if card.sub_earnable and card.sub_secondary_points > 0 and card.secondary_currency is not None:
+        cap_blocks = card.secondary_currency_cap_rate > 0 and housing_spend <= 0
+        if not cap_blocks:
+            total_credits += card.sub_secondary_points * card.secondary_currency.cents_per_point / 100.0
 
     # First-year-only percentage bonus: one-time earn based on annualized category
     # earn rate, counted once regardless of window length (like SUB).
@@ -2835,19 +2863,38 @@ def compute_wallet(
     housing_spend_total = sum(
         s for cat, s in spend.items() if _is_housing(cat) and s > 0
     )
+    # Total non-housing spend in the wallet — used to scale secondary-currency
+    # allocation scoring when a card's convertibility cap would bind.
+    total_non_housing_spend = sum(
+        s for cat, s in spend.items() if not _is_housing(cat) and s > 0
+    )
 
-    # When the wallet has no housing spend, any card whose secondary currency
-    # requires a housing-spend cap (cap_rate > 0) cannot realize that value.
-    # Zero its secondary_currency_rate so allocation scoring (the LP) doesn't
-    # treat it as if the secondary earn were realizable.
-    if housing_spend_total <= 0:
-        all_cards = [
-            replace(c, secondary_currency_rate=0.0)
-            if c.secondary_currency is not None and c.secondary_currency_cap_rate > 0
-            else c
-            for c in all_cards
-        ]
-        selected_cards = [c for c in all_cards if c.id in selected_ids]
+    # Secondary-currency scoring adjustment for cards with a cap_rate > 0.
+    # Without this the LP sees e.g. Bilt's full 4% Bilt Cash bonus on every
+    # dollar and over-allocates bonus categories (Dining, Groceries) to Bilt,
+    # even though the $0.75 × housing cap limits how much of that bonus is
+    # actually redeemable.
+    def _scoring_factor(c: CardData) -> float:
+        if c.secondary_currency is None or c.secondary_currency_cap_rate <= 0:
+            return 1.0
+        if housing_spend_total <= 0:
+            return 0.0  # fully blocked
+        if total_non_housing_spend <= 0:
+            return 1.0
+        cap = c.secondary_currency_cap_rate * housing_spend_total
+        if cap >= total_non_housing_spend:
+            return 1.0  # cap never binds
+        # Cap binds across the wallet — blend the rate so the marginal
+        # dollar's secondary earn reflects the average effective rate.
+        return cap / total_non_housing_spend
+
+    all_cards = [
+        replace(c, secondary_scoring_factor=_scoring_factor(c))
+        if c.secondary_currency is not None and c.secondary_currency_cap_rate > 0
+        else c
+        for c in all_cards
+    ]
+    selected_cards = [c for c in all_cards if c.id in selected_ids]
 
     # Use segmented calculation when window dates are available and either:
     #   (a) any card has date context (open/close), or
@@ -3028,6 +3075,13 @@ def compute_wallet(
         sec_net_total = sec.net_annual_pts * years
         sec_cost_total = sec.cost_pts_annual * years
         sec_bonus_total = sec.bonus_pts_annual * years
+        # One-time SUB in the secondary currency (e.g. Bilt Cash welcome offer)
+        # — rolls into the balance once (not multiplied by years). Honors the
+        # housing cap: if the cap blocks conversion, the SUB is still added to
+        # the pts balance (you hold the Bilt Cash) but its dollar value is 0.
+        if card.sub_earnable and card.sub_secondary_points > 0 and card.secondary_currency is not None:
+            sec_gross_total += card.sub_secondary_points
+            sec_net_total += card.sub_secondary_points
 
         card_results.append(
             CardResult(

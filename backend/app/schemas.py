@@ -148,6 +148,7 @@ class UpdateCardLibraryPayload(BaseModel):
     sub_min_spend: Optional[int] = Field(default=None, ge=0)
     sub_months: Optional[int] = Field(default=None, ge=0)
     sub_cash: Optional[float] = Field(default=None, ge=0)
+    sub_secondary_points: Optional[int] = Field(default=None, ge=0)
     annual_fee: Optional[float] = Field(default=None, ge=0)
     first_year_fee: Optional[float] = Field(default=None, ge=0)
     transfer_enabler: Optional[bool] = None
@@ -302,6 +303,7 @@ class CardRead(BaseModel):
     sub_months: Optional[int] = None
     sub_spend_earn: Optional[int] = None
     sub_cash: Optional[float] = None
+    sub_secondary_points: Optional[int] = None
     annual_bonus: Optional[int] = None
     annual_bonus_percent: Optional[float] = None
     annual_bonus_first_year_only: Optional[bool] = None
@@ -537,6 +539,7 @@ class AdminCreateCardPayload(BaseModel):
     sub_months: Optional[int] = Field(default=None, ge=1)
     sub_spend_earn: Optional[int] = Field(default=None, ge=0)
     sub_cash: Optional[float] = Field(default=None, ge=0)
+    sub_secondary_points: Optional[int] = Field(default=None, ge=0)
     annual_bonus: Optional[int] = Field(default=None, ge=0)
     annual_bonus_percent: Optional[float] = Field(default=None, ge=0)
     annual_bonus_first_year_only: Optional[bool] = None

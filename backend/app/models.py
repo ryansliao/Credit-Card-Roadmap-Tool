@@ -198,6 +198,11 @@ class Card(Base):
     sub_spend_earn: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # Dollar-denominated SUB bonus (e.g. $200 cash back). Added at face value, not converted via CPP.
     sub_cash: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # SUB paid in the card's secondary currency (e.g. 10000 Bilt Cash = $100 face).
+    # Subject to the same conversion cap as secondary currency earned from spend:
+    # if ``secondary_currency_cap_rate > 0`` and the wallet has no housing spend,
+    # this SUB contributes $0 to EAF.
+    sub_secondary_points: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # Recurring annual bonus (e.g. Chase Ink Preferred 10k points/year; can be points or cash)
     annual_bonus: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)

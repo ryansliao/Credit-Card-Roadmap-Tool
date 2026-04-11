@@ -4,7 +4,7 @@ import { ModalBackdrop } from './ModalBackdrop'
 export function InfoIconButton({
   onClick,
   label,
-  size = 12,
+  size = 15,
 }: {
   onClick: () => void
   label: string

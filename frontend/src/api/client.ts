@@ -206,6 +206,7 @@ export interface Card {
   sub_months: number | null
   sub_spend_earn: number | null
   sub_cash: number | null
+  sub_secondary_points: number | null
   annual_bonus: number | null
   transfer_enabler: boolean
   secondary_currency_id: number | null
