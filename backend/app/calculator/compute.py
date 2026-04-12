@@ -14,6 +14,7 @@ from typing import Optional
 
 from ..constants import PREFERRED_FOREIGN_NETWORKS
 from .allocation import (
+    FOREIGN_CAT_PREFIX,
     _effective_annual_earn_allocated,
     calc_annual_allocated_spend,
     calc_category_earn_breakdown,
@@ -46,9 +47,6 @@ from .segments import (
     _sub_priority_ids_for_segment,
 )
 from .types import CardData, CardResult, WalletResult
-
-
-FOREIGN_CAT_PREFIX = "__foreign__"
 
 
 def _split_spend_for_foreign(

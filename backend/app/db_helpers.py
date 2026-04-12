@@ -25,6 +25,7 @@ from .models import (
     Currency,
     SpendCategory,
     Wallet,
+    WalletCardCategoryPriority,
     WalletCardCredit,
     WalletCardGroupSelection,
     WalletCardMultiplier,
@@ -692,6 +693,67 @@ def apply_wallet_card_group_selections(
             out.append(cd)
             continue
         out.append(dataclasses.replace(cd, group_selected_categories=card_sels))
+    return out
+
+
+async def load_wallet_card_category_priorities(
+    session: AsyncSession,
+    wallet_id: int,
+) -> dict[int, frozenset[str]]:
+    """
+    Load manual spend-category priority pins for cards in a wallet.
+    Returns ``{card_id: frozenset(lowercased_category_name, ...)}``.
+
+    The lowercased/stripped form matches ``_category_priority_cards`` in
+    ``app.calculator.allocation`` so category matching is case-insensitive and
+    works for both the normal key and the ``__foreign__`` split variant.
+    """
+    from .models import WalletCard as WalletCardModel
+
+    result = await session.execute(
+        select(WalletCardCategoryPriority)
+        .options(selectinload(WalletCardCategoryPriority.spend_category))
+        .where(WalletCardCategoryPriority.wallet_id == wallet_id)
+    )
+    rows = result.scalars().all()
+    if not rows:
+        return {}
+    wc_ids = {r.wallet_card_id for r in rows}
+    wc_result = await session.execute(
+        select(WalletCardModel).where(WalletCardModel.id.in_(wc_ids))
+    )
+    wc_map = {wc.id: wc.card_id for wc in wc_result.scalars().all()}
+
+    per_card: dict[int, set[str]] = {}
+    for r in rows:
+        card_id = wc_map.get(r.wallet_card_id)
+        if card_id is None:
+            continue
+        cat_name = r.spend_category.category if r.spend_category else ""
+        key = (cat_name or "").strip().lower()
+        if not key:
+            continue
+        per_card.setdefault(card_id, set()).add(key)
+    return {cid: frozenset(keys) for cid, keys in per_card.items()}
+
+
+def apply_wallet_card_category_priorities(
+    card_data_list: list[CardData],
+    priorities_by_card: dict[int, frozenset[str]],
+) -> list[CardData]:
+    """
+    Return CardData copies with ``priority_categories`` populated from the
+    wallet's manual pin overrides.
+    """
+    if not priorities_by_card:
+        return card_data_list
+    out: list[CardData] = []
+    for cd in card_data_list:
+        pins = priorities_by_card.get(cd.id)
+        if not pins:
+            out.append(cd)
+            continue
+        out.append(dataclasses.replace(cd, priority_categories=pins))
     return out
 
 

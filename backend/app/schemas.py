@@ -719,6 +719,39 @@ class WalletCardGroupSelectionSet(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Wallet card category priority schemas
+# ---------------------------------------------------------------------------
+
+
+class WalletCardCategoryPriorityRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    wallet_id: int
+    wallet_card_id: int
+    spend_category_id: int
+    category_name: str = ""
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def resolve_category_name(cls, data: Any, handler: Any) -> Any:
+        if hasattr(data, "spend_category") and not isinstance(data, dict):
+            return handler(
+                {
+                    "id": data.id,
+                    "wallet_id": data.wallet_id,
+                    "wallet_card_id": data.wallet_card_id,
+                    "spend_category_id": data.spend_category_id,
+                    "category_name": data.spend_category.category if data.spend_category else "",
+                }
+            )
+        return handler(data)
+
+
+class WalletCardCategoryPrioritySet(BaseModel):
+    spend_category_ids: list[int] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # Wallet schemas
 # ---------------------------------------------------------------------------
 

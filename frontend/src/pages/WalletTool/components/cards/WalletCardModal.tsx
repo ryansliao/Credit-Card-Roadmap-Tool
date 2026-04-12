@@ -11,8 +11,10 @@ import {
   type WalletCardAcquisitionType,
   creditsApi,
   currenciesApi,
+  walletCardCategoryPriorityApi,
   walletCardCreditApi,
   walletCardGroupSelectionApi,
+  walletSpendItemsApi,
 } from '../../../../api/client'
 import { ModalBackdrop } from '../../../../components/ModalBackdrop'
 import { formatMoney, today } from '../../../../utils/format'
@@ -27,6 +29,7 @@ import { queryKeys } from '../../lib/queryKeys'
 
 export function WalletCardModal({
   mode,
+  walletId,
   walletCard,
   existingCardIds,
   walletCardIds,
@@ -36,6 +39,7 @@ export function WalletCardModal({
   isLoading,
 }: {
   mode: 'add' | 'edit'
+  walletId: number
   walletCard?: WalletCard
   existingCardIds: number[]
   /** Card IDs currently in the wallet (used to derive wallet currency set). */
@@ -88,6 +92,9 @@ export function WalletCardModal({
   const [groupSelectionsExpanded, setGroupSelectionsExpanded] = useState(false)
   // group_id -> array of selected spend_category_ids (length == top_n)
   const [groupSelections, setGroupSelections] = useState<Record<number, number[]>>({})
+  // Set of spend_category_ids this wallet card claims as priority-pinned.
+  const [priorityCategoryIds, setPriorityCategoryIds] = useState<Set<number>>(new Set())
+  const [priorityExpanded, setPriorityExpanded] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
   // Tracks the last key we hydrated form state from, preventing re-runs when the
@@ -137,6 +144,33 @@ export function WalletCardModal({
     queryFn: () => walletCardGroupSelectionApi.list(walletCard!.wallet_id, walletCard!.card_id),
     enabled: mode === 'edit' && walletCard != null,
   })
+
+  // All spend items in the wallet — the category list shown in the priority picker.
+  const { data: walletSpendItems } = useQuery({
+    queryKey: queryKeys.walletSpendItems(walletId),
+    queryFn: () => walletSpendItemsApi.list(walletId),
+  })
+
+  // Wallet-wide category priority pins (used to gray out categories claimed by OTHER cards).
+  const { data: walletCategoryPriorities } = useQuery({
+    queryKey: queryKeys.walletCategoryPriorities(walletId),
+    queryFn: () => walletCardCategoryPriorityApi.list(walletId),
+  })
+
+  // Map spend_category_id -> the wallet_card_id that currently claims it.
+  // Used to render grayed-out "Claimed by another card" state for picks other
+  // wallet cards already own.
+  const priorityClaimsByOther = useMemo(() => {
+    const m = new Map<number, number>()
+    if (!walletCategoryPriorities) return m
+    const currentWalletCardId = walletCard?.id ?? -1
+    for (const p of walletCategoryPriorities) {
+      if (p.wallet_card_id !== currentWalletCardId) {
+        m.set(p.spend_category_id, p.wallet_card_id)
+      }
+    }
+    return m
+  }, [walletCategoryPriorities, walletCard?.id])
 
   // Cards already in the wallet — shown in the "changing from" picker
   const walletCards = useMemo(() => {
@@ -274,6 +308,19 @@ export function WalletCardModal({
     setGroupSelections(m)
   }, [mode, lib, existingGroupSelections, topNGroups])
 
+  // Hydrate this card's own priority pins from the wallet-wide list.
+  useEffect(() => {
+    if (walletCategoryPriorities === undefined) return
+    const currentWalletCardId = walletCard?.id ?? -1
+    const mine = new Set<number>()
+    for (const p of walletCategoryPriorities) {
+      if (p.wallet_card_id === currentWalletCardId) {
+        mine.add(p.spend_category_id)
+      }
+    }
+    setPriorityCategoryIds(mine)
+  }, [walletCategoryPriorities, walletCard?.id])
+
   function selectPcFromCard(id: number) {
     setPcFromCardId(id)
     // Reset "to" selection whenever "from" changes
@@ -371,15 +418,26 @@ export function WalletCardModal({
       // If partially filled (some auto, some real), skip saving — user needs to fill all slots
     }
 
+    // Save category-priority pins via the dedicated API.
+    const priorityOp = walletCardCategoryPriorityApi
+      .set(walletCard.wallet_id, walletCard.card_id, Array.from(priorityCategoryIds))
+      .catch((e: Error) => {
+        throw new Error(e.message || 'Failed to save category priorities.')
+      })
+
     try {
-      await Promise.all([...creditOps, ...groupOps])
-    } catch {
-      setFormError('Failed to save overrides.')
+      await Promise.all([...creditOps, ...groupOps, priorityOp])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to save overrides.'
+      setFormError(msg)
       return
     }
 
     queryClient.invalidateQueries({
       queryKey: queryKeys.walletCardCredits(walletCard.wallet_id, walletCard.card_id),
+    })
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.walletCategoryPriorities(walletCard.wallet_id),
     })
     const secRate = secondaryCurrencyRate.trim() ? Number(secondaryCurrencyRate) : null
     onSaveEdit(walletFormToUpdatePayload(built, lib, addedDate, acquisitionType, secRate))
@@ -1004,6 +1062,102 @@ export function WalletCardModal({
                           </div>
                         )
                       })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Spend Category Priority inline collapsible.
+                  Pins one or more wallet spend categories to this card so
+                  the calculator always routes that spend here. A category
+                  already claimed by another wallet card is disabled. */}
+              {lib && mode === 'edit' && (
+                <div className="border border-slate-600 rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setPriorityExpanded((prev) => !prev)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-700/40"
+                  >
+                    <span>
+                      Spend Category Priority
+                      {priorityCategoryIds.size > 0 && (
+                        <span className="text-indigo-300 ml-1">
+                          ({priorityCategoryIds.size})
+                        </span>
+                      )}
+                    </span>
+                    <svg
+                      className={`w-4 h-4 text-slate-400 transition-transform ${priorityExpanded ? 'rotate-180' : ''}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {priorityExpanded && (
+                    <div className="border-t border-slate-700 px-3 py-3">
+                      <p className="text-[11px] text-slate-500 mb-2">
+                        Checked categories always route to this card. Each can
+                        only be pinned to one card in the wallet.
+                      </p>
+                      {!walletSpendItems || walletSpendItems.length === 0 ? (
+                        <p className="text-xs text-slate-500 py-1">
+                          No wallet spend categories yet.
+                        </p>
+                      ) : (
+                        <ul className="space-y-1 max-h-56 overflow-y-auto">
+                          {[...walletSpendItems]
+                            .sort((a, b) =>
+                              a.spend_category.category.localeCompare(
+                                b.spend_category.category,
+                                undefined,
+                                { sensitivity: 'base' },
+                              ),
+                            )
+                            .map((item) => {
+                              const catId = item.spend_category_id
+                              const claimedByOther = priorityClaimsByOther.has(catId)
+                              const checked = priorityCategoryIds.has(catId)
+                              const disabled = claimedByOther && !checked
+                              return (
+                                <li key={item.id}>
+                                  <label
+                                    className={`flex items-center gap-2 text-xs px-1 py-1 rounded ${
+                                      disabled
+                                        ? 'text-slate-500 cursor-not-allowed'
+                                        : 'text-slate-200 cursor-pointer hover:bg-slate-700/40'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="accent-indigo-500"
+                                      checked={checked}
+                                      disabled={disabled}
+                                      onChange={() => {
+                                        setPriorityCategoryIds((prev) => {
+                                          const next = new Set(prev)
+                                          if (next.has(catId)) next.delete(catId)
+                                          else next.add(catId)
+                                          return next
+                                        })
+                                      }}
+                                    />
+                                    <span className="flex-1 min-w-0 truncate">
+                                      {item.spend_category.category}
+                                    </span>
+                                    {disabled && (
+                                      <span className="text-[10px] text-slate-600 shrink-0">
+                                        Claimed
+                                      </span>
+                                    )}
+                                  </label>
+                                </li>
+                              )
+                            })}
+                        </ul>
+                      )}
                     </div>
                   )}
                 </div>

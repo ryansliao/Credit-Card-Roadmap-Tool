@@ -184,6 +184,13 @@ class CardData:
     # secondary-currency rate accordingly before running the main compute.
     housing_tiered_enabled: bool = False
 
+    # Spend categories pinned to this card by a manual wallet override.
+    # Category names are stored lowercase/stripped for case-insensitive lookup.
+    # When a category appears in any selected card's ``priority_categories``,
+    # that card is the sole allocation winner for the category across both
+    # the simple and segmented calculation paths.
+    priority_categories: frozenset[str] = field(default_factory=frozenset)
+
     # Wallet-specific date context (None = active for the full calculation window)
     wallet_added_date: Optional[date] = None
     wallet_closed_date: Optional[date] = None

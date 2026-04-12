@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
+from .allocation import FOREIGN_CAT_PREFIX as _FOREIGN_CAT_PREFIX
 from .currency import _comparison_cpp, _secondary_currency_comparison_bonus
 from .multipliers import _all_other_multiplier, _build_effective_multipliers
 from .segments import _cap_period_bounds, _segment_card_earn_pts_per_cat
@@ -63,6 +64,17 @@ def _solve_segment_allocation_lp(
         priority = [c for c in active_cards if c.id in sub_priority_card_ids]
         if priority:
             competing = priority
+
+    # Manual category-priority pins outrank SUB priority: if a card owns a
+    # pinned category via ``priority_categories`` but is not in the SUB
+    # subset, make sure it's still in ``competing`` so the LP can assign
+    # the pinned category's dollars to it.
+    pinned_needed = [
+        c for c in active_cards
+        if c.priority_categories and c not in competing
+    ]
+    if pinned_needed:
+        competing = list(competing) + pinned_needed
 
     # Effective per-card multipliers and CPPs.
     card_mult: dict[int, dict[str, float]] = {}  # card_idx -> cat_lower -> mult
@@ -339,9 +351,32 @@ def _solve_segment_allocation_lp(
 
     # Variable bounds: 0 ≤ var ≤ d_C (a single category never receives more
     # than its own segment dollars on any one card).
+    #
+    # Manual category priority: for every category pinned by some selected
+    # card, zero-bound the base + bonus variables for every OTHER competing
+    # card on that category. This forces all of that category's segment
+    # dollars onto the pinned card without breaking flow conservation (the
+    # pinned card still has positive upper bounds).
+    pinned_by_cat: dict[int, set[int]] = {}
+    for cat, _d in cat_dollars:
+        base_cat = cat[len(_FOREIGN_CAT_PREFIX):] if cat.startswith(_FOREIGN_CAT_PREFIX) else cat
+        key = (base_cat or "").strip().lower()
+        if not key:
+            continue
+        pinned_idxs = {
+            k_idx for k_idx, c in enumerate(competing)
+            if key in c.priority_categories
+        }
+        if pinned_idxs:
+            pinned_by_cat[cat_index[cat]] = pinned_idxs
+
     bounds = []
     for kind, k_idx, cat_idx in var_indices:
-        bounds.append((0.0, cat_dollars[cat_idx][1]))
+        pinned_set = pinned_by_cat.get(cat_idx)
+        if pinned_set is not None and k_idx not in pinned_set:
+            bounds.append((0.0, 0.0))
+        else:
+            bounds.append((0.0, cat_dollars[cat_idx][1]))
 
     # Solve.
     try:

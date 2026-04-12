@@ -280,12 +280,20 @@ export function WalletResultsAndCurrenciesPanel({
                       {/* Currency header row */}
                       <div className="px-2.5 py-2">
                         <div className="flex items-center justify-between gap-2">
-                          <span
-                            className="text-sm font-semibold text-white truncate"
-                            title={b.currency_name}
-                          >
-                            {b.currency_name}
-                          </span>
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span
+                              className="text-sm font-semibold text-white truncate"
+                              title={b.currency_name}
+                            >
+                              {b.currency_name}
+                            </span>
+                            {b.currency_name === 'Bilt Rewards' && (
+                              <InfoIconButton
+                                onClick={() => setShowBiltCashInfo(true)}
+                                label="How Bilt Rewards and Bilt Cash are calculated"
+                              />
+                            )}
+                          </div>
                           <div className="flex items-center shrink-0">
                             {hasResultData && (
                               <>
@@ -356,10 +364,6 @@ export function WalletResultsAndCurrenciesPanel({
                             <div className="mt-1.5 pt-1.5 border-t border-slate-700/40 flex items-center justify-between gap-2">
                               <div className="flex items-center gap-1 min-w-0">
                                 <span className="text-xs text-slate-400 truncate">Bilt Cash</span>
-                                <InfoIconButton
-                                  onClick={() => setShowBiltCashInfo(true)}
-                                  label="How Bilt Cash is calculated"
-                                />
                               </div>
                               <div className="flex items-center shrink-0">
                                 {hasResultData && biltCashAnnual > 0 && (
@@ -481,41 +485,81 @@ export function WalletResultsAndCurrenciesPanel({
       </div>
 
       {showBiltCashInfo && (
-        <InfoPopover title="How Bilt Cash is Calculated" onClose={() => setShowBiltCashInfo(false)} zIndex="z-50">
+        <InfoPopover title="How Bilt Rewards Are Calculated" onClose={() => setShowBiltCashInfo(false)} zIndex="z-50">
           <p>
-            Bilt cards earn <span className="text-indigo-300">4% Bilt Cash</span> on all
-            spend allocated to the card, on top of the regular Bilt Points multipliers.
+            Bilt 2.0 cards offer two mutually exclusive earning modes on housing.
+            The calculator evaluates both and picks whichever produces more value
+            for your wallet.
           </p>
           <div>
-            <p className="text-slate-300 font-medium mb-1">Conversion cap</p>
+            <p className="text-slate-300 font-medium mb-1">Tiered housing mode</p>
             <p>
-              Bilt Cash can only be redeemed for value when paired with housing spend.
-              The convertible amount is capped at:
+              Earn Bilt Points directly on Rent / Mortgage, scaled by how much
+              non-housing you put on the card relative to housing:
             </p>
-            <p className="mt-1 px-2 py-1 bg-slate-800 rounded font-mono text-[11px] text-slate-300">
-              min(allocated_spend, 0.75 × housing_spend)
+            <p className="mt-1 px-2 py-1 bg-slate-800 rounded font-mono text-[11px] text-slate-300 leading-snug">
+              {'< 25%  → 0x + 3,000 pts/yr floor'}<br />
+              {'< 50%  → 0.5x'}<br />
+              {'< 75%  → 0.75x'}<br />
+              {'< 100% → 1.0x'}<br />
+              {'≥ 100% → 1.25x'}
             </p>
             <p className="mt-1">
-              Bilt Cash earned beyond this cap is valued at <span className="text-slate-300">$0</span>.
+              No Bilt Cash is earned in this mode.
             </p>
           </div>
           <div>
-            <p className="text-slate-300 font-medium mb-1">No housing spend?</p>
+            <p className="text-slate-300 font-medium mb-1">Bilt Cash mode</p>
             <p>
-              If your wallet has no <span className="text-slate-300">Rent</span> or
-              {' '}<span className="text-slate-300">Mortgage</span> spend, Bilt Cash
-              cannot convert and is excluded from allocation scoring entirely — so
-              the calculator won't over-allocate spend to Bilt cards.
+              Non-housing spend earns the card's base category multiplier
+              (e.g. Palladium 2x) plus a three-tier Bilt Cash bonus. Housing
+              earns no direct points — its value is baked into Tier 1.
+            </p>
+            <p className="mt-1 text-slate-400">
+              <span className="text-slate-300">Tier 1</span> — first
+              {' '}<span className="text-slate-300">0.75 × housing</span> dollars
+              of non-housing. Earns <span className="text-slate-300">+1.33x</span>
+              {' '}bonus (4% Bilt Cash → Bilt Points at
+              {' '}<span className="text-slate-300">$30 : 1,000 pts</span>, redeemed
+              at housing-payment time).
+              <br />
+              Palladium effective: <span className="text-slate-300">3.33x</span>
+            </p>
+            <p className="mt-1 text-slate-400">
+              <span className="text-slate-300">Tier 2</span> — next
+              {' '}<span className="text-slate-300">$25,000</span> (5 × $5,000
+              Point Accelerator activations, Obsidian &amp; Palladium only).
+              Earns <span className="text-slate-300">+1x</span> bonus, self-funded
+              by the Bilt Cash the Tier 2 spend itself generates.
+              <br />
+              Palladium effective: <span className="text-slate-300">3x</span>
+            </p>
+            <p className="mt-1 text-slate-400">
+              <span className="text-slate-300">Tier 3</span> — remaining non-housing.
+              Base multiplier only; excess Bilt Cash has no redemption path.
+              <br />
+              Palladium effective: <span className="text-slate-300">2x</span>
             </p>
           </div>
           <div>
-            <p className="text-slate-300 font-medium mb-1">Example</p>
+            <p className="text-slate-300 font-medium mb-1">The Bilt Cash counter</p>
             <p>
-              With <span className="text-slate-300">$24k</span> annual rent, the cap is
-              {' '}<span className="text-slate-300">0.75 × $24k = $18k</span> of
-              convertible non-housing spend. At 4%, that's
-              {' '}<span className="text-slate-300">$720</span> of realizable Bilt Cash
-              per year.
+              The nested "Bilt Cash" balance shows the gross Bilt Cash points
+              earned (4% of non-housing allocated to Bilt cards). Its dollar
+              value is already captured in the Bilt Rewards line above via the
+              tier conversions — the counter is informational, not additive.
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">Example: $24k rent, $20k non-housing</p>
+            <p>
+              Tier 1 = <span className="text-slate-300">min($20k, 0.75 × $24k) = $18k</span>
+              {' '}at 3.33x (Palladium). Tier 2 = remaining
+              {' '}<span className="text-slate-300">$2k</span> at 3x. No Tier 3.
+              Tiered mode would give
+              {' '}<span className="text-slate-300">$24k × 1.0x = 24,000 pts</span>,
+              which is less than Bilt Cash mode's effective bonus, so the
+              calculator picks Bilt Cash for this wallet.
             </p>
           </div>
         </InfoPopover>

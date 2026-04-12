@@ -22,6 +22,26 @@ from .currency import (
 from .multipliers import _multiplier_for_category, _pct_bonus
 from .types import CardData
 
+# Duplicated here to avoid importing from compute.py (which imports from this
+# module). Must match the value in compute.py exactly.
+FOREIGN_CAT_PREFIX = "__foreign__"
+
+
+def _category_priority_cards(
+    selected_cards: list[CardData],
+    category: str,
+) -> list[CardData]:
+    """Return the subset of ``selected_cards`` that have ``category`` pinned
+    via a manual wallet override. Returns an empty list when no card claims
+    the category. Comparison is case-insensitive and strips the foreign
+    prefix so ``__foreign__Dining`` matches a ``Dining`` priority.
+    """
+    base = category[len(FOREIGN_CAT_PREFIX):] if category.startswith(FOREIGN_CAT_PREFIX) else category
+    key = (base or "").strip().lower()
+    if not key:
+        return []
+    return [c for c in selected_cards if key in c.priority_categories]
+
 
 def _tied_cards_for_category(
     selected_cards: list[CardData],
@@ -41,9 +61,19 @@ def _tied_cards_for_category(
     SUB-priority cards compete, they use normal multiplier × CPP scoring against
     each other.
 
+    Category priority override: if any selected card pins ``category`` via its
+    ``priority_categories`` set, only those cards compete. This takes precedence
+    over the SUB priority filter so a manual pin always wins.
+
     for_balance: when True, uses default (non-overridden) CPP for scoring so that
     balance point totals are independent of wallet CPP overrides.
     """
+    # Manual category pin overrides every other filter — honoured ahead of
+    # SUB priority so a user pin always wins even during a SUB boost window.
+    pinned = _category_priority_cards(selected_cards, category)
+    if pinned:
+        return sorted(pinned, key=lambda c: c.id)
+
     # SUB priority: if any selected cards are in the priority set, only they compete
     candidates = selected_cards
     if sub_priority_card_ids:

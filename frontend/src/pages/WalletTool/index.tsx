@@ -381,6 +381,7 @@ export default function WalletToolPage() {
         <WalletCardModal
           key={walletCardModal.mode === 'add' ? 'add' : walletCardModal.walletCard.id}
           mode={walletCardModal.mode}
+          walletId={selectedWallet.id}
           walletCard={
             walletCardModal.mode === 'edit' ? walletCardModal.walletCard : undefined
           }

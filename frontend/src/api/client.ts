@@ -715,6 +715,30 @@ export const walletCardGroupSelectionApi = {
     }),
 }
 
+// ─── Wallet card category priorities ──────────────────────────────────────
+
+export interface WalletCardCategoryPriority {
+  id: number
+  wallet_id: number
+  wallet_card_id: number
+  spend_category_id: number
+  category_name: string
+}
+
+export const walletCardCategoryPriorityApi = {
+  list: (walletId: number) =>
+    request<WalletCardCategoryPriority[]>(`/wallets/${walletId}/category-priorities`),
+  set: (walletId: number, cardId: number, spendCategoryIds: number[]) =>
+    request<WalletCardCategoryPriority[]>(
+      `/wallets/${walletId}/cards/${cardId}/category-priorities`,
+      { method: 'PUT', body: JSON.stringify({ spend_category_ids: spendCategoryIds }) },
+    ),
+  delete: (walletId: number, cardId: number) =>
+    request<void>(`/wallets/${walletId}/cards/${cardId}/category-priorities`, {
+      method: 'DELETE',
+    }),
+}
+
 export const walletPortalShareApi = {
   list: (walletId: number) =>
     request<WalletPortalShare[]>(`/wallets/${walletId}/portal-shares`),

@@ -27,6 +27,7 @@ from .routers import (
     issuers,
     spend,
     travel_portals,
+    wallet_category_priorities,
     wallet_credits,
     wallet_currencies,
     wallet_groups,
@@ -99,6 +100,7 @@ app.include_router(wallet_currencies.router)
 app.include_router(wallet_credits.router)
 app.include_router(wallet_multipliers.router)
 app.include_router(wallet_groups.router)
+app.include_router(wallet_category_priorities.router)
 app.include_router(wallet_portals.router)
 app.include_router(wallet_results.router)
 app.include_router(admin.router)

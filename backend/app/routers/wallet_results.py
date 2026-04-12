@@ -17,6 +17,7 @@ from ..calculator import calc_annual_allocated_spend, compute_wallet, plan_sub_t
 from ..database import get_db
 from ..date_utils import add_months
 from ..db_helpers import (
+    apply_wallet_card_category_priorities,
     apply_wallet_card_group_selections,
     apply_wallet_card_multiplier_overrides,
     apply_wallet_card_overrides,
@@ -25,6 +26,7 @@ from ..db_helpers import (
     load_card_ids_by_portal,
     load_foreign_eligible_category_names,
     load_housing_category_names,
+    load_wallet_card_category_priorities,
     load_wallet_card_credits,
     load_wallet_card_group_selections,
     load_wallet_card_multipliers,
@@ -193,6 +195,8 @@ async def wallet_results(
     modified_cards = apply_wallet_card_multiplier_overrides(modified_cards, wallet_multiplier_rows)
     group_selections = await load_wallet_card_group_selections(db, wallet_id)
     modified_cards = apply_wallet_card_group_selections(modified_cards, group_selections)
+    category_priorities = await load_wallet_card_category_priorities(db, wallet_id)
+    modified_cards = apply_wallet_card_category_priorities(modified_cards, category_priorities)
     portal_shares = await load_wallet_portal_shares(db, wallet_id)
     if portal_shares:
         card_ids_by_portal = await load_card_ids_by_portal(db)

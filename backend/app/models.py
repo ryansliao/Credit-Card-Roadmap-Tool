@@ -675,6 +675,9 @@ class WalletCard(Base):
     group_selections: Mapped[list["WalletCardGroupSelection"]] = relationship(
         back_populates="wallet_card", cascade="all, delete-orphan"
     )
+    category_priorities: Mapped[list["WalletCardCategoryPriority"]] = relationship(
+        back_populates="wallet_card", cascade="all, delete-orphan"
+    )
     def __repr__(self) -> str:
         return f"<WalletCard wallet={self.wallet_id} card={self.card_id} added={self.added_date}>"
 
@@ -810,6 +813,46 @@ class WalletCardGroupSelection(Base):
 
     def __repr__(self) -> str:
         return f"<WalletCardGroupSelection wc={self.wallet_card_id} grp={self.multiplier_group_id} cat={self.spend_category_id}>"
+
+
+class WalletCardCategoryPriority(Base):
+    """
+    Per-wallet manual override that pins a spend category to a specific wallet
+    card. When set, the calculator forces all allocation of the pinned
+    ``spend_category`` to the named ``wallet_card`` regardless of the
+    normal multiplier × CPP scoring. Unique per ``(wallet_id, spend_category_id)``
+    so a category can be claimed by at most one card in the wallet.
+
+    ``wallet_id`` is denormalised (mirrors ``WalletCardMultiplier``) to let the
+    unique constraint span cards within the same wallet.
+    """
+
+    __tablename__ = "wallet_card_category_priorities"
+    __table_args__ = (UniqueConstraint("wallet_id", "spend_category_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    wallet_id: Mapped[int] = mapped_column(
+        ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False
+    )
+    wallet_card_id: Mapped[int] = mapped_column(
+        ForeignKey("wallet_cards.id", ondelete="CASCADE"), nullable=False
+    )
+    spend_category_id: Mapped[int] = mapped_column(
+        ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    wallet_card: Mapped["WalletCard"] = relationship(back_populates="category_priorities")
+    spend_category: Mapped["SpendCategory"] = relationship()
+
+    @property
+    def category_name(self) -> str:
+        return self.spend_category.category if self.spend_category else ""
+
+    def __repr__(self) -> str:
+        return (
+            f"<WalletCardCategoryPriority w={self.wallet_id} wc={self.wallet_card_id} "
+            f"cat={self.spend_category_id}>"
+        )
 
 
 class WalletPortalShare(Base):

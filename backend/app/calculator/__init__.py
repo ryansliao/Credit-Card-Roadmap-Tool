@@ -18,8 +18,12 @@ topical modules are:
 External code should import the public surface via ``from app.calculator
 import X``; the internal module layout is deliberately opaque.
 """
-from .allocation import calc_annual_allocated_spend, calc_annual_point_earn
-from .compute import FOREIGN_CAT_PREFIX, compute_wallet
+from .allocation import (
+    FOREIGN_CAT_PREFIX,
+    calc_annual_allocated_spend,
+    calc_annual_point_earn,
+)
+from .compute import compute_wallet
 from .sub_planner import plan_sub_targeting
 from .types import (
     CardData,
