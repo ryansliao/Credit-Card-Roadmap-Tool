@@ -7,7 +7,7 @@ export default function Home() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
       <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4 tracking-tight">
-        Credit Card Optimizer
+        CardSolver
       </h1>
       <p className="text-slate-400 text-lg sm:text-xl max-w-2xl mb-10 leading-relaxed">
         Build your ideal credit card wallet. Compare sign-up bonuses, project

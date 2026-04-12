@@ -52,8 +52,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Credit Card Optimizer API",
-    description="Credit card wallet optimizer — fees, points, credits, and SUB opportunity cost.",
+    title="CardSolver API",
+    description="CardSolver — fees, points, credits, and SUB opportunity cost.",
     version="3.0.0",
     lifespan=lifespan,
 )

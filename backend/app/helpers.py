@@ -88,6 +88,9 @@ def wc_read(wc: WalletCard, card: Card) -> WalletCardRead:
         card_id=wc.card_id,
         card_name=card.name,
         transfer_enabler=bool(getattr(card, "transfer_enabler", False)),
+        photo_slug=getattr(card, "photo_slug", None),
+        issuer_name=card.issuer.name if card.issuer else None,
+        network_tier_name=card.network_tier.name if getattr(card, "network_tier", None) else None,
         added_date=wc.added_date,
         sub_points=_inh(wc.sub_points, card.sub_points),
         sub_min_spend=_inh(wc.sub_min_spend, card.sub_min_spend),
@@ -104,6 +107,7 @@ def wc_read(wc: WalletCard, card: Card) -> WalletCardRead:
         closed_date=wc.closed_date,
         acquisition_type=cast(Literal["opened", "product_change"], wc.acquisition_type),
         panel=cast(Literal["in_wallet", "future_cards", "considering"], wc.panel),
+        credit_total=sum(c.value for c in wc.credit_overrides_rows) if wc.credit_overrides_rows else 0,
     )
 
 
@@ -128,8 +132,13 @@ def card_load_opts():
 
 
 def wallet_load_opts():
+    wc_chain = selectinload(Wallet.wallet_cards)
+    wc_card = wc_chain.selectinload(WalletCard.card)
     return [
-        selectinload(Wallet.wallet_cards).selectinload(WalletCard.card),
+        wc_chain.selectinload(WalletCard.credit_overrides_rows),
+        wc_card,
+        wc_card.selectinload(Card.issuer),
+        wc_card.selectinload(Card.network_tier),
     ]
 
 
@@ -378,7 +387,7 @@ def years_counted_from_total_months(total_months: int) -> int:
 # ---------------------------------------------------------------------------
 
 
-def wallet_to_schema(wallet) -> WalletResultSchema:
+def wallet_to_schema(wallet, photo_slugs: dict[int, str | None] | None = None) -> WalletResultSchema:
     card_schemas = [
         CardResultSchema(
             card_id=cr.card_id,
@@ -417,6 +426,7 @@ def wallet_to_schema(wallet) -> WalletResultSchema:
             accelerator_cost_points=cr.accelerator_cost_points,
             secondary_currency_net_earn=cr.secondary_currency_net_earn,
             secondary_currency_value_dollars=cr.secondary_currency_value_dollars,
+            photo_slug=photo_slugs.get(cr.card_id) if photo_slugs else None,
         )
         for cr in wallet.card_results
     ]

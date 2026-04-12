@@ -217,6 +217,7 @@ export interface Card {
   accelerator_spend_limit: number | null
   accelerator_bonus_multiplier: number | null
   accelerator_max_activations: number | null
+  photo_slug: string | null
   foreign_transaction_fee: boolean
   sub_recurrence_months: number | null
   sub_family: string | null
@@ -288,6 +289,7 @@ export interface CardResult {
   accelerator_cost_points: number
   secondary_currency_net_earn: number
   secondary_currency_value_dollars: number
+  photo_slug: string | null
 }
 
 export interface WalletResult {
@@ -334,6 +336,10 @@ export interface WalletCard {
   transfer_enabler: boolean
   acquisition_type: WalletCardAcquisitionType
   panel: WalletCardPanel
+  photo_slug: string | null
+  issuer_name: string | null
+  network_tier_name: string | null
+  credit_total: number
 }
 
 export interface Wallet {

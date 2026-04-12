@@ -245,6 +245,9 @@ class Card(Base):
         Boolean, default=False, nullable=False, server_default="false"
     )
 
+    # Filename stem for the card photo in frontend/public/photos/ (e.g. "chase_sapphire_reserve").
+    photo_slug: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+
     # True when the card charges a foreign transaction fee (typically ~3%).
     # False = no FTF (preferred for international spend).
     foreign_transaction_fee: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")

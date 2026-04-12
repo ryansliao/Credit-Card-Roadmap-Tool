@@ -165,6 +165,7 @@ class UpdateCardLibraryPayload(BaseModel):
     housing_tiered_enabled: Optional[bool] = None
     foreign_transaction_fee: Optional[bool] = None
     housing_fee_waived: Optional[bool] = None
+    photo_slug: Optional[str] = None
 
 
 class CardMultiplierSchema(BaseModel):
@@ -318,6 +319,7 @@ class CardRead(BaseModel):
     accelerator_bonus_multiplier: Optional[float] = None
     accelerator_max_activations: Optional[int] = None
     housing_tiered_enabled: bool = False
+    photo_slug: Optional[str] = None
     foreign_transaction_fee: bool = False
     housing_fee_waived: bool = False
     sub_recurrence_months: Optional[int] = None
@@ -815,6 +817,10 @@ class WalletCardRead(WalletCardBase):
     wallet_id: int
     card_name: Optional[str] = None  # populated by the API layer
     transfer_enabler: bool = False  # from library Card, populated by the API layer
+    photo_slug: Optional[str] = None  # from library Card
+    issuer_name: Optional[str] = None  # from library Card → Issuer
+    network_tier_name: Optional[str] = None  # from library Card → NetworkTier
+    credit_total: float = 0  # sum of wallet card credit override values
 
 
 class WalletBase(BaseModel):
@@ -919,6 +925,7 @@ class CardResultSchema(BaseModel):
     accelerator_cost_points: float = 0.0
     secondary_currency_net_earn: float = 0.0
     secondary_currency_value_dollars: float = 0.0
+    photo_slug: Optional[str] = None
 
 
 class WalletResultSchema(BaseModel):

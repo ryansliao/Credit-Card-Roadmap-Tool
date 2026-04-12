@@ -1,4 +1,4 @@
-# Credit Card Wallet Evaluator
+# CardSolver
 
 A personal finance tool for evaluating credit card wallet combinations. Configure your spending profile and a set of cards, then calculate expected annual value — across points/miles earned, statement credits, and sign-up bonuses — projected over a 1-5 year horizon.
 
@@ -82,15 +82,15 @@ cd frontend && npm install && npm run build && cd ..
 
 # Set Azure app settings
 az webapp config appsettings set \
-  --name credit-card-optimizer \
+  --name cardsolver \
   --resource-group credit-card-rg \
   --settings \
     DATABASE_URL="postgresql+asyncpg://..." \
-    ALLOWED_ORIGINS="https://credit-card-optimizer.azurewebsites.net"
+    ALLOWED_ORIGINS="https://cardsolver.azurewebsites.net"
 
 # Set startup command
 az webapp config set \
-  --name credit-card-optimizer \
+  --name cardsolver \
   --resource-group credit-card-rg \
   --startup-file "bash scripts/azure_startup.sh"
 
@@ -98,7 +98,7 @@ az webapp config set \
 zip -r deploy.zip . \
   --exclude ".git/*" ".venv/*" "frontend/node_modules/*" "*.pyc" "__pycache__/*"
 az webapp deploy \
-  --name credit-card-optimizer \
+  --name cardsolver \
   --resource-group credit-card-rg \
   --src-path deploy.zip --type zip
 rm deploy.zip

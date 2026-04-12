@@ -1,7 +1,8 @@
 import { Component, type ErrorInfo, type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes, Navigate, NavLink, Link } from 'react-router-dom'
-import WalletTool from './pages/WalletTool/index'
+import RoadmapTool from './pages/RoadmapTool/index'
+import MyWallets from './pages/MyWallets/index'
 import Home from './pages/Home'
 import Profile from './pages/Profile'
 import { AuthProvider, useAuth } from './auth/AuthContext'
@@ -291,21 +292,35 @@ function Nav() {
   return (
     <nav className="bg-slate-900 border-b border-slate-700 px-6 py-2.5 flex items-center gap-2">
       <Link to="/" className="text-white font-bold text-lg mr-6 hover:text-slate-200 transition-colors">
-        Credit Card Optimizer
+        CardSolver
       </Link>
       {isAuthenticated && (
-        <NavLink
-          to="/roadmap-tool"
-          className={({ isActive }) =>
-            `text-sm font-medium px-5 py-2 rounded-full transition-colors ${
-              isActive
-                ? 'text-white bg-slate-800'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            }`
-          }
-        >
-          Roadmap Tool
-        </NavLink>
+        <>
+          <NavLink
+            to="/wallets"
+            className={({ isActive }) =>
+              `text-sm font-medium px-5 py-2 rounded-full transition-colors ${
+                isActive
+                  ? 'text-white bg-slate-800'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`
+            }
+          >
+            My Wallets
+          </NavLink>
+          <NavLink
+            to="/roadmap-tool"
+            className={({ isActive }) =>
+              `text-sm font-medium px-5 py-2 rounded-full transition-colors ${
+                isActive
+                  ? 'text-white bg-slate-800'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`
+            }
+          >
+            Roadmap Tool
+          </NavLink>
+        </>
       )}
       <div className="flex-1" />
       {!isLoading && (
@@ -375,10 +390,26 @@ export default function App() {
                     <Route path="/" element={<Home />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route
+                      path="/wallets"
+                      element={
+                        <AuthGate>
+                          <MyWallets />
+                        </AuthGate>
+                      }
+                    />
+                    <Route
+                      path="/wallets/:walletId"
+                      element={
+                        <AuthGate>
+                          <MyWallets />
+                        </AuthGate>
+                      }
+                    />
+                    <Route
                       path="/roadmap-tool"
                       element={
                         <AuthGate>
-                          <WalletTool />
+                          <RoadmapTool />
                         </AuthGate>
                       }
                     />
@@ -386,7 +417,7 @@ export default function App() {
                       path="/roadmap-tool/wallets/:walletId"
                       element={
                         <AuthGate>
-                          <WalletTool />
+                          <RoadmapTool />
                         </AuthGate>
                       }
                     />

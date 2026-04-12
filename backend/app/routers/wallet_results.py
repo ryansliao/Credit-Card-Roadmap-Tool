@@ -311,6 +311,8 @@ async def wallet_results(
         foreign_eligible_categories=foreign_eligible_names,
     )
 
+    photo_slugs = {card_id: card.photo_slug for card_id, card in library_cards_by_id.items()}
+
     # Merge secondary currency points into the balance sync map
     merged_pts_by_id = dict(wallet_result.currency_pts_by_id)
     for cid, pts in wallet_result.secondary_currency_pts_by_id.items():
@@ -332,7 +334,7 @@ async def wallet_results(
         projection_years=projection_years,
         projection_months=projection_months,
         years_counted=wallet_result.years_counted,
-        wallet=wallet_to_schema(wallet_result),
+        wallet=wallet_to_schema(wallet_result, photo_slugs=photo_slugs),
     )
 
 

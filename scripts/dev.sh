@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/dev.sh — run the Credit Card Optimizer locally (API + React dev server)
+# scripts/dev.sh — run CardSolver locally (API + React dev server)
 # Usage: ./scripts/dev.sh [--port 8000]
 #
 # First-time setup (run once):

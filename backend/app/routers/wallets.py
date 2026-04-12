@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from ..auth import get_current_user
 from ..database import get_db
@@ -155,7 +156,11 @@ async def add_card_to_wallet(
     db: AsyncSession = Depends(get_db),
 ):
     await get_user_wallet(wallet_id, user, db)
-    card_result = await db.execute(select(Card).where(Card.id == payload.card_id))
+    card_result = await db.execute(
+        select(Card)
+        .where(Card.id == payload.card_id)
+        .options(selectinload(Card.issuer), selectinload(Card.network_tier))
+    )
     card = card_result.scalar_one_or_none()
     if not card:
         raise card_404(payload.card_id)
@@ -212,7 +217,7 @@ async def add_card_to_wallet(
 
     await ensure_wallet_currency_rows_for_earning_currencies(db, wallet_id)
     await db.commit()
-    await db.refresh(wc_obj)
+    await db.refresh(wc_obj, attribute_names=["credit_overrides_rows"])
     return wc_read(wc_obj, card)
 
 
@@ -248,8 +253,12 @@ async def update_wallet_card(
         setattr(wc_obj, field, value)
 
     await db.commit()
-    await db.refresh(wc_obj)
-    card_result = await db.execute(select(Card).where(Card.id == wc_obj.card_id))
+    await db.refresh(wc_obj, attribute_names=["credit_overrides_rows"])
+    card_result = await db.execute(
+        select(Card)
+        .where(Card.id == wc_obj.card_id)
+        .options(selectinload(Card.issuer), selectinload(Card.network_tier))
+    )
     card = card_result.scalar_one()
     return wc_read(wc_obj, card)
 
