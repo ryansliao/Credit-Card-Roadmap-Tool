@@ -86,7 +86,6 @@ export function WalletCardModal({
   // The presence of a key means the credit is attached to this wallet card.
   const [selectedCredits, setSelectedCredits] = useState<Record<number, number>>({})
   const [creditsExpanded, setCreditsExpanded] = useState(false)
-  const [creditPickerOpen, setCreditPickerOpen] = useState(false)
   const [creditSearch, setCreditSearch] = useState('')
   const [creditOptionsOpen, setCreditOptionsOpen] = useState<number | null>(null)
   const [groupSelectionsExpanded, setGroupSelectionsExpanded] = useState(false)
@@ -125,7 +124,6 @@ export function WalletCardModal({
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.credits() })
       setSelectedCredits((prev) => ({ ...prev, [created.id]: created.value ?? 0 }))
-      setCreditPickerOpen(false)
       setCreditSearch('')
     },
     onError: (e: Error) => setFormError(e.message),
@@ -901,9 +899,7 @@ export function WalletCardModal({
                           value={creditSearch}
                           onChange={(e) => {
                             setCreditSearch(e.target.value)
-                            setCreditPickerOpen(true)
                           }}
-                          onFocus={() => setCreditPickerOpen(true)}
                           placeholder="Search credits…"
                           className="w-full bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1.5 rounded outline-none focus:border-indigo-500"
                         />
@@ -936,7 +932,6 @@ export function WalletCardModal({
                                         ...prev,
                                         [c.id]: cardVal,
                                       }))
-                                      setCreditPickerOpen(false)
                                       setCreditSearch('')
                                     }}
                                     className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-700/60"
