@@ -12,4 +12,4 @@ npm run build
 cd ..
 
 # Install backend dependencies
-pip install -r backend/requirements.txt
+pip3 install -r backend/requirements.txt
