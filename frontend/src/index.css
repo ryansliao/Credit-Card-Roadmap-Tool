@@ -46,3 +46,13 @@ html {
 *::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+@keyframes progress-bar {
+  0%   { width: 0%; opacity: 1; }
+  60%  { width: 85%; opacity: 1; }
+  100% { width: 95%; opacity: 1; }
+}
+
+.animate-progress-bar {
+  animation: progress-bar 2s ease-out forwards;
+}

@@ -196,6 +196,8 @@ export default function RoadmapToolPage() {
     })
   }
 
+  const isBusy = updateWalletCardMutation.isPending || removeCardMutation.isPending || resultsMutation.isPending
+
   if (walletsLoading) {
     return (
       <div className="max-w-screen-xl mx-auto w-full shrink-0">
@@ -206,6 +208,11 @@ export default function RoadmapToolPage() {
 
   return (
     <div className="max-w-screen-xl mx-auto w-full flex flex-col flex-1 min-h-0">
+      {isBusy && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-0.5">
+          <div className="h-full bg-indigo-500 animate-progress-bar" />
+        </div>
+      )}
       <header className="mb-6 shrink-0 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-white">Wallet Roadmap Tool</h1>
