@@ -392,8 +392,14 @@ def _solve_segment_allocation_lp(
             bounds=bounds,
             method="highs",
         )
-    except Exception:
+    except Exception as exc:
         # Solver unavailable / failed: degrade to per-card greedy.
+        import logging
+        logging.getLogger(__name__).warning(
+            "LP solver unavailable (scipy not installed or solve failed: %s); "
+            "falling back to greedy allocation. Portal and cap accuracy may be reduced.",
+            exc,
+        )
         return _greedy_segment_fallback(
             active_cards, spend, seg_currency_ids, sub_priority_card_ids,
             seg_days, seg_start, cap_state, for_balance,

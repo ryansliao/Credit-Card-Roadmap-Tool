@@ -10,6 +10,7 @@ from typing import Optional
 
 from .allocation import (
     _effective_annual_earn_allocated,
+    _portal_blended_multiplier,
     _tied_cards_for_category,
 )
 from .currency import (
@@ -119,7 +120,7 @@ def _best_wallet_earn_rate_dollars(
             continue
         # Best dollar-earn rate for this category among other selected cards
         best_rate = max(
-            _multiplier_for_category(c, cat, spend)
+            _portal_blended_multiplier(c, cat, _multiplier_for_category(c, cat, spend))
             * _comparison_cpp(c, wallet_currency_ids)
             / 100.0
             for c in others

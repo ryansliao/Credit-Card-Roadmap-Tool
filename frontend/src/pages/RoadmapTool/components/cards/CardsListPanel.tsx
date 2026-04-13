@@ -140,14 +140,14 @@ function CardItem({
             )}
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            {wc.acquisition_type === 'product_change' ? 'PC Date:' : 'Opening Date: '} {wc.added_date}
+            {wc.acquisition_type === 'product_change' ? 'Product Changed ' : 'Opened '} {wc.added_date}
           </p>
           {isClosed && wc.closed_date && (
-            <p className="text-xs text-slate-500 mt-0.5">Closed Date: {wc.closed_date}</p>
+            <p className="text-xs text-slate-500 mt-0.5">Closed {wc.closed_date}</p>
           )}
           {isFuture && wc.sub_projected_earn_date && (
             <p className="text-xs text-slate-500 mt-0.5">
-              SUB Projected: {wc.sub_projected_earn_date}
+              SUB Earned {wc.sub_projected_earn_date}
             </p>
           )}
         </div>

@@ -27,6 +27,28 @@ from .types import CardData
 FOREIGN_CAT_PREFIX = "__foreign__"
 
 
+def _portal_blended_multiplier(card: CardData, category: str, base_mult: float) -> float:
+    """Return the effective multiplier for *category* on *card*, blending in
+    any portal premium according to ``card.portal_share``.
+
+    When the card has no portal share or the category has no portal premium,
+    returns ``base_mult`` unchanged.  Otherwise the result is::
+
+        share * portal_rate + (1 - share) * base_mult
+
+    where ``portal_rate`` is either a replacement or additive premium
+    depending on the ``is_additive`` flag on the portal multiplier row.
+    """
+    if card.portal_share <= 0.0 or not card.portal_premiums:
+        return base_mult
+    cat_lower = category.strip().lower()
+    for cl, premium, is_add in card.portal_premiums:
+        if cl == cat_lower:
+            portal_rate = (base_mult + premium) if is_add else premium
+            return card.portal_share * portal_rate + (1.0 - card.portal_share) * base_mult
+    return base_mult
+
+
 def _category_priority_cards(
     selected_cards: list[CardData],
     category: str,
@@ -84,6 +106,7 @@ def _tied_cards_for_category(
     scored: list[tuple[float, CardData]] = []
     for c in candidates:
         m = _multiplier_for_category(c, category, spend)
+        m = _portal_blended_multiplier(c, category, m)
         cpp = _comparison_cpp(c, wallet_currency_ids, for_balance=for_balance)
         # Secondary currency adds a flat value per dollar to the comparison score.
         # This ensures cards earning a secondary currency (e.g. Bilt Cash → Bilt Points)
@@ -105,9 +128,10 @@ def calc_annual_point_earn(
     """Total points earned per year from category spend plus any annual bonus.
     Uses effective multipliers (top-N applied for groups) and All Other fallback.
     Includes recurring percentage bonus but NOT first-year-only percentage bonus.
+    Portal premiums are blended in according to ``card.portal_share``.
     """
     cat_pts = sum(
-        s * _multiplier_for_category(card, cat, spend)
+        s * _portal_blended_multiplier(card, cat, _multiplier_for_category(card, cat, spend))
         for cat, s in spend.items()
         if s > 0
     )
@@ -144,6 +168,7 @@ def calc_annual_point_earn_allocated(
             continue
         n = len(tied)
         m = _multiplier_for_category(card, cat, spend)
+        m = _portal_blended_multiplier(card, cat, m)
         cat_pts += (s / n) * m
     return float(card.annual_bonus) + cat_pts + _pct_bonus(card, cat_pts)
 
@@ -202,6 +227,7 @@ def calc_category_earn_breakdown(
             if s <= 0:
                 continue
             m = _multiplier_for_category(card, cat, spend)
+            m = _portal_blended_multiplier(card, cat, m)
             pts = s * m
             if pts > 0:
                 result.append((cat, round(pts, 2)))
@@ -214,6 +240,7 @@ def calc_category_earn_breakdown(
                 continue
             n = len(tied)
             m = _multiplier_for_category(card, cat, spend)
+            m = _portal_blended_multiplier(card, cat, m)
             pts = (s / n) * m
             if pts > 0:
                 result.append((cat, round(pts, 2)))
