@@ -12,11 +12,19 @@ from sqlalchemy.orm import DeclarativeBase
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "")
-if not DATABASE_URL:
+_app_env = os.getenv("APP_ENV", "production")
+_local_url = os.getenv("LOCAL_DATABASE_URL", "")
+_prod_url = os.getenv("DATABASE_URL", "")
+
+if _app_env == "development" and _local_url:
+    DATABASE_URL = _local_url
+    logger.info("Using local database (APP_ENV=development)")
+elif _prod_url:
+    DATABASE_URL = _prod_url
+    logger.info("Using production database")
+else:
     raise ValueError(
-        "DATABASE_URL environment variable is not set. "
-        "Add it to your .env file, e.g.: "
+        "No database URL configured. Set DATABASE_URL in your .env file, e.g.: "
         "DATABASE_URL=mssql+aioodbc://sa:password@localhost:1433/creditcards"
         "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
     )
