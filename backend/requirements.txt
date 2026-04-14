@@ -8,11 +8,11 @@ python-multipart>=0.0.9        # Required by FastAPI for file upload / form data
 
 # ── Database ──────────────────────────────────────────────────────────────────
 sqlalchemy>=2.0.30             # ORM + async session management
-asyncpg>=0.29.0                # Async PostgreSQL driver (used by SQLAlchemy)
+aioodbc>=0.5.0                 # Async SQL Server driver (wraps pyodbc for SQLAlchemy)
+pyodbc>=5.1.0                  # ODBC driver for SQL Server — requires ODBC Driver 18
+                               # installed on the host (see Dockerfile / README)
 greenlet>=3.0.0                # Required by SQLAlchemy async internals
 alembic>=1.13.1                # Schema migrations
-psycopg2-binary>=2.9.9         # Sync PostgreSQL driver — required by Alembic CLI
-                               # and useful for one-off scripts / data loads
 
 # ── Data validation & settings ────────────────────────────────────────────────
 pydantic>=2.7.0                # Request/response schema validation
@@ -41,5 +41,6 @@ pytest>=8.0                    # Snapshot + unit tests for calculator and helper
 pytest-asyncio>=0.23           # Async fixtures for DB-backed snapshot tests
 
 # ── Azure ─────────────────────────────────────────────────────────────────────
-azure-identity>=1.17.0         # Managed Identity + service principal auth;
-                               # enables passwordless connection to Azure PostgreSQL
+# For Azure SQL with Managed Identity, configure the ODBC connection string
+# directly in DATABASE_URL (e.g. Authentication=ActiveDirectoryMsi) rather than
+# fetching tokens in Python.  azure-identity is no longer a runtime dependency.

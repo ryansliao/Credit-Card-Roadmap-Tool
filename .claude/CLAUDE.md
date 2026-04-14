@@ -331,13 +331,16 @@ not a dedicated page.
 
 ## Known Pitfalls
 
-**SQL migrations must be a single statement** — the migration runner uses
-`conn.execute(text(sql_file.read_text()))` with asyncpg, which cannot
-execute multiple statements in one prepared statement call. Always wrap
-multi-statement migrations in a `DO $$ BEGIN ... END $$;` block so asyncpg
-sees a single statement. Guard with
-`IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE …)` so the
-migration can be re-applied safely.
+**SQL migrations are T-SQL and use GO as a batch separator** — the migration
+runner (`database._execute_migration_file`) splits each `.sql` file on `GO`
+(its own line, case-insensitive) and submits each batch separately via
+`conn.execute(text(batch))`. `CREATE TRIGGER` / `CREATE PROCEDURE` / `CREATE
+VIEW` must be the first statement in a batch; wrap them in `EXEC(N'...')` if
+they need to be conditional (i.e. inside an `IF NOT EXISTS` block). Guard
+all DDL with `IF NOT EXISTS (SELECT 1 FROM sys.columns / sys.objects WHERE
+…)` so migrations are idempotent and can be re-applied safely.  Use
+`sys.columns`, `sys.objects`, `sys.indexes`, `sys.triggers`, and
+`sys.key_constraints` — not `pg_*` catalog tables.
 
 **No startup seed code** — all reference data (cards, issuers, currencies,
 spend categories, multipliers, credits, rotating history, travel portals,

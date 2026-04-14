@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -15,36 +16,20 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 if not DATABASE_URL:
     raise ValueError(
         "DATABASE_URL environment variable is not set. "
-        "Add it to your .env file, e.g.: DATABASE_URL=postgresql+asyncpg://user@localhost/dbname"
+        "Add it to your .env file, e.g.: "
+        "DATABASE_URL=mssql+aioodbc://sa:password@localhost:1433/creditcards"
+        "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
     )
 
-# Normalise scheme — asyncpg requires postgresql+asyncpg://
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
-elif DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in DATABASE_URL:
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+# Normalise scheme — aioodbc requires mssql+aioodbc://
+if DATABASE_URL.startswith("mssql://"):
+    DATABASE_URL = DATABASE_URL.replace("mssql://", "mssql+aioodbc://", 1)
+elif DATABASE_URL.startswith("sqlserver://"):
+    DATABASE_URL = DATABASE_URL.replace("sqlserver://", "mssql+aioodbc://", 1)
+elif DATABASE_URL.startswith("mssql+pyodbc://"):
+    DATABASE_URL = DATABASE_URL.replace("mssql+pyodbc://", "mssql+aioodbc://", 1)
 
-_is_azure = "azure.com" in DATABASE_URL
-_connect_args: dict = {}
-
-if _is_azure:
-    _connect_args["ssl"] = "require"
-
-    # If no password is in the URL, use Azure Managed Identity to fetch a token.
-    # This allows the App Service to connect to Azure PostgreSQL without storing
-    # a password — the platform identity is used instead.
-    _no_password = ":@" in DATABASE_URL or DATABASE_URL.endswith("@")
-    if _no_password or not os.getenv("PGPASSWORD"):
-        try:
-            from azure.identity import DefaultAzureCredential
-
-            _credential = DefaultAzureCredential()
-            _token = _credential.get_token("https://ossrdbms-aad.database.windows.net/.default")
-            _connect_args["password"] = _token.token
-        except Exception as e:
-            logger.warning("Azure Managed Identity token fetch failed, falling back to password auth: %s", e)
-
-engine = create_async_engine(DATABASE_URL, echo=False, future=True, connect_args=_connect_args)
+engine = create_async_engine(DATABASE_URL, echo=False, future=True)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -75,16 +60,22 @@ async def create_tables() -> None:
 async def _run_migrations() -> None:
     """Run any pending SQL migration files from backend/migrations/ in order.
 
-    Each .sql file is a single SQL statement (or a PL/pgSQL DO block). Applied
-    migrations are recorded in the schema_migrations table so they are never
-    re-executed on subsequent startups.
+    Each .sql file is T-SQL and may use GO on its own line as a batch separator.
+    Applied migrations are recorded in the schema_migrations table so they are
+    never re-executed on subsequent startups.
     """
     async with engine.begin() as conn:
         await conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS schema_migrations (
-                id         TEXT        PRIMARY KEY,
-                applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.objects
+                WHERE object_id = OBJECT_ID(N'schema_migrations') AND type = 'U'
             )
+            BEGIN
+                CREATE TABLE schema_migrations (
+                    id         NVARCHAR(255)     PRIMARY KEY,
+                    applied_at DATETIMEOFFSET(7) NOT NULL DEFAULT GETUTCDATE()
+                )
+            END
         """))
 
     if not _MIGRATIONS_DIR.exists():
@@ -102,9 +93,23 @@ async def _run_migrations() -> None:
                 continue
 
             logger.info("Applying migration: %s", migration_id)
-            await conn.execute(text(sql_file.read_text()))
+            await _execute_migration_file(conn, sql_file.read_text())
             await conn.execute(
                 text("INSERT INTO schema_migrations (id) VALUES (:id)"),
                 {"id": migration_id},
             )
             logger.info("Applied migration: %s", migration_id)
+
+
+async def _execute_migration_file(conn, sql_text: str) -> None:
+    """Execute a T-SQL migration file, splitting on GO batch separators.
+
+    GO must appear on its own line (case-insensitive).  Each resulting batch
+    is submitted to SQL Server as a separate statement within the same
+    transaction so the whole migration rolls back as a unit on failure.
+    """
+    batches = re.split(r"^\s*GO\s*$", sql_text, flags=re.MULTILINE | re.IGNORECASE)
+    for batch in batches:
+        batch = batch.strip()
+        if batch:
+            await conn.execute(text(batch))

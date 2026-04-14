@@ -129,7 +129,7 @@ class Currency(Base):
     # Optional upgrade pointer: if set, this currency converts to the target when
     # any wallet card earns the target currency directly.
     converts_to_currency_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("currencies.id", ondelete="RESTRICT"), nullable=True
+        ForeignKey("currencies.id", ondelete="NO ACTION"), nullable=True
     )
     # When converting to target: 1 unit of this currency = converts_at_rate units of target (e.g. 0.7 for 1:0.7)
     converts_at_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -174,14 +174,14 @@ class Card(Base):
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
 
     issuer_id: Mapped[int] = mapped_column(
-        ForeignKey("issuers.id", ondelete="RESTRICT"), nullable=False
+        ForeignKey("issuers.id", ondelete="NO ACTION"), nullable=False
     )
     co_brand_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("co_brands.id", ondelete="SET NULL"), nullable=True
     )
     # Default currency for this card (may be cash)
     currency_id: Mapped[int] = mapped_column(
-        ForeignKey("currencies.id", ondelete="RESTRICT"), nullable=False
+        ForeignKey("currencies.id", ondelete="NO ACTION"), nullable=False
     )
 
     annual_fee: Mapped[float] = mapped_column(Float, default=0)
@@ -401,7 +401,7 @@ class CardCategoryMultiplier(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     card_id: Mapped[int] = mapped_column(ForeignKey("cards.id", ondelete="CASCADE"))
     category_id: Mapped[int] = mapped_column(
-        ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=False
+        ForeignKey("spend_categories.id", ondelete="NO ACTION"), nullable=False
     )
     is_portal: Mapped[bool] = mapped_column(Boolean, default=False)
     is_additive: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -409,7 +409,10 @@ class CardCategoryMultiplier(Base):
     cap_per_billing_cycle: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cap_period_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     multiplier_group_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("card_multiplier_groups.id", ondelete="CASCADE"), nullable=True
+        # NO ACTION: card_category_multipliers is cleaned up via card_id CASCADE when
+        # a card is deleted, so this secondary path from card_multiplier_groups must
+        # be NO ACTION to avoid a SQL Server multiple-cascade-paths error.
+        ForeignKey("card_multiplier_groups.id", ondelete="NO ACTION"), nullable=True
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -449,7 +452,7 @@ class RotatingCategory(Base):
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     quarter: Mapped[int] = mapped_column(Integer, nullable=False)
     spend_category_id: Mapped[int] = mapped_column(
-        ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=False
+        ForeignKey("spend_categories.id", ondelete="NO ACTION"), nullable=False
     )
 
     card: Mapped["Card"] = relationship(back_populates="rotating_categories")
@@ -543,7 +546,7 @@ class SpendCategory(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     category: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     parent_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=True
+        ForeignKey("spend_categories.id", ondelete="NO ACTION"), nullable=True
     )
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
     # True for housing categories (Rent, Mortgage) — used to compute secondary
@@ -822,10 +825,13 @@ class WalletCardGroupSelection(Base):
         ForeignKey("wallet_cards.id", ondelete="CASCADE"), nullable=False
     )
     multiplier_group_id: Mapped[int] = mapped_column(
-        ForeignKey("card_multiplier_groups.id", ondelete="CASCADE"), nullable=False
+        # NO ACTION: wallet_card_group_selections is cleaned up via wallet_card_id
+        # CASCADE, and cards → card_multiplier_groups → here would form a second
+        # cascade path from cards. NO ACTION breaks that cycle.
+        ForeignKey("card_multiplier_groups.id", ondelete="NO ACTION"), nullable=False
     )
     spend_category_id: Mapped[int] = mapped_column(
-        ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=False
+        ForeignKey("spend_categories.id", ondelete="NO ACTION"), nullable=False
     )
 
     wallet_card: Mapped["WalletCard"] = relationship(back_populates="group_selections")
@@ -857,13 +863,16 @@ class WalletCardCategoryPriority(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     wallet_id: Mapped[int] = mapped_column(
-        ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False
+        # NO ACTION (not CASCADE) to avoid a multiple-cascade-path error in SQL
+        # Server: wallet_cards already cascades from wallets, so this table is
+        # cleaned up transitively via wallet_card_id when a wallet is deleted.
+        ForeignKey("wallets.id", ondelete="NO ACTION"), nullable=False
     )
     wallet_card_id: Mapped[int] = mapped_column(
         ForeignKey("wallet_cards.id", ondelete="CASCADE"), nullable=False
     )
     spend_category_id: Mapped[int] = mapped_column(
-        ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=False
+        ForeignKey("spend_categories.id", ondelete="NO ACTION"), nullable=False
     )
 
     wallet_card: Mapped["WalletCard"] = relationship(back_populates="category_priorities")
@@ -992,7 +1001,7 @@ class WalletSpendItem(Base):
         ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False
     )
     spend_category_id: Mapped[int] = mapped_column(
-        ForeignKey("spend_categories.id", ondelete="RESTRICT"), nullable=False
+        ForeignKey("spend_categories.id", ondelete="NO ACTION"), nullable=False
     )
     amount: Mapped[float] = mapped_column(Float, default=0.0)
 
