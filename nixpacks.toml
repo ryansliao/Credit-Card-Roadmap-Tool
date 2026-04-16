@@ -1,8 +1,0 @@
-[phases.setup]
-nixPkgs = ["python311", "python311Packages.pip"]
-
-[phases.build]
-cmds = ["bash scripts/railway_build.sh"]
-
-[start]
-cmd = "bash scripts/railway_start.sh"

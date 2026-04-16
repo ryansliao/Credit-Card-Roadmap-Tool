@@ -8,10 +8,21 @@ build/
 .eggs/
 backend/migrations/
 
-# Frontend build output
-frontend/dist/
-frontend/node_modules/
+# Node / frontend
 node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/logs/
+frontend/**/*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
 # Environment & secrets
 .env
@@ -33,9 +44,15 @@ Thumbs.db
 
 # IDE
 .cursor/
-.vscode/
-.idea/
 .claude/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # Alembic
 alembic/__pycache__/
