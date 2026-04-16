@@ -1,15 +1,18 @@
 """Wallet card credit override endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..helpers import get_user_wallet
-from ..models import Credit, User, WalletCard, WalletCardCredit
+from ..models import User
 from ..schemas import WalletCardCreditRead, WalletCardCreditUpsert
+from ..services import (
+    WalletService,
+    WalletCardOverrideService,
+    get_wallet_service,
+    get_wallet_card_override_service,
+)
 
 router = APIRouter(tags=["wallet-credits"])
 
@@ -22,27 +25,13 @@ async def list_wallet_card_credits(
     wallet_id: int,
     card_id: int,
     user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    override_service: WalletCardOverrideService = Depends(get_wallet_card_override_service),
 ):
     """List credit overrides for a card in this wallet."""
-    await get_user_wallet(wallet_id, user, db)
-    wc_result = await db.execute(
-        select(WalletCard).where(
-            WalletCard.wallet_id == wallet_id,
-            WalletCard.card_id == card_id,
-        )
-    )
-    wc = wc_result.scalar_one_or_none()
-    if not wc:
-        raise HTTPException(status_code=404, detail="Wallet card not found")
-
-    result = await db.execute(
-        select(WalletCardCredit)
-        .options(selectinload(WalletCardCredit.library_credit))
-        .where(WalletCardCredit.wallet_card_id == wc.id)
-        .order_by(WalletCardCredit.library_credit_id)
-    )
-    return list(result.scalars().all())
+    await wallet_service.get_user_wallet(wallet_id, user)
+    wc = await override_service.get_wallet_card_or_404(wallet_id, card_id)
+    return await override_service.list_credits(wc.id)
 
 
 @router.put(
@@ -56,53 +45,16 @@ async def upsert_wallet_card_credit(
     payload: WalletCardCreditUpsert,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    override_service: WalletCardOverrideService = Depends(get_wallet_card_override_service),
 ):
     """Attach a standardized credit to this wallet card with a user-set value."""
-    await get_user_wallet(wallet_id, user, db)
-    wc_result = await db.execute(
-        select(WalletCard).where(
-            WalletCard.wallet_id == wallet_id,
-            WalletCard.card_id == card_id,
-        )
-    )
-    wc = wc_result.scalar_one_or_none()
-    if not wc:
-        raise HTTPException(status_code=404, detail="Wallet card not found")
-
-    lib_result = await db.execute(
-        select(Credit).where(Credit.id == library_credit_id)
-    )
-    lib_credit = lib_result.scalar_one_or_none()
-    if not lib_credit:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Credit id={library_credit_id} not found in library",
-        )
-
-    existing = await db.execute(
-        select(WalletCardCredit).where(
-            WalletCardCredit.wallet_card_id == wc.id,
-            WalletCardCredit.library_credit_id == library_credit_id,
-        )
-    )
-    row = existing.scalar_one_or_none()
-    if row:
-        row.value = payload.value
-    else:
-        row = WalletCardCredit(
-            wallet_card_id=wc.id,
-            library_credit_id=library_credit_id,
-            value=payload.value,
-        )
-        db.add(row)
+    await wallet_service.get_user_wallet(wallet_id, user)
+    wc = await override_service.get_wallet_card_or_404(wallet_id, card_id)
+    row = await override_service.upsert_credit(wc.id, library_credit_id, payload.value)
     await db.commit()
     await db.refresh(row)
-    res = await db.execute(
-        select(WalletCardCredit)
-        .options(selectinload(WalletCardCredit.library_credit))
-        .where(WalletCardCredit.id == row.id)
-    )
-    return res.scalar_one()
+    return await override_service.get_credit_with_library(row.id)
 
 
 @router.delete(
@@ -115,27 +67,11 @@ async def delete_wallet_card_credit(
     library_credit_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    override_service: WalletCardOverrideService = Depends(get_wallet_card_override_service),
 ):
     """Detach a standardized credit from this wallet card."""
-    await get_user_wallet(wallet_id, user, db)
-    wc_result = await db.execute(
-        select(WalletCard).where(
-            WalletCard.wallet_id == wallet_id,
-            WalletCard.card_id == card_id,
-        )
-    )
-    wc = wc_result.scalar_one_or_none()
-    if not wc:
-        raise HTTPException(status_code=404, detail="Wallet card not found")
-
-    result = await db.execute(
-        select(WalletCardCredit).where(
-            WalletCardCredit.wallet_card_id == wc.id,
-            WalletCardCredit.library_credit_id == library_credit_id,
-        )
-    )
-    row = result.scalar_one_or_none()
-    if not row:
-        raise HTTPException(status_code=404, detail="No credit override found")
-    await db.delete(row)
+    await wallet_service.get_user_wallet(wallet_id, user)
+    wc = await override_service.get_wallet_card_or_404(wallet_id, card_id)
+    await override_service.delete_credit(wc.id, library_credit_id)
     await db.commit()

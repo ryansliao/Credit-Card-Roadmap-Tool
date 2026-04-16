@@ -1,8 +1,11 @@
-"""
-Runtime DB -> calculator projection helpers.
+"""Runtime DB -> calculator projection helpers.
 
-These helpers do not own reference data or seed content; they only read the
-current database state produced by the workbook sync and the running app.
+This module contains:
+- ``load_*`` functions: DB loading (DEPRECATED - use CalculatorDataService)
+- ``apply_*`` functions: Pure transforms that don't access DB (still used)
+
+The ``load_*`` functions have been migrated to ``CalculatorDataService``.
+Use the service instead of calling these functions directly.
 """
 
 from __future__ import annotations
@@ -421,9 +424,13 @@ async def load_foreign_eligible_category_names(session: AsyncSession) -> set[str
 
 
 async def ensure_all_other_wallet_spend_item(session: AsyncSession, wallet_id: int) -> None:
-    """
-    Ensure the wallet has a WalletSpendItem for the 'All Other' SpendCategory.
+    """Ensure the wallet has a WalletSpendItem for the 'All Other' SpendCategory.
+
     Creates one with amount=0 if missing.
+
+    .. deprecated::
+        Use WalletSpendService.ensure_all_other_item() instead.
+        This function is kept for backward compatibility.
     """
     wallet_row = await session.execute(select(Wallet).where(Wallet.id == wallet_id))
     if wallet_row.scalar_one_or_none() is None:

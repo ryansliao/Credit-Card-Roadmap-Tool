@@ -1,15 +1,18 @@
 """Wallet card multiplier override endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..helpers import card_404, get_user_wallet
-from ..models import Card, SpendCategory, User, Wallet, WalletCardMultiplier
+from ..models import User
 from ..schemas import WalletCardMultiplierRead, WalletCardMultiplierUpsert
+from ..services import (
+    WalletService,
+    WalletCardOverrideService,
+    get_wallet_service,
+    get_wallet_card_override_service,
+)
 
 router = APIRouter(tags=["wallet-multipliers"])
 
@@ -21,18 +24,12 @@ router = APIRouter(tags=["wallet-multipliers"])
 async def list_wallet_card_multipliers(
     wallet_id: int,
     user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    override_service: WalletCardOverrideService = Depends(get_wallet_card_override_service),
 ):
     """List all wallet-level multiplier overrides."""
-    await get_user_wallet(wallet_id, user, db)
-
-    result = await db.execute(
-        select(WalletCardMultiplier)
-        .options(selectinload(WalletCardMultiplier.spend_category))
-        .where(WalletCardMultiplier.wallet_id == wallet_id)
-        .order_by(WalletCardMultiplier.card_id, WalletCardMultiplier.category_id)
-    )
-    return list(result.scalars().all())
+    await wallet_service.get_user_wallet(wallet_id, user)
+    return await override_service.list_multipliers(wallet_id)
 
 
 @router.put(
@@ -46,42 +43,17 @@ async def upsert_wallet_card_multiplier(
     payload: WalletCardMultiplierUpsert,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    override_service: WalletCardOverrideService = Depends(get_wallet_card_override_service),
 ):
     """Set or update a multiplier override for a card/category in this wallet."""
-    await get_user_wallet(wallet_id, user, db)
-    card_result = await db.execute(select(Card).where(Card.id == card_id))
-    if not card_result.scalar_one_or_none():
-        raise card_404(card_id)
-    sc_result = await db.execute(select(SpendCategory).where(SpendCategory.id == category_id))
-    if not sc_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail=f"SpendCategory id={category_id} not found")
-
-    existing = await db.execute(
-        select(WalletCardMultiplier).where(
-            WalletCardMultiplier.wallet_id == wallet_id,
-            WalletCardMultiplier.card_id == card_id,
-            WalletCardMultiplier.category_id == category_id,
-        )
+    await wallet_service.get_user_wallet(wallet_id, user)
+    row = await override_service.upsert_multiplier(
+        wallet_id, card_id, category_id, payload.multiplier
     )
-    row = existing.scalar_one_or_none()
-    if row:
-        row.multiplier = payload.multiplier
-    else:
-        row = WalletCardMultiplier(
-            wallet_id=wallet_id,
-            card_id=card_id,
-            category_id=category_id,
-            multiplier=payload.multiplier,
-        )
-        db.add(row)
     await db.commit()
     await db.refresh(row)
-    res = await db.execute(
-        select(WalletCardMultiplier)
-        .options(selectinload(WalletCardMultiplier.spend_category))
-        .where(WalletCardMultiplier.id == row.id)
-    )
-    return res.scalar_one()
+    return await override_service.get_multiplier_with_category(row.id)
 
 
 @router.delete(
@@ -94,18 +66,10 @@ async def delete_wallet_card_multiplier(
     category_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    override_service: WalletCardOverrideService = Depends(get_wallet_card_override_service),
 ):
     """Remove a multiplier override (reverts to library value)."""
-    await get_user_wallet(wallet_id, user, db)
-    result = await db.execute(
-        select(WalletCardMultiplier).where(
-            WalletCardMultiplier.wallet_id == wallet_id,
-            WalletCardMultiplier.card_id == card_id,
-            WalletCardMultiplier.category_id == category_id,
-        )
-    )
-    row = result.scalar_one_or_none()
-    if not row:
-        raise HTTPException(status_code=404, detail="No multiplier override found")
-    await db.delete(row)
+    await wallet_service.get_user_wallet(wallet_id, user)
+    await override_service.delete_multiplier(wallet_id, card_id, category_id)
     await db.commit()

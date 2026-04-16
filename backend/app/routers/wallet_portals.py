@@ -1,15 +1,18 @@
 """Wallet portal share endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..helpers import get_user_wallet
-from ..models import TravelPortal, User, Wallet, WalletPortalShare
+from ..models import User
 from ..schemas import WalletPortalSharePayload, WalletPortalShareRead
+from ..services import (
+    WalletService,
+    WalletPortalService,
+    get_wallet_service,
+    get_wallet_portal_service,
+)
 
 router = APIRouter()
 
@@ -21,16 +24,11 @@ router = APIRouter()
 async def list_wallet_portal_shares(
     wallet_id: int,
     user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    portal_service: WalletPortalService = Depends(get_wallet_portal_service),
 ):
-    await get_user_wallet(wallet_id, user, db)
-    result = await db.execute(
-        select(WalletPortalShare)
-        .options(selectinload(WalletPortalShare.travel_portal))
-        .where(WalletPortalShare.wallet_id == wallet_id)
-        .order_by(WalletPortalShare.travel_portal_id)
-    )
-    return result.scalars().all()
+    await wallet_service.get_user_wallet(wallet_id, user)
+    return await portal_service.list_for_wallet(wallet_id)
 
 
 @router.put(
@@ -42,39 +40,15 @@ async def upsert_wallet_portal_share(
     payload: WalletPortalSharePayload,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    portal_service: WalletPortalService = Depends(get_wallet_portal_service),
 ):
-    await get_user_wallet(wallet_id, user, db)
-    portal_row = await db.execute(
-        select(TravelPortal).where(TravelPortal.id == payload.travel_portal_id)
+    await wallet_service.get_user_wallet(wallet_id, user)
+    row = await portal_service.upsert_share(
+        wallet_id, payload.travel_portal_id, payload.share
     )
-    if not portal_row.scalar_one_or_none():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Travel portal id={payload.travel_portal_id} not found",
-        )
-    existing = await db.execute(
-        select(WalletPortalShare).where(
-            WalletPortalShare.wallet_id == wallet_id,
-            WalletPortalShare.travel_portal_id == payload.travel_portal_id,
-        )
-    )
-    row = existing.scalar_one_or_none()
-    if row is None:
-        row = WalletPortalShare(
-            wallet_id=wallet_id,
-            travel_portal_id=payload.travel_portal_id,
-            share=payload.share,
-        )
-        db.add(row)
-    else:
-        row.share = payload.share
     await db.commit()
-    result = await db.execute(
-        select(WalletPortalShare)
-        .options(selectinload(WalletPortalShare.travel_portal))
-        .where(WalletPortalShare.id == row.id)
-    )
-    return result.scalar_one()
+    return await portal_service.get_share_with_portal(row.id)
 
 
 @router.delete(
@@ -86,16 +60,9 @@ async def delete_wallet_portal_share(
     travel_portal_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    portal_service: WalletPortalService = Depends(get_wallet_portal_service),
 ):
-    await get_user_wallet(wallet_id, user, db)
-    result = await db.execute(
-        select(WalletPortalShare).where(
-            WalletPortalShare.wallet_id == wallet_id,
-            WalletPortalShare.travel_portal_id == travel_portal_id,
-        )
-    )
-    row = result.scalar_one_or_none()
-    if not row:
-        raise HTTPException(status_code=404, detail="Portal share not found")
-    await db.delete(row)
+    await wallet_service.get_user_wallet(wallet_id, user)
+    await portal_service.delete_share(wallet_id, travel_portal_id)
     await db.commit()

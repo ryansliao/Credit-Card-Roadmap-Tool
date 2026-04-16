@@ -1,25 +1,16 @@
 """Currency endpoints."""
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from ..database import get_db
-from ..models import Currency
 from ..schemas import CurrencyRead
+from ..services import CurrencyService, get_currency_service
 
 router = APIRouter(tags=["currencies"])
 
 
 @router.get("/currencies", response_model=list[CurrencyRead])
-async def list_currencies(db: AsyncSession = Depends(get_db)):
+async def list_currencies(
+    currency_service: CurrencyService = Depends(get_currency_service),
+):
     """List all currencies."""
-    result = await db.execute(
-        select(Currency)
-        .options(
-            selectinload(Currency.converts_to_currency),
-        )
-        .order_by(Currency.name)
-    )
-    return result.scalars().all()
+    return await currency_service.list_all_with_conversions()

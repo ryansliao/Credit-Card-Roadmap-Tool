@@ -1,20 +1,11 @@
 """Wallet currency balance and CPP override endpoints."""
 
-from datetime import date
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..helpers import (
-    effective_earn_currency_ids_for_wallet,
-    ensure_wallet_currency_rows_for_earning_currencies,
-    get_user_wallet,
-)
-from ..models import Currency, User, Wallet, WalletCurrencyBalance, WalletCurrencyCpp
+from ..models import User
 from ..schemas import (
     CurrencyRead,
     WalletCurrencyBalanceRead,
@@ -22,6 +13,12 @@ from ..schemas import (
     WalletCurrencyInitialSet,
     WalletCurrencyTrackCreate,
     WalletSettingsCurrencyIds,
+)
+from ..services import (
+    WalletService,
+    WalletCurrencyService,
+    get_wallet_service,
+    get_wallet_currency_service,
 )
 
 router = APIRouter(tags=["wallets"])
@@ -35,18 +32,14 @@ async def list_wallet_currency_balances(
     wallet_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
 ):
     """Currencies you track or that have projection earn from the last calculate."""
-    await get_user_wallet(wallet_id, user, db)
-    await ensure_wallet_currency_rows_for_earning_currencies(db, wallet_id)
+    await wallet_service.get_user_wallet(wallet_id, user)
+    await currency_service.ensure_earning_currency_rows(wallet_id)
     await db.commit()
-    result = await db.execute(
-        select(WalletCurrencyBalance)
-        .options(selectinload(WalletCurrencyBalance.currency))
-        .where(WalletCurrencyBalance.wallet_id == wallet_id)
-        .order_by(WalletCurrencyBalance.currency_id)
-    )
-    return list(result.scalars().all())
+    return await currency_service.list_balances(wallet_id)
 
 
 @router.get(
@@ -56,21 +49,16 @@ async def list_wallet_currency_balances(
 async def wallet_settings_currency_ids(
     wallet_id: int,
     user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
 ):
     """
     IDs for currencies shown in wallet settings: earned by cards in this wallet,
     or explicitly user-tracked (added manually).
     """
-    await get_user_wallet(wallet_id, user, db)
-    earn = await effective_earn_currency_ids_for_wallet(db, wallet_id)
-    tr = await db.execute(
-        select(WalletCurrencyBalance.currency_id).where(
-            WalletCurrencyBalance.wallet_id == wallet_id,
-            WalletCurrencyBalance.user_tracked.is_(True),
-        )
-    )
-    tracked = set(tr.scalars().all())
+    await wallet_service.get_user_wallet(wallet_id, user)
+    earn = await currency_service.effective_earn_currency_ids(wallet_id)
+    tracked = await currency_service.get_tracked_currency_ids(wallet_id)
     merged = earn | tracked
     return WalletSettingsCurrencyIds(currency_ids=sorted(merged))
 
@@ -85,47 +73,19 @@ async def track_wallet_currency_balance(
     payload: WalletCurrencyTrackCreate,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
 ):
     """Start tracking a currency for this wallet (optional starting balance)."""
-    await get_user_wallet(wallet_id, user, db)
-    currency_result = await db.execute(
-        select(Currency).where(Currency.id == payload.currency_id)
+    await wallet_service.get_user_wallet(wallet_id, user)
+    row = await currency_service.track_currency(
+        wallet_id=wallet_id,
+        currency_id=payload.currency_id,
+        initial_balance=payload.initial_balance,
     )
-    if not currency_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail=f"Currency id={payload.currency_id} not found")
-
-    existing = await db.execute(
-        select(WalletCurrencyBalance).where(
-            WalletCurrencyBalance.wallet_id == wallet_id,
-            WalletCurrencyBalance.currency_id == payload.currency_id,
-        )
-    )
-    row = existing.scalar_one_or_none()
-    today = date.today()
-    if row:
-        row.user_tracked = True
-        row.initial_balance = payload.initial_balance
-        row.balance = round(row.initial_balance + row.projection_earn, 4)
-        row.updated_date = today
-    else:
-        row = WalletCurrencyBalance(
-            wallet_id=wallet_id,
-            currency_id=payload.currency_id,
-            initial_balance=payload.initial_balance,
-            projection_earn=0.0,
-            balance=payload.initial_balance,
-            user_tracked=True,
-            updated_date=today,
-        )
-        db.add(row)
     await db.commit()
     await db.refresh(row)
-    res = await db.execute(
-        select(WalletCurrencyBalance)
-        .options(selectinload(WalletCurrencyBalance.currency))
-        .where(WalletCurrencyBalance.id == row.id)
-    )
-    return res.scalar_one()
+    return await currency_service.get_balance_with_currency(row.id)
 
 
 @router.put(
@@ -138,35 +98,18 @@ async def set_wallet_currency_initial_balance(
     payload: WalletCurrencyInitialSet,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
 ):
     """Update starting balance; total = initial + last projection earn from Calculate."""
-    await get_user_wallet(wallet_id, user, db)
-    currency_result = await db.execute(select(Currency).where(Currency.id == currency_id))
-    if not currency_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail=f"Currency id={currency_id} not found")
-
-    existing = await db.execute(
-        select(WalletCurrencyBalance).where(
-            WalletCurrencyBalance.wallet_id == wallet_id,
-            WalletCurrencyBalance.currency_id == currency_id,
-        )
+    await wallet_service.get_user_wallet(wallet_id, user)
+    row = await currency_service.set_initial_balance(
+        wallet_id=wallet_id,
+        currency_id=currency_id,
+        initial_balance=payload.initial_balance,
     )
-    row = existing.scalar_one_or_none()
-    if not row:
-        raise HTTPException(
-            status_code=404,
-            detail="Track this currency first (POST /currency-balances) before editing initial balance",
-        )
-    row.initial_balance = payload.initial_balance
-    row.balance = round(row.initial_balance + row.projection_earn, 4)
-    row.updated_date = date.today()
     await db.commit()
-    res = await db.execute(
-        select(WalletCurrencyBalance)
-        .options(selectinload(WalletCurrencyBalance.currency))
-        .where(WalletCurrencyBalance.id == row.id)
-    )
-    return res.scalar_one()
+    return await currency_service.get_balance_with_currency(row.id)
 
 
 @router.delete(
@@ -178,22 +121,12 @@ async def delete_wallet_currency_balance(
     currency_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
 ):
     """Remove the wallet's balance record for a currency."""
-    await get_user_wallet(wallet_id, user, db)
-    result = await db.execute(
-        select(WalletCurrencyBalance).where(
-            WalletCurrencyBalance.wallet_id == wallet_id,
-            WalletCurrencyBalance.currency_id == currency_id,
-        )
-    )
-    row = result.scalar_one_or_none()
-    if not row:
-        raise HTTPException(
-            status_code=404,
-            detail="No balance record found for this wallet and currency",
-        )
-    await db.delete(row)
+    await wallet_service.get_user_wallet(wallet_id, user)
+    await currency_service.delete_balance(wallet_id, currency_id)
     await db.commit()
 
 
@@ -210,28 +143,21 @@ async def delete_wallet_currency_balance(
 async def list_wallet_currencies_with_cpp(
     wallet_id: int,
     user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
 ):
     """List all currencies with wallet-scoped CPP overrides applied."""
-    await get_user_wallet(wallet_id, user, db)
+    await wallet_service.get_user_wallet(wallet_id, user)
 
-    cpp_result = await db.execute(
-        select(WalletCurrencyCpp).where(WalletCurrencyCpp.wallet_id == wallet_id)
-    )
-    overrides = {row.currency_id: row.cents_per_point for row in cpp_result.scalars().all()}
+    currencies_with_overrides = await currency_service.list_currencies_with_cpp(wallet_id)
 
-    cur_result = await db.execute(
-        select(Currency)
-        .order_by(Currency.name)
-    )
-    currencies = cur_result.scalars().all()
     out = []
-    for c in currencies:
-        schema = CurrencyRead.model_validate(c)
-        if c.id in overrides:
-            schema.user_cents_per_point = overrides[c.id]
+    for currency, override_cpp in currencies_with_overrides:
+        schema = CurrencyRead.model_validate(currency)
+        if override_cpp is not None:
+            schema.user_cents_per_point = override_cpp
         else:
-            schema.user_cents_per_point = c.cents_per_point
+            schema.user_cents_per_point = currency.cents_per_point
         out.append(schema)
     return out
 
@@ -247,28 +173,12 @@ async def set_wallet_cpp(
     payload: WalletCurrencyCppSet,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
 ):
     """Set or update wallet-scoped cents-per-point for a currency."""
-    await get_user_wallet(wallet_id, user, db)
-    cur_result = await db.execute(select(Currency).where(Currency.id == currency_id))
-    if not cur_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail=f"Currency id={currency_id} not found")
-
-    existing = await db.execute(
-        select(WalletCurrencyCpp).where(
-            WalletCurrencyCpp.wallet_id == wallet_id,
-            WalletCurrencyCpp.currency_id == currency_id,
-        )
-    )
-    row = existing.scalar_one_or_none()
-    if row:
-        row.cents_per_point = payload.cents_per_point
-    else:
-        db.add(WalletCurrencyCpp(
-            wallet_id=wallet_id,
-            currency_id=currency_id,
-            cents_per_point=payload.cents_per_point,
-        ))
+    await wallet_service.get_user_wallet(wallet_id, user)
+    await currency_service.set_cpp(wallet_id, currency_id, payload.cents_per_point)
     await db.commit()
 
 
@@ -282,17 +192,10 @@ async def delete_wallet_cpp(
     currency_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
 ):
     """Remove wallet-scoped CPP override (reverts to currency default)."""
-    await get_user_wallet(wallet_id, user, db)
-    result = await db.execute(
-        select(WalletCurrencyCpp).where(
-            WalletCurrencyCpp.wallet_id == wallet_id,
-            WalletCurrencyCpp.currency_id == currency_id,
-        )
-    )
-    row = result.scalar_one_or_none()
-    if not row:
-        raise HTTPException(status_code=404, detail="No CPP override for this wallet/currency")
-    await db.delete(row)
+    await wallet_service.get_user_wallet(wallet_id, user)
+    await currency_service.delete_cpp(wallet_id, currency_id)
     await db.commit()

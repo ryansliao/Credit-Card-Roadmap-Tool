@@ -114,7 +114,7 @@ export function WalletResultsAndCurrenciesPanel({
   const totalAnnualFees = selectedCards.reduce((s, c) => s + c.annual_fee, 0)
   const totalEffectiveAF = selectedCards.reduce((s, c) => s + c.effective_annual_fee, 0)
   const totalAnnualPoints = selectedCards.reduce(
-    (s, c) => s + cardAnnualPointIncome(c, totalYears),
+    (s, c) => s + cardAnnualPointIncome(c, c.card_active_years || totalYears),
     0
   )
 
@@ -295,7 +295,7 @@ export function WalletResultsAndCurrenciesPanel({
                   const estValue = b.balance > 0 ? (b.balance * cpp) / 100 : 0
                   const cards = cardsByCurrency[b.currency_name] ?? []
                   const currencyAnnualPts = cards.reduce(
-                    (s, c) => s + cardAnnualPointIncome(c, totalYears),
+                    (s, c) => s + cardAnnualPointIncome(c, c.card_active_years || totalYears),
                     0
                   )
                   const hasResultData = result != null && cards.length > 0

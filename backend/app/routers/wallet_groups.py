@@ -1,23 +1,18 @@
 """Wallet card group category selection endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..helpers import get_user_wallet
-from ..models import (
-    Card,
-    CardCategoryMultiplier,
-    CardMultiplierGroup,
-    RotatingCategory,
-    User,
-    WalletCard,
-    WalletCardGroupSelection,
-)
+from ..models import User
 from ..schemas import WalletCardGroupSelectionRead, WalletCardGroupSelectionSet
+from ..services import (
+    WalletService,
+    WalletCardOverrideService,
+    get_wallet_service,
+    get_wallet_card_override_service,
+)
 
 router = APIRouter()
 
@@ -30,24 +25,12 @@ async def list_wallet_card_group_selections(
     wallet_id: int,
     card_id: int,
     user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    override_service: WalletCardOverrideService = Depends(get_wallet_card_override_service),
 ):
-    await get_user_wallet(wallet_id, user, db)
-    wc = await db.execute(
-        select(WalletCard).where(
-            WalletCard.wallet_id == wallet_id,
-            WalletCard.card_id == card_id,
-        )
-    )
-    wc_row = wc.scalar_one_or_none()
-    if not wc_row:
-        raise HTTPException(status_code=404, detail="Wallet card not found")
-    result = await db.execute(
-        select(WalletCardGroupSelection)
-        .options(selectinload(WalletCardGroupSelection.spend_category))
-        .where(WalletCardGroupSelection.wallet_card_id == wc_row.id)
-    )
-    return result.scalars().all()
+    await wallet_service.get_user_wallet(wallet_id, user)
+    wc = await override_service.get_wallet_card_or_404(wallet_id, card_id)
+    return await override_service.list_group_selections(wc.id)
 
 
 @router.put(
@@ -61,85 +44,19 @@ async def set_wallet_card_group_selections(
     payload: WalletCardGroupSelectionSet,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    override_service: WalletCardOverrideService = Depends(get_wallet_card_override_service),
 ):
-    await get_user_wallet(wallet_id, user, db)
-    wc = await db.execute(
-        select(WalletCard).where(
-            WalletCard.wallet_id == wallet_id,
-            WalletCard.card_id == card_id,
-        )
+    await wallet_service.get_user_wallet(wallet_id, user)
+    wc = await override_service.get_wallet_card_or_404(wallet_id, card_id)
+    selections = await override_service.set_group_selections(
+        wallet_card_id=wc.id,
+        group_id=group_id,
+        card_id=card_id,
+        spend_category_ids=payload.spend_category_ids,
     )
-    wc_row = wc.scalar_one_or_none()
-    if not wc_row:
-        raise HTTPException(status_code=404, detail="Wallet card not found")
-
-    grp = await db.execute(
-        select(CardMultiplierGroup)
-        .options(
-            selectinload(CardMultiplierGroup.categories).selectinload(
-                CardCategoryMultiplier.spend_category
-            ),
-            selectinload(CardMultiplierGroup.card)
-            .selectinload(Card.rotating_categories)
-            .selectinload(RotatingCategory.spend_category),
-        )
-        .where(
-            CardMultiplierGroup.id == group_id,
-            CardMultiplierGroup.card_id == card_id,
-        )
-    )
-    grp_row = grp.scalar_one_or_none()
-    if not grp_row:
-        raise HTTPException(status_code=404, detail="Multiplier group not found for this card")
-
-    existing = await db.execute(
-        select(WalletCardGroupSelection).where(
-            WalletCardGroupSelection.wallet_card_id == wc_row.id,
-            WalletCardGroupSelection.multiplier_group_id == group_id,
-        )
-    )
-    for row in existing.scalars().all():
-        await db.delete(row)
-    await db.flush()
-
-    if not payload.spend_category_ids:
-        await db.commit()
-        return []
-
-    top_n = grp_row.top_n_categories
-    if top_n and len(payload.spend_category_ids) != top_n:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Must select exactly {top_n} categories, got {len(payload.spend_category_ids)}",
-        )
-
-    valid_cat_ids = {c.category_id for c in grp_row.categories}
-    for cat_id in payload.spend_category_ids:
-        if cat_id not in valid_cat_ids:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Category {cat_id} is not in this multiplier group",
-            )
-
-    for cat_id in payload.spend_category_ids:
-        db.add(
-            WalletCardGroupSelection(
-                wallet_card_id=wc_row.id,
-                multiplier_group_id=group_id,
-                spend_category_id=cat_id,
-            )
-        )
     await db.commit()
-
-    result = await db.execute(
-        select(WalletCardGroupSelection)
-        .options(selectinload(WalletCardGroupSelection.spend_category))
-        .where(
-            WalletCardGroupSelection.wallet_card_id == wc_row.id,
-            WalletCardGroupSelection.multiplier_group_id == group_id,
-        )
-    )
-    return result.scalars().all()
+    return selections
 
 
 @router.delete(
@@ -152,23 +69,10 @@ async def delete_wallet_card_group_selections(
     group_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    override_service: WalletCardOverrideService = Depends(get_wallet_card_override_service),
 ):
-    await get_user_wallet(wallet_id, user, db)
-    wc = await db.execute(
-        select(WalletCard).where(
-            WalletCard.wallet_id == wallet_id,
-            WalletCard.card_id == card_id,
-        )
-    )
-    wc_row = wc.scalar_one_or_none()
-    if not wc_row:
-        raise HTTPException(status_code=404, detail="Wallet card not found")
-    existing = await db.execute(
-        select(WalletCardGroupSelection).where(
-            WalletCardGroupSelection.wallet_card_id == wc_row.id,
-            WalletCardGroupSelection.multiplier_group_id == group_id,
-        )
-    )
-    for row in existing.scalars().all():
-        await db.delete(row)
+    await wallet_service.get_user_wallet(wallet_id, user)
+    wc = await override_service.get_wallet_card_or_404(wallet_id, card_id)
+    await override_service.delete_group_selections(wc.id, group_id)
     await db.commit()

@@ -8,9 +8,7 @@ from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from ..auth import get_current_user
 from ..calculator import calc_annual_allocated_spend, compute_wallet, plan_sub_targeting
@@ -22,31 +20,25 @@ from ..db_helpers import (
     apply_wallet_card_multiplier_overrides,
     apply_wallet_card_overrides,
     apply_wallet_portal_shares,
-    load_card_data,
-    load_card_ids_by_portal,
-    load_foreign_eligible_category_names,
-    load_housing_category_names,
-    load_wallet_card_category_priorities,
-    load_wallet_card_credits,
-    load_wallet_card_group_selections,
-    load_wallet_card_multipliers,
-    load_currency_defaults,
-    load_currency_kinds,
-    load_wallet_cpp_overrides,
-    load_wallet_portal_shares,
-    load_wallet_spend_items,
 )
 from ..helpers import (
-    get_user_wallet,
     is_sub_earnable,
     months_in_half_open_interval,
     projected_sub_earn_date,
-    sync_wallet_balances_from_currency_pts,
-    wallet_404,
     wallet_to_schema,
     years_counted_from_total_months,
 )
-from ..models import Card, IssuerApplicationRule, User, Wallet, WalletCard
+from ..services import (
+    WalletService,
+    WalletCurrencyService,
+    CalculatorDataService,
+    IssuerService,
+    get_wallet_service,
+    get_wallet_currency_service,
+    get_calculator_data_service,
+    get_issuer_service,
+)
+from ..models import User
 from ..schemas import (
     RoadmapCardStatus,
     RoadmapResponse,
@@ -74,6 +66,9 @@ async def wallet_results(
     spend_overrides: Optional[str] = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
+    calc_data_service: CalculatorDataService = Depends(get_calculator_data_service),
 ):
     """
     Compute wallet results (effective fees, points, credits) and SUB opportunity cost.
@@ -87,13 +82,8 @@ async def wallet_results(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="spend_overrides must be valid JSON (e.g. '{\"Dining\": 5000}')",
             )
-    await get_user_wallet(wallet_id, user, db)
-    result = await db.execute(
-        select(Wallet)
-        .options(selectinload(Wallet.wallet_cards))
-        .where(Wallet.id == wallet_id)
-    )
-    wallet = result.scalar_one()
+    await wallet_service.get_user_wallet(wallet_id, user)
+    wallet = await wallet_service.get_with_cards(wallet_id)
 
     if start_date is not None and reference_date is not None and start_date != reference_date:
         raise HTTPException(
@@ -152,7 +142,7 @@ async def wallet_results(
     wallet.calc_window_mode = _save_calc_window
 
     if not active_wallet_cards:
-        await sync_wallet_balances_from_currency_pts(db, wallet_id, {})
+        await currency_service.sync_balances_from_currency_pts(wallet_id, {})
         await db.commit()
         return WalletResultResponseSchema(
             wallet_id=wallet_id,
@@ -176,39 +166,36 @@ async def wallet_results(
             ),
         )
 
-    cpp_overrides = await load_wallet_cpp_overrides(db, wallet_id)
-    all_cards = await load_card_data(db, cpp_overrides=cpp_overrides)
+    cpp_overrides = await calc_data_service.load_wallet_cpp_overrides(wallet_id)
+    all_cards = await calc_data_service.load_card_data(cpp_overrides=cpp_overrides)
     card_ids_sel = {wc.card_id for wc in active_wallet_cards}
-    lib_for_overrides = await db.execute(
-        select(Card).where(Card.id.in_(card_ids_sel))
-    )
-    library_cards_by_id = {c.id: c for c in lib_for_overrides.scalars().all()}
-    wallet_credit_rows = await load_wallet_card_credits(db, wallet_id)
-    currency_defaults = await load_currency_defaults(db)
-    currency_kinds = await load_currency_kinds(db)
+    library_cards_by_id = await calc_data_service.load_cards_by_ids(card_ids_sel)
+    wallet_credit_rows = await calc_data_service.load_wallet_card_credits(wallet_id)
+    currency_defaults = await calc_data_service.load_currency_defaults()
+    currency_kinds = await calc_data_service.load_currency_kinds()
     modified_cards = apply_wallet_card_overrides(
         all_cards, active_wallet_cards, library_cards_by_id, wallet_credit_rows,
         cpp_overrides=cpp_overrides, currency_defaults=currency_defaults,
         currency_kinds=currency_kinds,
     )
-    wallet_multiplier_rows = await load_wallet_card_multipliers(db, wallet_id)
+    wallet_multiplier_rows = await calc_data_service.load_wallet_card_multipliers(wallet_id)
     modified_cards = apply_wallet_card_multiplier_overrides(modified_cards, wallet_multiplier_rows)
-    group_selections = await load_wallet_card_group_selections(db, wallet_id)
+    group_selections = await calc_data_service.load_wallet_card_group_selections(wallet_id)
     modified_cards = apply_wallet_card_group_selections(modified_cards, group_selections)
-    category_priorities = await load_wallet_card_category_priorities(db, wallet_id)
+    category_priorities = await calc_data_service.load_wallet_card_category_priorities(wallet_id)
     modified_cards = apply_wallet_card_category_priorities(modified_cards, category_priorities)
-    portal_shares = await load_wallet_portal_shares(db, wallet_id)
+    portal_shares = await calc_data_service.load_wallet_portal_shares(wallet_id)
     if portal_shares:
-        card_ids_by_portal = await load_card_ids_by_portal(db)
+        card_ids_by_portal = await calc_data_service.load_card_ids_by_portal()
         modified_cards = apply_wallet_portal_shares(
             modified_cards, portal_shares, card_ids_by_portal
         )
     selected_ids = card_ids_sel
-    spend = await load_wallet_spend_items(db, wallet_id)
+    spend = await calc_data_service.load_wallet_spend_items(wallet_id)
     if overrides:
         spend.update(overrides)
-    housing_names = await load_housing_category_names(db)
-    foreign_eligible_names = await load_foreign_eligible_category_names(db)
+    housing_names = await calc_data_service.load_housing_category_names()
+    foreign_eligible_names = await calc_data_service.load_foreign_eligible_category_names()
 
     selected_card_data = [c for c in modified_cards if c.id in card_ids_sel]
     wcids = {c.currency.id for c in selected_card_data}
@@ -327,8 +314,8 @@ async def wallet_results(
     merged_pts_by_id = dict(wallet_result.currency_pts_by_id)
     for cid, pts in wallet_result.secondary_currency_pts_by_id.items():
         merged_pts_by_id[cid] = merged_pts_by_id.get(cid, 0.0) + pts
-    await sync_wallet_balances_from_currency_pts(
-        db, wallet_id, merged_pts_by_id
+    await currency_service.sync_balances_from_currency_pts(
+        wallet_id, merged_pts_by_id
     )
     await db.commit()
 
@@ -357,30 +344,22 @@ async def wallet_roadmap(
     as_of_date: Optional[date] = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    wallet_service: WalletService = Depends(get_wallet_service),
+    calc_data_service: CalculatorDataService = Depends(get_calculator_data_service),
+    issuer_service: IssuerService = Depends(get_issuer_service),
 ):
     """
     Compute roadmap status for the wallet: 5/24 count, per-card SUB status and
     next eligibility dates, and any issuer velocity rule violations.
     """
-    await get_user_wallet(wallet_id, user, db)
-    result = await db.execute(
-        select(Wallet)
-        .options(
-            selectinload(Wallet.wallet_cards).selectinload(WalletCard.card).selectinload(Card.issuer),
-        )
-        .where(Wallet.id == wallet_id)
-    )
-    wallet = result.scalar_one()
+    await wallet_service.get_user_wallet(wallet_id, user)
+    wallet = await wallet_service.get_with_cards(wallet_id)
 
     today = as_of_date or date.today()
 
-    rules_result = await db.execute(
-        select(IssuerApplicationRule)
-        .options(selectinload(IssuerApplicationRule.issuer))
-    )
-    rules = rules_result.scalars().all()
+    rules = await issuer_service.list_application_rules()
 
-    roadmap_spend = await load_wallet_spend_items(db, wallet_id)
+    roadmap_spend = await calc_data_service.load_wallet_spend_items(wallet_id)
     roadmap_daily_rate = sum(roadmap_spend.values()) / 365.0
 
     card_statuses: list[RoadmapCardStatus] = []

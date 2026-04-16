@@ -1,74 +1,74 @@
-"""ORM models - re-exported from DAL for backward compatibility.
+"""Data Access Layer - ORM models organized by domain.
 
-All models have been moved to the dal/ package, organized by domain.
-This module re-exports everything for existing imports to continue working.
+All models are re-exported here for backward compatibility with existing imports.
 """
 
-from .dal import (
-    # User
-    User,
-    # Reference data
+from .user import User
+from .reference import (
     Issuer,
     CoBrand,
     Network,
     NetworkTier,
     SpendCategory,
     IssuerApplicationRule,
-    # Currency
-    Currency,
-    # Card
+)
+from .currency import Currency
+from .card import (
     Card,
     CardMultiplierGroup,
     CardCategoryMultiplier,
     RotatingCategory,
     travel_portal_cards,
-    # Credit
-    Credit,
-    CardCredit,
-    # Travel portal
-    TravelPortal,
-    # Wallet
-    Wallet,
-    WalletCard,
-    # Wallet currency
-    WalletCurrencyBalance,
-    WalletCurrencyCpp,
-    # Wallet card overrides
+)
+from .credit import Credit, CardCredit
+from .travel_portal import TravelPortal
+from .wallet import Wallet, WalletCard
+from .wallet_currency import WalletCurrencyBalance, WalletCurrencyCpp
+from .wallet_card_override import (
     WalletCardCredit,
     WalletCardGroupSelection,
     WalletCardCategoryPriority,
     WalletCardMultiplier,
-    # Wallet spend
-    WalletSpendItem,
-    # Wallet portal
-    WalletPortalShare,
 )
+from .wallet_spend import WalletSpendItem
+from .wallet_portal import WalletPortalShare
 
 __all__ = [
+    # User
     "User",
+    # Reference data
     "Issuer",
     "CoBrand",
     "Network",
     "NetworkTier",
     "SpendCategory",
     "IssuerApplicationRule",
+    # Currency
     "Currency",
+    # Card
     "Card",
     "CardMultiplierGroup",
     "CardCategoryMultiplier",
     "RotatingCategory",
     "travel_portal_cards",
+    # Credit
     "Credit",
     "CardCredit",
+    # Travel portal
     "TravelPortal",
+    # Wallet
     "Wallet",
     "WalletCard",
+    # Wallet currency
     "WalletCurrencyBalance",
     "WalletCurrencyCpp",
+    # Wallet card overrides
     "WalletCardCredit",
     "WalletCardGroupSelection",
     "WalletCardCategoryPriority",
     "WalletCardMultiplier",
+    # Wallet spend
     "WalletSpendItem",
+    # Wallet portal
     "WalletPortalShare",
 ]
