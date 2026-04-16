@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { CardResult, SpendCategory } from '../../../../api/client'
+import type { CardResult, SpendCategory, WalletCard } from '../../../../api/client'
 import { formatMoneyExact, formatPointsExact } from '../../../../utils/format'
 import { useAppSpendCategories } from '../../hooks/useAppSpendCategories'
 import { useWalletSpendCategoriesTable } from '../../hooks/useWalletSpendCategoriesTable'
@@ -7,6 +7,7 @@ import { useWalletSpendCategoriesTable } from '../../hooks/useWalletSpendCategor
 interface Props {
   walletId: number | null
   selectedCards: CardResult[]
+  walletCards: WalletCard[]
   isTotal: boolean
   totalYears: number
   onSpendChange: () => void
@@ -149,6 +150,7 @@ function InlineCategoryDropdown({
 export function SpendTabContent({
   walletId,
   selectedCards,
+  walletCards,
   isTotal,
   totalYears,
   onSpendChange,
@@ -176,6 +178,37 @@ export function SpendTabContent({
   // View mode toggle: per-card (cycle through cards, show earn) vs
   // top-ros (highest return-on-spend card in each category).
   const [viewMode, setViewMode] = useState<'per-card' | 'top-ros'>('top-ros')
+  const [includeClosed, setIncludeClosed] = useState(false)
+
+  // Closed / product-changed-away-from cards; matches CardsListPanel dimming.
+  const excludedCardIds = useMemo(() => {
+    const ids = new Set<number>()
+    for (const wc of walletCards) {
+      if (wc.panel !== 'in_wallet' && wc.panel !== 'future_cards') continue
+      if (wc.closed_date) ids.add(wc.card_id)
+    }
+    for (const pcCard of walletCards) {
+      if (pcCard.acquisition_type !== 'product_change' || pcCard.panel !== 'future_cards') continue
+      if (pcCard.pc_from_card_id != null) {
+        ids.add(pcCard.pc_from_card_id)
+      } else {
+        for (const c of walletCards) {
+          if (c.product_changed_date && c.product_changed_date === pcCard.added_date) {
+            ids.add(c.card_id)
+          }
+        }
+      }
+    }
+    return ids
+  }, [walletCards])
+
+  const topRosCards = useMemo(
+    () =>
+      includeClosed
+        ? selectedCards
+        : selectedCards.filter((c) => !excludedCardIds.has(c.card_id)),
+    [includeClosed, selectedCards, excludedCardIds]
+  )
 
   // Cycling through cards in the third column. Index is clamped to the
   // current card list so removing a card doesn't leave a stale index.
@@ -208,10 +241,10 @@ export function SpendTabContent({
   }
 
   function topCardsForCategory(catName: string): { cards: CardResult[]; ros: number } {
-    if (selectedCards.length === 0) return { cards: [], ros: 0 }
+    if (topRosCards.length === 0) return { cards: [], ros: 0 }
     let best = -Infinity
     let bestCards: CardResult[] = []
-    for (const card of selectedCards) {
+    for (const card of topRosCards) {
       const r = getRosForCard(card, catName)
       if (r > best + 1e-9) {
         best = r
@@ -252,7 +285,7 @@ export function SpendTabContent({
 
   return (
     <div className="flex flex-col flex-1 min-h-0 min-w-0 pt-3">
-      <div className="shrink-0 flex items-center justify-start mb-2">
+      <div className="shrink-0 flex items-center justify-between gap-3 mb-2">
         <div className="inline-flex rounded-lg border border-slate-700 overflow-hidden text-xs">
           <button
             type="button"
@@ -277,6 +310,26 @@ export function SpendTabContent({
             Per-Card Earn
           </button>
         </div>
+        {viewMode === 'top-ros' && (
+          <label className="inline-flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+            <span>Include Closed Cards</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={includeClosed}
+              onClick={() => setIncludeClosed((v) => !v)}
+              className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
+                includeClosed ? 'bg-indigo-600' : 'bg-slate-700'
+              }`}
+            >
+              <span
+                className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                  includeClosed ? 'translate-x-3.5' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </label>
+        )}
       </div>
       {isLoading ? (
         <div className="text-slate-500 text-sm">Loading…</div>

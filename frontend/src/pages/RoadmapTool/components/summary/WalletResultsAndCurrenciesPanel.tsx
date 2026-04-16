@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import type { CardResult, WalletResult } from '../../../../api/client'
+import type { CardResult, WalletCard, WalletResult } from '../../../../api/client'
 import { walletCppApi, walletsApi } from '../../../../api/client'
 import { formatCashRewardUnits, formatMoney, formatPoints } from '../../../../utils/format'
 import { queryKeys } from '../../lib/queryKeys'
@@ -47,6 +47,7 @@ interface Props {
   durationYears: number
   durationMonths: number
   photoSlugs?: Record<number, string | null>
+  walletCards?: WalletCard[]
   onOpenSettings: () => void
   onCppChange: () => void
   onSpendChange: () => void
@@ -60,6 +61,7 @@ export function WalletResultsAndCurrenciesPanel({
   durationYears,
   durationMonths,
   photoSlugs,
+  walletCards,
   onOpenSettings,
   onCppChange,
   onSpendChange,
@@ -499,6 +501,7 @@ export function WalletResultsAndCurrenciesPanel({
               <SpendTabContent
                 walletId={walletId}
                 selectedCards={selectedCards}
+                walletCards={walletCards ?? []}
                 isTotal={false}
                 totalYears={totalYears}
                 onSpendChange={onSpendChange}

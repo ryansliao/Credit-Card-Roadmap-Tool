@@ -272,6 +272,7 @@ export default function RoadmapToolPage() {
                 photoSlugs={Object.fromEntries(
                   (selectedWallet?.wallet_cards ?? []).map((wc) => [wc.card_id, wc.photo_slug])
                 )}
+                walletCards={selectedWallet?.wallet_cards ?? []}
                 onOpenSettings={() => setShowSettingsModal(true)}
                 onCppChange={() => runCalculation()}
                 onSpendChange={() => runCalculation()}
