@@ -188,21 +188,22 @@ def _segmented_card_net_per_year(
         eff_currency = _effective_currency(card, active_wallet_currency_ids)
         total_earn_dollars += fy_bonus_eff * eff_currency.cents_per_point / 100.0
 
-    # Fees: prorated by card's actual active days in the window
+    # Fees: discrete events at opening + 13 months, then every 12 months.
     card_start_in_window = max(card.wallet_added_date or window_start, window_start)
     card_end_in_window = min(card.wallet_closed_date or window_end, window_end)
     active_days = max(0, (card_end_in_window - card_start_in_window).days)
 
-    if card.first_year_fee is not None and card.wallet_added_date is not None:
-        first_year_end = add_months(card.wallet_added_date, 12)
-        first_year_overlap = max(0, (
-            min(first_year_end, card_end_in_window) - max(card.wallet_added_date, card_start_in_window)
-        ).days)
-        rest_days = max(0, active_days - first_year_overlap)
-        total_fee = (
-            card.first_year_fee / 365.25 * first_year_overlap
-            + card.annual_fee / 365.25 * rest_days
-        )
+    if card.wallet_added_date is not None:
+        fee_y1 = card.first_year_fee if card.first_year_fee is not None else card.annual_fee
+        total_fee = 0.0
+        k = 0
+        while True:
+            fee_date = add_months(card.wallet_added_date, 13 + 12 * k)
+            if fee_date >= card_end_in_window:
+                break
+            if fee_date >= card_start_in_window:
+                total_fee += fee_y1 if k == 0 else card.annual_fee
+            k += 1
     else:
         fee = card.annual_fee if card.annual_fee is not None else 0.0
         total_fee = fee / 365.25 * active_days

@@ -215,7 +215,7 @@ export default function MyWalletsPage() {
           walletCardIds={selectedWallet.wallet_cards.map((wc) => wc.card_id)}
           onClose={() => setWalletCardModal(null)}
           onAdd={(payload) =>
-            addCardMutation.mutate({ walletId: selectedWallet.id, payload })
+            addCardMutation.mutate({ walletId: selectedWallet.id, payload: { ...payload, panel: 'in_wallet' } })
           }
           onSaveEdit={(payload) => {
             if (walletCardModal.mode !== 'edit') return

@@ -172,7 +172,13 @@ def _average_annual_net_dollars(
         if not cap_blocks:
             effective_sub_secondary_dollars = card.sub_secondary_points * card.secondary_currency.cents_per_point / 100.0
     fee_y1 = card.first_year_fee if card.first_year_fee is not None else card.annual_fee
-    total_fees = fee_y1 + (years - 1) * card.annual_fee
+    # Fees hit at month 13 after opening, then every 12 months.
+    total_months = years * 12
+    if total_months < 13:
+        total_fees = 0.0
+    else:
+        num_fees = (total_months - 13) // 12 + 1
+        total_fees = fee_y1 + (num_fees - 1) * card.annual_fee
     # effective_earn (from _effective_annual_earn_allocated) already includes card.annual_bonus
     # and any recurring percentage bonus, so they are counted correctly via the years
     # multiplier. effective_sub and effective_sub_pts are one-time earns; placing them
