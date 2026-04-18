@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -143,8 +143,7 @@ async def wallet_results(
 
     if not active_wallet_cards:
         await currency_service.sync_balances_from_currency_pts(wallet_id, {})
-        await db.commit()
-        return WalletResultResponseSchema(
+        empty_response = WalletResultResponseSchema(
             wallet_id=wallet_id,
             wallet_name=wallet.name,
             start_date=ref_date,
@@ -165,6 +164,10 @@ async def wallet_results(
                 total_reward_value_usd=0,
             ),
         )
+        wallet.last_calc_snapshot = empty_response.model_dump_json()
+        wallet.last_calc_timestamp = datetime.now(timezone.utc)
+        await db.commit()
+        return empty_response
 
     cpp_overrides = await calc_data_service.load_wallet_cpp_overrides(wallet_id)
     all_cards = await calc_data_service.load_card_data(cpp_overrides=cpp_overrides)
@@ -320,9 +323,8 @@ async def wallet_results(
     await currency_service.sync_balances_from_currency_pts(
         wallet_id, merged_pts_by_id
     )
-    await db.commit()
 
-    return WalletResultResponseSchema(
+    response = WalletResultResponseSchema(
         wallet_id=wallet_id,
         wallet_name=wallet.name,
         start_date=ref_date,
@@ -336,6 +338,37 @@ async def wallet_results(
         years_counted=wallet_result.years_counted,
         wallet=wallet_to_schema(wallet_result, photo_slugs=photo_slugs),
     )
+    wallet.last_calc_snapshot = response.model_dump_json()
+    wallet.last_calc_timestamp = datetime.now(timezone.utc)
+    await db.commit()
+
+    return response
+
+
+@router.get(
+    "/wallets/{wallet_id}/results/latest",
+    response_model=Optional[WalletResultResponseSchema],
+)
+async def wallet_results_latest(
+    wallet_id: int,
+    user: User = Depends(get_current_user),
+    wallet_service: WalletService = Depends(get_wallet_service),
+):
+    """
+    Return the last persisted /wallets/{id}/results response for this wallet,
+    or null if no calculation has been run yet. Used by the Roadmap Tool to
+    re-hydrate the prior calculation on page load without re-running the
+    full EV computation.
+    """
+    wallet = await wallet_service.get_user_wallet(wallet_id, user)
+    if not wallet.last_calc_snapshot:
+        return None
+    try:
+        return WalletResultResponseSchema.model_validate_json(wallet.last_calc_snapshot)
+    except Exception:
+        # Snapshot schema drift (older cached payload). Treat as absent rather
+        # than 500; the user can press Calculate to refresh.
+        return None
 
 
 @router.get(

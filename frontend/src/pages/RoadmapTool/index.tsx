@@ -110,6 +110,16 @@ export default function RoadmapToolPage() {
 
   const walletId = wallet?.id ?? null
 
+  // Last persisted calculation. Hydrated once per wallet mount so returning
+  // to the Roadmap Tool shows the prior numbers without forcing another
+  // Calculate click.
+  const { data: latestResult, isFetched: latestResultFetched } = useQuery({
+    queryKey: queryKeys.walletLatestResults(walletId),
+    queryFn: () => walletsApi.latestResults(walletId!),
+    enabled: walletId != null,
+    staleTime: Infinity,
+  })
+
   const currentSignature = useMemo(
     () => walletCalcSignature(wallet ?? null, durationYears, durationMonths),
     [wallet, durationYears, durationMonths],
@@ -211,6 +221,7 @@ export default function RoadmapToolPage() {
       setSnapshotSignature(ctx?.signature ?? null)
       setInSigDirty(false)
       setOutOfSigDirty(false)
+      queryClient.setQueryData(queryKeys.walletLatestResults(data.wallet_id), data)
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(data.wallet_id) })
     },
@@ -257,6 +268,29 @@ export default function RoadmapToolPage() {
     setDurationYears(wallet.calc_duration_years)
     setDurationMonths(wallet.calc_duration_months)
   }, [walletId, wallet?.id])
+
+  // Hydrate result state from the persisted snapshot exactly once per mount.
+  // The snapshot signature is set to the current wallet signature at hydration
+  // time — edits made after hydration correctly flag the calc as stale. We
+  // can't retroactively detect edits made between the last Calculate and
+  // this mount; if that matters the user can click Calculate again.
+  const [hasHydrated, setHasHydrated] = useState(false)
+  useEffect(() => {
+    if (hasHydrated) return
+    if (!latestResultFetched) return
+    if (!wallet) return
+    if (latestResult) {
+      setResult(latestResult)
+      setSnapshotSignature(
+        walletCalcSignature(
+          wallet,
+          latestResult.duration_years,
+          latestResult.duration_months,
+        ),
+      )
+    }
+    setHasHydrated(true)
+  }, [hasHydrated, latestResultFetched, latestResult, wallet])
 
   function runCalculation(years = durationYears, months = durationMonths) {
     if (walletId == null) return

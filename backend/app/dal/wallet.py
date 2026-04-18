@@ -58,6 +58,14 @@ class Wallet(Base):
     # Percentage of total spend that occurs as foreign transactions (0–100).
     foreign_spend_percent: Mapped[float] = mapped_column(Float, default=0, server_default="0")
 
+    # Cached last /wallets/{id}/results payload (JSON-serialised
+    # WalletResultResponseSchema) + timestamp, so returning to the Roadmap Tool
+    # restores the prior calculation without forcing another Calculate click.
+    last_calc_snapshot: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_calc_timestamp: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

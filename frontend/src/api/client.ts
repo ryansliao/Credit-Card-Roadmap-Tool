@@ -525,6 +525,8 @@ export const walletsApi = {
       `/wallets/${walletId}/results${qs ? `?${qs}` : ''}`
     )
   },
+  latestResults: (walletId: number) =>
+    request<WalletResultResponse | null>(`/wallets/${walletId}/results/latest`),
   listCurrencyBalances: (walletId: number) =>
     request<WalletCurrencyBalance[]>(`/wallets/${walletId}/currency-balances`),
   settingsCurrencyIds: (walletId: number) =>
