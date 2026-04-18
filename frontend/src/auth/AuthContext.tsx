@@ -1,6 +1,4 @@
 import {
-  createContext,
-  useContext,
   useEffect,
   useState,
   useCallback,
@@ -13,33 +11,17 @@ import {
   getAuthToken,
   type AuthUser,
 } from '../api/client'
-
-interface AuthState {
-  user: AuthUser | null
-  isAuthenticated: boolean
-  isLoading: boolean
-  needsUsername: boolean
-  signIn: (credential: string) => Promise<void>
-  login: (email: string, password: string) => Promise<void>
-  register: (username: string, email: string, password: string) => Promise<void>
-  setUsername: (username: string) => Promise<void>
-  signOut: () => void
-}
-
-const AuthContext = createContext<AuthState | null>(null)
+import { AuthContext } from './context'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  // Only "loading" when there's a token to validate; otherwise no async work
+  // to wait for, so the unauthenticated UI can render immediately.
+  const [isLoading, setIsLoading] = useState(() => getAuthToken() !== null)
   const [needsUsername, setNeedsUsername] = useState(false)
 
-  // On mount, validate existing token
   useEffect(() => {
-    const token = getAuthToken()
-    if (!token) {
-      setIsLoading(false)
-      return
-    }
+    if (getAuthToken() === null) return
     authApi
       .me()
       .then((u) => {
@@ -111,8 +93,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
-export function useAuth(): AuthState {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
-}

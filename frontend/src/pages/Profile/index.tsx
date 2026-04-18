@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext'
+import { useAuth } from '../../auth/useAuth'
 import { useMyWallet } from './hooks/useMyWallet'
 import { WalletTab } from './components/WalletTab'
 import { SpendingTab } from './components/SpendingTab'

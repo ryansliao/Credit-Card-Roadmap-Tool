@@ -47,7 +47,7 @@ export function WalletPortalSharesEditor({
     queryKey: queryKeys.travelPortals,
     queryFn: () => travelPortalApi.list(),
   })
-  const walletCards = wallet?.wallet_cards ?? []
+  const walletCards = useMemo(() => wallet?.wallet_cards ?? [], [wallet])
 
   // Travel portals that have at least one in-wallet card that (a) belongs to
   // the portal, (b) carries at least one portal-flagged multiplier, and (c)

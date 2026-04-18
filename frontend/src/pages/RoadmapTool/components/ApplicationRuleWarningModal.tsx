@@ -1,4 +1,5 @@
 import type { RoadmapRuleStatus } from '../../../api/client'
+import { ModalBackdrop } from '../../../components/ModalBackdrop'
 
 interface Props {
   violations: RoadmapRuleStatus[]
@@ -7,9 +8,11 @@ interface Props {
 
 export function ApplicationRuleWarningModal({ violations, onClose }: Props) {
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <ModalBackdrop
+      onClose={onClose}
+      className="bg-slate-900 border border-amber-700/50 rounded-xl p-5 max-w-lg w-full shadow-xl"
+    >
       <div
-        className="bg-slate-900 border border-amber-700/50 rounded-xl p-5 max-w-lg w-full shadow-xl"
         role="alertdialog"
         aria-labelledby="application-rule-warning-title"
         aria-describedby="application-rule-warning-desc"
@@ -48,6 +51,6 @@ export function ApplicationRuleWarningModal({ violations, onClose }: Props) {
           OK
         </button>
       </div>
-    </div>
+    </ModalBackdrop>
   )
 }

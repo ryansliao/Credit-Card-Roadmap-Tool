@@ -1,0 +1,167 @@
+{
+  "card_results": [
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 95.0,
+      "annual_point_earn": 10222.22,
+      "avg_spend_multiplier": 1.5333,
+      "card_active_years": 1.9959,
+      "card_effective_annual_fee": -677.5134,
+      "card_id": 101,
+      "card_name": "Chase Sapphire Preferred",
+      "category_earn": [
+        [
+          "Travel",
+          8000.0
+        ],
+        [
+          "Dining",
+          2222.22
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 1.0,
+        "Dining": 3.0,
+        "Travel": 2.0
+      },
+      "cents_per_point": 1.8,
+      "credit_valuation": 0,
+      "effective_annual_fee": -677.5134,
+      "effective_currency_id": 1,
+      "effective_currency_name": "Chase Ultimate Rewards",
+      "effective_reward_kind": "points",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 60000,
+      "sub_spend_earn": 4000,
+      "total_points": 80402.46
+    },
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 325.0,
+      "annual_point_earn": 38567.9,
+      "avg_spend_multiplier": 2.1,
+      "card_active_years": 1.7495,
+      "card_effective_annual_fee": -1145.2594,
+      "card_id": 102,
+      "card_name": "Amex Gold",
+      "category_earn": [
+        [
+          "Dining",
+          21037.04
+        ],
+        [
+          "Groceries",
+          17530.86
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 1.0,
+        "Dining": 4.0,
+        "Groceries": 4.0
+      },
+      "cents_per_point": 1.7,
+      "credit_valuation": 0,
+      "effective_annual_fee": -1003.8693,
+      "effective_currency_id": 2,
+      "effective_currency_name": "Amex Membership Rewards",
+      "effective_reward_kind": "points",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 60000,
+      "sub_spend_earn": 6000,
+      "total_points": 136977.41
+    },
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 0.0,
+      "annual_point_earn": 31234.57,
+      "avg_spend_multiplier": 2.0,
+      "card_active_years": 1.9959,
+      "card_effective_annual_fee": -312.3457,
+      "card_id": 103,
+      "card_name": "Citi Double Cash",
+      "category_earn": [
+        [
+          "All Other",
+          30000.0
+        ],
+        [
+          "Groceries",
+          1234.57
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 2.0
+      },
+      "cents_per_point": 1.0,
+      "credit_valuation": 0,
+      "effective_annual_fee": -312.3457,
+      "effective_currency_id": 3,
+      "effective_currency_name": "Cash",
+      "effective_reward_kind": "cash",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 0,
+      "sub_spend_earn": 0,
+      "total_points": 62340.86
+    }
+  ],
+  "currency_pts": {
+    "Amex Membership Rewards": 136977.41,
+    "Cash": 62340.86,
+    "Chase Ultimate Rewards": 80402.46
+  },
+  "currency_pts_by_id": {
+    "1": 80402.46,
+    "2": 136977.41,
+    "3": 62340.86
+  },
+  "secondary_currency_pts": {},
+  "secondary_currency_pts_by_id": {},
+  "total_annual_pts": 48790.12,
+  "total_cash_reward_dollars": 623.4086,
+  "total_effective_annual_fee": -1993.7284,
+  "total_points_earned": 217379.87,
+  "total_reward_value_usd": 4399.2689,
+  "years_counted": 2
+}

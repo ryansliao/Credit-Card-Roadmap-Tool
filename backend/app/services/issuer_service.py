@@ -1,6 +1,6 @@
 """Issuer data access service."""
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -29,6 +29,21 @@ class IssuerService(BaseService[Issuer]):
             stmt = stmt.options(*options)
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def create(self, name: str) -> Issuer:
+        """Create a new Issuer with a conflict check on name.
+
+        Does not commit — the router commits after successful creation.
+        """
+        name = name.strip()
+        existing = await self.db.execute(select(Issuer).where(Issuer.name == name))
+        if existing.scalar_one_or_none():
+            raise HTTPException(
+                status_code=409, detail=f"Issuer '{name}' already exists"
+            )
+        issuer = Issuer(name=name)
+        self.db.add(issuer)
+        return issuer
 
     async def list_application_rules(self) -> list[IssuerApplicationRule]:
         """List all issuer application rules with issuer eager-loaded.

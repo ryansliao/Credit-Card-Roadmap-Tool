@@ -2,12 +2,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import {
   walletSpendItemsApi,
+  walletsApi,
   type UserSpendCategory,
   type WalletSpendItem,
 } from '../../../api/client'
 import { useUserSpendCategories } from '../../../hooks/useUserSpendCategories'
+import { useMyWallet } from '../hooks/useMyWallet'
 import { queryKeys } from '../../../lib/queryKeys'
 import { ModalBackdrop } from '../../../components/ModalBackdrop'
+import { InfoIconButton, InfoPopover } from '../../../components/InfoPopover'
 
 interface SpendingTabProps {
   walletId: number | null
@@ -18,6 +21,9 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
   const [editingAmountId, setEditingAmountId] = useState<number | null>(null)
   const [amountDraft, setAmountDraft] = useState('')
   const [showPicker, setShowPicker] = useState(false)
+  // In-flight slider drag; null means "show committed value from wallet".
+  const [draftForeignPct, setDraftForeignPct] = useState<number | null>(null)
+  const [showForeignInfo, setShowForeignInfo] = useState(false)
 
   const { data: spendItems = [], isLoading } = useQuery({
     queryKey: queryKeys.walletSpendItems(walletId),
@@ -26,6 +32,18 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
   })
 
   const { data: categories = [] } = useUserSpendCategories()
+  const { data: wallet } = useMyWallet()
+
+  const foreignSpendPercent = draftForeignPct ?? wallet?.foreign_spend_percent ?? 0
+
+  const updateWalletMutation = useMutation({
+    mutationFn: (pct: number) =>
+      walletsApi.update(walletId!, { foreign_spend_percent: pct }),
+    onSuccess: () => {
+      setDraftForeignPct(null)
+      queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
+    },
+  })
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.walletSpendItems(walletId) })
 
@@ -98,10 +116,83 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
         </button>
       </div>
 
-      <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center mb-4 shrink-0">
-        <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Annual Spend</p>
-        <p className="text-xl font-bold text-white mt-0.5 tabular-nums">${totalSpend.toLocaleString()}</p>
+      <div className="flex gap-3 mb-4 shrink-0">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center w-48 shrink-0 flex flex-col justify-center">
+          <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Annual Spend</p>
+          <p className="text-xl font-bold text-white mt-0.5 tabular-nums">${totalSpend.toLocaleString()}</p>
+        </div>
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 flex-1 min-w-0 flex flex-col justify-center">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-slate-400">Foreign Spend</span>
+              <InfoIconButton onClick={() => setShowForeignInfo(true)} label="How foreign spend affects calculation" />
+            </div>
+            <span className="text-xs font-medium text-slate-200 tabular-nums">
+              {Math.round(foreignSpendPercent)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={foreignSpendPercent}
+            disabled={walletId == null}
+            onChange={(e) => setDraftForeignPct(Number(e.target.value))}
+            onMouseUp={(e) => {
+              const pct = Number((e.target as HTMLInputElement).value)
+              if (walletId != null) updateWalletMutation.mutate(pct)
+            }}
+            onTouchEnd={(e) => {
+              const pct = Number((e.target as HTMLInputElement).value)
+              if (walletId != null) updateWalletMutation.mutate(pct)
+            }}
+            className="w-full h-1.5 accent-indigo-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+          />
+          <div className="flex justify-between text-[10px] text-slate-600 mt-1">
+            <span>0%</span>
+            <span>25%</span>
+            <span>50%</span>
+            <span>75%</span>
+            <span>100%</span>
+          </div>
+        </div>
       </div>
+
+      {showForeignInfo && (
+        <InfoPopover title="Foreign Spend" onClose={() => setShowForeignInfo(false)}>
+          <p>
+            Percentage of your total spend that occurs as foreign transactions.
+            Each spend category is split: the foreign portion is allocated
+            separately from the domestic portion.
+          </p>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">FTF priority</p>
+            <p>
+              Foreign spend goes to no-FTF cards first. If any no-FTF Visa or
+              Mastercard exists in the wallet, it gets priority over no-FTF
+              cards on other networks (e.g. American Express).
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">Per-category multiplier</p>
+            <p>
+              On the foreign portion of a category, the eligible card earns
+              {' '}<span className="font-mono text-[11px] text-slate-300">max(category_mult, foreign_transactions_mult)</span>.
+              So a card with a "Foreign Transactions" multiplier (e.g. Atmos
+              Summit at 3x) earns its full bonus on foreign Groceries even if
+              its normal Groceries rate is lower.
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-medium mb-1">Fallback</p>
+            <p>
+              If every card in the wallet charges a foreign transaction fee,
+              cards compete normally and the user incurs the ~3% fee on the
+              winning card's foreign spend.
+            </p>
+          </div>
+        </InfoPopover>
+      )}
 
       <div className="min-h-0 overflow-y-auto flex-1">
         {spendItems.length === 0 ? (

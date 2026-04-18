@@ -37,10 +37,10 @@ export default function RoadmapToolPage() {
   const [walletCardModal, setWalletCardModal] = useState<WalletCardModalOpen | null>(null)
   const [durationYears, setDurationYears] = useState(2)
   const [durationMonths, setDurationMonths] = useState(0)
-  const [foreignSpendPercent, setForeignSpendPercent] = useState(0)
   const [showMethodology, setShowMethodology] = useState(false)
   const [editingCurrencyId, setEditingCurrencyId] = useState<number | null>(null)
   const [result, setResult] = useState<WalletResultResponse | null>(null)
+  const [isStale, setIsStale] = useState(false)
   const [mainView, setMainView] = useState<MainView>('timeline')
   const [applicationRuleWarnings, setApplicationRuleWarnings] = useState<RoadmapRuleStatus[] | null>(
     null
@@ -82,7 +82,7 @@ export default function RoadmapToolPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
       setWalletCardModal(null)
 
-      runCalculation()
+      setIsStale(true)
 
       try {
         await queryClient.invalidateQueries({ queryKey: queryKeys.roadmap(walletId) })
@@ -109,7 +109,7 @@ export default function RoadmapToolPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
-      runCalculation()
+      setIsStale(true)
     },
   })
 
@@ -133,6 +133,13 @@ export default function RoadmapToolPage() {
     },
   })
 
+  // Wraps runCalculation to clear staleness up-front so any edits the user
+  // makes while the calc is in-flight correctly re-mark the result as stale.
+  function calculateNow() {
+    setIsStale(false)
+    runCalculation()
+  }
+
   // Single mutation for all wallet card updates (quick actions + edit modal).
   // Call sites handle their own UI side effects (clearing state / closing modals).
   const updateWalletCardMutation = useMutation({
@@ -151,7 +158,7 @@ export default function RoadmapToolPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCardCredits(walletId, null) })
-      runCalculation()
+      setIsStale(true)
     },
   })
 
@@ -164,9 +171,9 @@ export default function RoadmapToolPage() {
   useEffect(() => {
     if (walletId == null || !wallet) return
 
+    // One-shot init: wallet id flips from null to a number once per session.
     setDurationYears(wallet.calc_duration_years)
     setDurationMonths(wallet.calc_duration_months)
-    setForeignSpendPercent(wallet.foreign_spend_percent ?? 0)
 
     if (wallet.calc_start_date) {
       resultsMutation.mutate({
@@ -178,6 +185,10 @@ export default function RoadmapToolPage() {
         },
       })
     }
+    // resultsMutation is a stable react-query handle; wallet is intentionally
+    // gated by wallet?.id so we run this only on the initial load, not on
+    // every wallet field update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletId, wallet?.id])
 
   function runCalculation(years = durationYears, months = durationMonths) {
@@ -206,18 +217,39 @@ export default function RoadmapToolPage() {
           <div className="h-full bg-indigo-500 animate-progress-bar" />
         </div>
       )}
-      <header className="mb-6 shrink-0">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold text-white">Roadmap Tool</h1>
-          <InfoIconButton
-            onClick={() => setShowMethodology(true)}
-            label="Calculation methodology"
-            size={18}
-          />
+      <header className="mb-4 shrink-0 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-white">Roadmap Tool</h1>
+            <InfoIconButton
+              onClick={() => setShowMethodology(true)}
+              label="Calculation methodology"
+              size={18}
+            />
+          </div>
         </div>
-        <p className="text-slate-400 text-sm mt-1">
-          Add cards to your future wallet and see how much value they will provide.
-        </p>
+        {wallet && (
+          <button
+            type="button"
+            onClick={calculateNow}
+            disabled={resultsMutation.isPending}
+            aria-live="polite"
+            className={`shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              resultsMutation.isPending
+                ? 'bg-slate-700 text-slate-400 cursor-wait'
+                : isStale
+                ? 'bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-sm shadow-amber-900/40'
+                : 'bg-slate-700 hover:bg-slate-600 text-slate-200'
+            }`}
+            title={isStale ? 'Results are out of date — click to recalculate' : 'Recalculate with current settings'}
+          >
+            {resultsMutation.isPending
+              ? 'Calculating…'
+              : isStale
+              ? 'Calculate (out of date)'
+              : 'Calculate'}
+          </button>
+        )}
       </header>
 
       <div className="min-w-0 flex-1 min-h-0 flex flex-col">
@@ -231,19 +263,13 @@ export default function RoadmapToolPage() {
               <WalletSummaryStats
                 result={result?.wallet ?? null}
                 isCalculating={resultsMutation.isPending}
+                isStale={isStale}
                 durationYears={durationYears}
                 durationMonths={durationMonths}
-                foreignSpendPercent={foreignSpendPercent}
                 onDurationChange={(y, m) => {
                   setDurationYears(y)
                   setDurationMonths(m)
-                }}
-                onDurationCommit={(y, m) => runCalculation(y, m)}
-                onForeignSpendChange={(pct) => setForeignSpendPercent(pct)}
-                onForeignSpendCommit={(pct) => {
-                  setForeignSpendPercent(pct)
-                  if (wallet) walletsApi.update(wallet.id, { foreign_spend_percent: pct })
-                  runCalculation()
+                  setIsStale(true)
                 }}
                 resultsError={
                   resultsMutation.isError
@@ -385,7 +411,7 @@ export default function RoadmapToolPage() {
           walletId={wallet.id}
           currencyId={editingCurrencyId}
           onClose={() => setEditingCurrencyId(null)}
-          onCppChange={() => runCalculation()}
+          onCppChange={() => setIsStale(true)}
         />
       )}
 

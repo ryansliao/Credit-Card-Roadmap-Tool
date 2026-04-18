@@ -397,32 +397,32 @@ def _solve_segment_allocation_lp(
         else:
             bounds.append((0.0, cat_dollars[cat_idx][1]))
 
-    # Solve.
+    # Solve. Only scipy-missing (ImportError) should trigger the greedy
+    # fallback silently — real solver errors indicate a bug in our LP setup
+    # and must propagate so they are caught in tests / observability.
     try:
         from scipy.optimize import linprog
-
-        # Dense matrices are fine for our small problem sizes.
-        res = linprog(
-            c=obj_c,
-            A_ub=A_ub if A_ub else None,
-            b_ub=b_ub if b_ub else None,
-            A_eq=A_eq,
-            b_eq=b_eq,
-            bounds=bounds,
-            method="highs",
-        )
-    except Exception as exc:
-        # Solver unavailable / failed: degrade to per-card greedy.
+    except ImportError:
         import logging
         logging.getLogger(__name__).warning(
-            "LP solver unavailable (scipy not installed or solve failed: %s); "
-            "falling back to greedy allocation. Portal and cap accuracy may be reduced.",
-            exc,
+            "scipy not installed; falling back to greedy allocation. "
+            "Portal and cap accuracy may be reduced."
         )
         return _greedy_segment_fallback(
             active_cards, spend, seg_currency_ids, sub_priority_card_ids,
             seg_days, seg_start, cap_state, for_balance,
         )
+
+    # Dense matrices are fine for our small problem sizes.
+    res = linprog(
+        c=obj_c,
+        A_ub=A_ub if A_ub else None,
+        b_ub=b_ub if b_ub else None,
+        A_eq=A_eq,
+        b_eq=b_eq,
+        bounds=bounds,
+        method="highs",
+    )
 
     if not res.success:
         return _greedy_segment_fallback(

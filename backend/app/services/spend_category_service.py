@@ -1,6 +1,6 @@
 """Spend category data access service."""
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -14,6 +14,31 @@ class SpendCategoryService(BaseService[SpendCategory]):
     """Service for SpendCategory operations."""
 
     model = SpendCategory
+
+    async def create(
+        self,
+        *,
+        category: str,
+        is_housing: bool,
+        is_foreign_eligible: bool,
+    ) -> SpendCategory:
+        """Create a SpendCategory, validating name uniqueness."""
+        category = category.strip()
+        existing = await self.db.execute(
+            select(SpendCategory).where(SpendCategory.category == category)
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(
+                status_code=409,
+                detail=f"SpendCategory '{category}' already exists",
+            )
+        sc = SpendCategory(
+            category=category,
+            is_housing=is_housing,
+            is_foreign_eligible=is_foreign_eligible,
+        )
+        self.db.add(sc)
+        return sc
 
     async def list_all(self, options: list | None = None) -> list[SpendCategory]:
         """List all spend categories ordered by name.

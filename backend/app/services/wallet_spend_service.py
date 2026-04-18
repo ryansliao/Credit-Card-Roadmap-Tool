@@ -25,8 +25,6 @@ class WalletSpendService(BaseService[WalletSpendItem]):
             selectinload(WalletSpendItem.user_spend_category)
             .selectinload(UserSpendCategory.mappings)
             .selectinload(UserSpendCategoryMapping.earn_category),
-            # Legacy support
-            selectinload(WalletSpendItem.spend_category),
         ]
 
     async def list_for_wallet(self, wallet_id: int) -> list[WalletSpendItem]:
@@ -172,7 +170,6 @@ class WalletSpendService(BaseService[WalletSpendItem]):
             select(WalletSpendItem)
             .options(
                 selectinload(WalletSpendItem.user_spend_category),
-                selectinload(WalletSpendItem.spend_category),  # legacy
             )
             .where(
                 WalletSpendItem.id == item_id,

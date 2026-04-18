@@ -1,37 +1,22 @@
 """Admin endpoints for CardMultiplierGroup CRUD."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from ...database import get_db
-from ...models import (
-    Card,
-    CardCategoryMultiplier,
-    CardMultiplierGroup,
-    RotatingCategory,
-    SpendCategory,
-)
 from ...schemas import (
     AdminCreateCardMultiplierGroupPayload,
     AdminUpdateCardMultiplierGroupPayload,
     CardMultiplierGroupRead,
 )
+from ...services import (
+    CardService,
+    SpendCategoryService,
+    get_card_service,
+    get_spend_category_service,
+)
 
 router = APIRouter()
-
-
-def _multiplier_group_load_opts():
-    """Eager-load options for multiplier group queries."""
-    return [
-        selectinload(CardMultiplierGroup.categories).selectinload(
-            CardCategoryMultiplier.spend_category
-        ),
-        selectinload(CardMultiplierGroup.card)
-        .selectinload(Card.rotating_categories)
-        .selectinload(RotatingCategory.spend_category),
-    ]
 
 
 @router.get(
@@ -40,17 +25,10 @@ def _multiplier_group_load_opts():
 )
 async def admin_list_card_multiplier_groups(
     card_id: int,
-    db: AsyncSession = Depends(get_db),
+    card_service: CardService = Depends(get_card_service),
 ):
-    card_result = await db.execute(select(Card).where(Card.id == card_id))
-    if not card_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail=f"Card {card_id} not found")
-    result = await db.execute(
-        select(CardMultiplierGroup)
-        .options(*_multiplier_group_load_opts())
-        .where(CardMultiplierGroup.card_id == card_id)
-    )
-    return result.scalars().all()
+    await card_service.get_or_404(card_id)
+    return await card_service.list_multiplier_groups(card_id)
 
 
 @router.post(
@@ -62,58 +40,17 @@ async def admin_create_card_multiplier_group(
     card_id: int,
     payload: AdminCreateCardMultiplierGroupPayload,
     db: AsyncSession = Depends(get_db),
+    card_service: CardService = Depends(get_card_service),
+    spend_service: SpendCategoryService = Depends(get_spend_category_service),
 ):
-    card_result = await db.execute(select(Card).where(Card.id == card_id))
-    if not card_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail=f"Card {card_id} not found")
-
-    grp = CardMultiplierGroup(
-        card_id=card_id,
-        multiplier=payload.multiplier,
-        cap_per_billing_cycle=payload.cap_per_billing_cycle,
-        cap_period_months=payload.cap_period_months,
-        top_n_categories=payload.top_n_categories,
-        is_rotating=payload.is_rotating,
-        is_additive=payload.is_additive,
-    )
-    db.add(grp)
-    await db.flush()
-
+    await card_service.get_or_404(card_id)
     for cat_id in payload.category_ids:
-        sc_result = await db.execute(
-            select(SpendCategory).where(SpendCategory.id == cat_id)
-        )
-        if not sc_result.scalar_one_or_none():
-            raise HTTPException(
-                status_code=404, detail=f"SpendCategory id={cat_id} not found"
-            )
-        existing = await db.execute(
-            select(CardCategoryMultiplier).where(
-                CardCategoryMultiplier.card_id == card_id,
-                CardCategoryMultiplier.category_id == cat_id,
-            )
-        )
-        if existing.scalar_one_or_none():
-            raise HTTPException(
-                status_code=409,
-                detail=f"Multiplier for card {card_id} / category {cat_id} already exists",
-            )
-        db.add(
-            CardCategoryMultiplier(
-                card_id=card_id,
-                category_id=cat_id,
-                multiplier=payload.multiplier,
-                multiplier_group_id=grp.id,
-            )
-        )
-
-    await db.commit()
-    result = await db.execute(
-        select(CardMultiplierGroup)
-        .options(*_multiplier_group_load_opts())
-        .where(CardMultiplierGroup.id == grp.id)
+        await spend_service.get_or_404(cat_id)
+    grp = await card_service.create_multiplier_group(
+        card_id=card_id, payload=payload
     )
-    return result.scalar_one()
+    await db.commit()
+    return await card_service.load_multiplier_group_full(grp.id)
 
 
 @router.patch(
@@ -125,87 +62,18 @@ async def admin_update_card_multiplier_group(
     group_id: int,
     payload: AdminUpdateCardMultiplierGroupPayload,
     db: AsyncSession = Depends(get_db),
+    card_service: CardService = Depends(get_card_service),
+    spend_service: SpendCategoryService = Depends(get_spend_category_service),
 ):
-    result = await db.execute(
-        select(CardMultiplierGroup).where(
-            CardMultiplierGroup.id == group_id,
-            CardMultiplierGroup.card_id == card_id,
-        )
-    )
-    grp = result.scalar_one_or_none()
-    if not grp:
-        raise HTTPException(
-            status_code=404,
-            detail=f"MultiplierGroup id={group_id} not found for card {card_id}",
-        )
-
-    if payload.multiplier is not None:
-        grp.multiplier = payload.multiplier
-    if payload.cap_per_billing_cycle is not None:
-        grp.cap_per_billing_cycle = payload.cap_per_billing_cycle
-    if payload.cap_period_months is not None:
-        grp.cap_period_months = payload.cap_period_months
-    if payload.top_n_categories is not None:
-        grp.top_n_categories = payload.top_n_categories
-    if payload.is_rotating is not None:
-        grp.is_rotating = payload.is_rotating
-    if payload.is_additive is not None:
-        grp.is_additive = payload.is_additive
-
+    grp = await card_service.get_multiplier_group_or_404(card_id, group_id)
     if payload.category_ids is not None:
-        existing = await db.execute(
-            select(CardCategoryMultiplier).where(
-                CardCategoryMultiplier.multiplier_group_id == group_id
-            )
-        )
-        for row in existing.scalars().all():
-            await db.delete(row)
-
-        mult = payload.multiplier if payload.multiplier is not None else grp.multiplier
         for cat_id in payload.category_ids:
-            sc_result = await db.execute(
-                select(SpendCategory).where(SpendCategory.id == cat_id)
-            )
-            if not sc_result.scalar_one_or_none():
-                raise HTTPException(
-                    status_code=404, detail=f"SpendCategory id={cat_id} not found"
-                )
-            conflict = await db.execute(
-                select(CardCategoryMultiplier).where(
-                    CardCategoryMultiplier.card_id == card_id,
-                    CardCategoryMultiplier.category_id == cat_id,
-                    CardCategoryMultiplier.multiplier_group_id != group_id,
-                )
-            )
-            if conflict.scalar_one_or_none():
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Multiplier for card {card_id} / category {cat_id} already exists outside this group",
-                )
-            db.add(
-                CardCategoryMultiplier(
-                    card_id=card_id,
-                    category_id=cat_id,
-                    multiplier=mult,
-                    multiplier_group_id=group_id,
-                )
-            )
-    elif payload.multiplier is not None:
-        existing = await db.execute(
-            select(CardCategoryMultiplier).where(
-                CardCategoryMultiplier.multiplier_group_id == group_id
-            )
-        )
-        for row in existing.scalars().all():
-            row.multiplier = payload.multiplier
-
-    await db.commit()
-    result = await db.execute(
-        select(CardMultiplierGroup)
-        .options(*_multiplier_group_load_opts())
-        .where(CardMultiplierGroup.id == group_id)
+            await spend_service.get_or_404(cat_id)
+    await card_service.update_multiplier_group(
+        grp=grp, card_id=card_id, payload=payload
     )
-    return result.scalar_one()
+    await db.commit()
+    return await card_service.load_multiplier_group_full(group_id)
 
 
 @router.delete(
@@ -216,18 +84,8 @@ async def admin_delete_card_multiplier_group(
     card_id: int,
     group_id: int,
     db: AsyncSession = Depends(get_db),
+    card_service: CardService = Depends(get_card_service),
 ):
-    result = await db.execute(
-        select(CardMultiplierGroup).where(
-            CardMultiplierGroup.id == group_id,
-            CardMultiplierGroup.card_id == card_id,
-        )
-    )
-    grp = result.scalar_one_or_none()
-    if not grp:
-        raise HTTPException(
-            status_code=404,
-            detail=f"MultiplierGroup id={group_id} not found for card {card_id}",
-        )
-    await db.delete(grp)
+    grp = await card_service.get_multiplier_group_or_404(card_id, group_id)
+    await card_service.delete(grp)
     await db.commit()

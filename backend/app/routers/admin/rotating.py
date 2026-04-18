@@ -1,13 +1,16 @@
 """Admin endpoints for rotating category history."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from ...database import get_db
-from ...models import Card, RotatingCategory, SpendCategory
 from ...schemas import AdminAddRotatingHistoryPayload, RotatingCategoryRead
+from ...services import (
+    CardService,
+    SpendCategoryService,
+    get_card_service,
+    get_spend_category_service,
+)
 
 router = APIRouter()
 
@@ -18,18 +21,10 @@ router = APIRouter()
 )
 async def admin_list_card_rotating_history(
     card_id: int,
-    db: AsyncSession = Depends(get_db),
+    card_service: CardService = Depends(get_card_service),
 ):
-    card_result = await db.execute(select(Card).where(Card.id == card_id))
-    if not card_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail=f"Card {card_id} not found")
-    result = await db.execute(
-        select(RotatingCategory)
-        .options(selectinload(RotatingCategory.spend_category))
-        .where(RotatingCategory.card_id == card_id)
-        .order_by(RotatingCategory.year.desc(), RotatingCategory.quarter.desc())
-    )
-    return result.scalars().all()
+    await card_service.get_or_404(card_id)
+    return await card_service.list_rotating_history(card_id)
 
 
 @router.post(
@@ -41,45 +36,19 @@ async def admin_add_card_rotating_history(
     card_id: int,
     payload: AdminAddRotatingHistoryPayload,
     db: AsyncSession = Depends(get_db),
+    card_service: CardService = Depends(get_card_service),
+    spend_service: SpendCategoryService = Depends(get_spend_category_service),
 ):
-    card_result = await db.execute(select(Card).where(Card.id == card_id))
-    if not card_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail=f"Card {card_id} not found")
-    sc_result = await db.execute(
-        select(SpendCategory).where(SpendCategory.id == payload.spend_category_id)
-    )
-    if not sc_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=404,
-            detail=f"SpendCategory id={payload.spend_category_id} not found",
-        )
-    existing = await db.execute(
-        select(RotatingCategory).where(
-            RotatingCategory.card_id == card_id,
-            RotatingCategory.year == payload.year,
-            RotatingCategory.quarter == payload.quarter,
-            RotatingCategory.spend_category_id == payload.spend_category_id,
-        )
-    )
-    if existing.scalar_one_or_none():
-        raise HTTPException(
-            status_code=409,
-            detail=f"Rotating history already exists for card {card_id} {payload.year}Q{payload.quarter} cat={payload.spend_category_id}",
-        )
-    row = RotatingCategory(
+    await card_service.get_or_404(card_id)
+    await spend_service.get_or_404(payload.spend_category_id)
+    row = await card_service.add_rotating_history(
         card_id=card_id,
         year=payload.year,
         quarter=payload.quarter,
         spend_category_id=payload.spend_category_id,
     )
-    db.add(row)
     await db.commit()
-    result = await db.execute(
-        select(RotatingCategory)
-        .options(selectinload(RotatingCategory.spend_category))
-        .where(RotatingCategory.id == row.id)
-    )
-    return result.scalar_one()
+    return await card_service.get_rotating_history_row_with_category(row.id)
 
 
 @router.delete(
@@ -90,18 +59,8 @@ async def admin_delete_card_rotating_history(
     card_id: int,
     history_id: int,
     db: AsyncSession = Depends(get_db),
+    card_service: CardService = Depends(get_card_service),
 ):
-    result = await db.execute(
-        select(RotatingCategory).where(
-            RotatingCategory.id == history_id,
-            RotatingCategory.card_id == card_id,
-        )
-    )
-    row = result.scalar_one_or_none()
-    if not row:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Rotating history id={history_id} not found for card {card_id}",
-        )
-    await db.delete(row)
+    row = await card_service.get_rotating_history_row(card_id, history_id)
+    await card_service.delete(row)
     await db.commit()

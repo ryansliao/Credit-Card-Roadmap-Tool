@@ -50,10 +50,6 @@ export function SpendTabContent({
     enabled: walletId != null,
   })
 
-  // View mode toggle: per-card (cycle through cards, show earn) vs
-  // top-ros (highest return-on-spend card in each category).
-  const [viewMode, setViewMode] = useState<'per-card' | 'top-ros'>('top-ros')
-  const [includeClosed, setIncludeClosed] = useState(false)
   const [infoCategory, setInfoCategory] = useState<UserSpendCategory | null>(null)
 
   // Closed / product-changed-away-from cards; matches CardsListPanel dimming.
@@ -79,11 +75,8 @@ export function SpendTabContent({
   }, [walletCards])
 
   const topRosCards = useMemo(
-    () =>
-      includeClosed
-        ? selectedCards
-        : selectedCards.filter((c) => !excludedCardIds.has(c.card_id)),
-    [includeClosed, selectedCards, excludedCardIds]
+    () => selectedCards.filter((c) => !excludedCardIds.has(c.card_id)),
+    [selectedCards, excludedCardIds]
   )
 
   // Cycling through cards in the third column. Index is clamped to the
@@ -160,53 +153,7 @@ export function SpendTabContent({
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 min-w-0 pt-3">
-      <div className="shrink-0 flex items-center justify-between gap-3 mb-2">
-        <div className="inline-flex rounded-lg border border-slate-700 overflow-hidden text-xs">
-          <button
-            type="button"
-            onClick={() => setViewMode('top-ros')}
-            className={`px-2.5 py-1 transition-colors ${
-              viewMode === 'top-ros'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-          >
-            Top ROS
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('per-card')}
-            className={`px-2.5 py-1 border-l border-slate-700 transition-colors ${
-              viewMode === 'per-card'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-          >
-            Per-Card Earn
-          </button>
-        </div>
-        {viewMode === 'top-ros' && (
-          <label className="inline-flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
-            <span>Include Closed Cards</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={includeClosed}
-              onClick={() => setIncludeClosed((v) => !v)}
-              className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
-                includeClosed ? 'bg-indigo-600' : 'bg-slate-700'
-              }`}
-            >
-              <span
-                className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                  includeClosed ? 'translate-x-3.5' : 'translate-x-0.5'
-                }`}
-              />
-            </button>
-          </label>
-        )}
-      </div>
+    <div className="flex flex-col flex-1 min-h-0 min-w-0">
       {isLoading ? (
         <div className="text-slate-500 text-sm">Loading…</div>
       ) : (
@@ -214,9 +161,9 @@ export function SpendTabContent({
           <table className="w-full text-sm border-collapse table-fixed">
             <colgroup>
               <col />
-              <col className="w-30" />
-              <col className={viewMode === 'top-ros' ? 'w-36' : 'w-56'} />
-              {viewMode === 'top-ros' && <col className="w-20" />}
+              <col className="w-28" />
+              <col className="w-72" />
+              <col className="w-80" />
             </colgroup>
             <thead className="sticky top-0 bg-slate-900 z-10">
               <tr>
@@ -226,69 +173,65 @@ export function SpendTabContent({
                 <th className="text-center text-sm font-semibold text-slate-300 px-3 py-2.5 border-b border-r border-slate-800 whitespace-nowrap">
                   Annual Spend
                 </th>
-                <th className="text-center text-sm font-semibold text-slate-300 px-3 py-2.5 border-b border-slate-800">
-                  {viewMode === 'per-card' ? (
-                    <div className="flex items-center justify-between gap-2 w-full">
-                      <button
-                        type="button"
-                        onClick={() => cycleCard(-1)}
-                        disabled={cardCount < 2}
-                        className="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 disabled:hover:text-slate-500 disabled:hover:bg-transparent"
-                        aria-label="Previous card"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="15 18 9 12 15 6" />
-                        </svg>
-                      </button>
-                      <div className="flex-1 min-w-0 flex items-center justify-center">
-                        <div className="w-[72px] h-11 shrink-0 rounded overflow-hidden bg-slate-700/50">
-                          <CardPhoto
-                            slug={currentCard?.photo_slug ?? null}
-                            name={currentCard?.card_name ?? 'Card'}
-                          />
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => cycleCard(1)}
-                        disabled={cardCount < 2}
-                        className="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 disabled:hover:text-slate-500 disabled:hover:bg-transparent"
-                        aria-label="Next card"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
-                      </button>
-                    </div>
-                  ) : (
-                    <span>Top ROS Card</span>
-                  )}
+                <th className="text-center text-sm font-semibold text-slate-300 px-3 py-2.5 border-b border-r border-slate-800">
+                  <div className="flex items-center justify-between gap-2 w-full">
+                    <button
+                      type="button"
+                      onClick={() => cycleCard(-1)}
+                      disabled={cardCount < 2}
+                      className="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 disabled:hover:text-slate-500 disabled:hover:bg-transparent"
+                      aria-label="Previous card"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                    </button>
+                    <span className="flex-1 min-w-0 truncate">Annual Card Spend</span>
+                    <button
+                      type="button"
+                      onClick={() => cycleCard(1)}
+                      disabled={cardCount < 2}
+                      className="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 disabled:hover:text-slate-500 disabled:hover:bg-transparent"
+                      aria-label="Next card"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </div>
                 </th>
-                {viewMode === 'top-ros' && (
-                  <th className="text-center text-sm font-semibold text-slate-300 px-3 py-2.5 border-b border-l border-slate-800 whitespace-nowrap">
-                    ROS
-                  </th>
-                )}
+                <th
+                  rowSpan={2}
+                  className="text-center text-sm font-semibold text-slate-300 px-3 py-2.5 border-b-2 border-slate-700 bg-slate-900 whitespace-nowrap"
+                >
+                  Top ROS Card
+                </th>
               </tr>
-            </thead>
-            <tbody>
-              {/* Total row */}
+              {/* Total row — kept inside thead so it sticks together with
+                  the header row when the table body scrolls. */}
               <tr className="border-b-2 border-slate-700 bg-slate-800/50">
-                <td className="text-left px-3 py-2 text-slate-100 font-semibold border-r border-slate-800/60">
+                <th
+                  scope="row"
+                  className="text-left px-3 py-2 text-slate-100 font-semibold border-r border-slate-800/60"
+                >
                   Total
-                </td>
+                </th>
                 <td className="text-center px-2 py-2 tabular-nums border-r border-slate-800/60">
                   <div className="text-slate-100 font-semibold">
                     ${spendItems.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
                   </div>
                 </td>
-                <td className="text-center px-3 py-2 text-slate-500" colSpan={viewMode === 'top-ros' ? 2 : 1}>
-                  —
+                <td className="text-center px-3 py-2 text-slate-300 border-r border-slate-800/60 truncate" title={currentCard?.card_name ?? ''}>
+                  {currentCard?.card_name ?? '—'}
                 </td>
               </tr>
+            </thead>
+            <tbody>
               {spendItems.map((item) => {
                 const catName = item.user_spend_category?.name ?? 'Unknown'
                 const earnRow = earnByCategoryByCard.get(catName)
+                const top = topCardsForCategory(catName)
+                const noTop = top.cards.length === 0 || top.ros <= 0
                 return (
                   <tr key={item.id} className="border-b border-slate-800/60">
                     <td className="text-left px-3 py-2 text-slate-200 border-r border-slate-800/60">
@@ -317,56 +260,43 @@ export function SpendTabContent({
                         ${item.amount === 0 ? '0' : Math.round(item.amount).toLocaleString()}
                       </span>
                     </td>
-                    {viewMode === 'per-card' ? (
-                      <td className="text-center tabular-nums px-3 py-2 text-slate-200">
-                        {currentCard ? (
-                          (() => {
-                            const pts = earnRow?.get(currentCard.card_id) ?? 0
-                            return pts > 0 ? (
-                              formatCardEarn(currentCard, pts)
-                            ) : (
-                              <span className="text-slate-700">—</span>
-                            )
-                          })()
-                        ) : (
-                          <span className="text-slate-700">—</span>
-                        )}
-                      </td>
-                    ) : (
-                      (() => {
-                        const top = topCardsForCategory(catName)
-                        const noTop = top.cards.length === 0 || top.ros <= 0
-                        return (
-                          <>
-                            <td className="text-center px-3 py-2 text-slate-200">
-                              {noTop ? (
-                                <span className="text-slate-700">—</span>
-                              ) : (
-                                <div className="flex flex-wrap items-center justify-center gap-1.5">
-                                  {top.cards.map((c) => (
-                                    <div
-                                      key={c.card_id}
-                                      className="w-[72px] h-11 shrink-0 rounded overflow-hidden bg-slate-700/50"
-                                    >
-                                      <CardPhoto slug={c.photo_slug} name={c.card_name} />
-                                    </div>
-                                  ))}
+                    <td className="text-center tabular-nums px-3 py-2 text-slate-200 border-r border-slate-800/60">
+                      {currentCard ? (
+                        (() => {
+                          const pts = earnRow?.get(currentCard.card_id) ?? 0
+                          return pts > 0 ? (
+                            formatCardEarn(currentCard, pts)
+                          ) : (
+                            <span className="text-slate-700">—</span>
+                          )
+                        })()
+                      ) : (
+                        <span className="text-slate-700">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-slate-200">
+                      {noTop ? (
+                        <div className="text-center text-slate-700">—</div>
+                      ) : (
+                        <div className="flex flex-col gap-1.5">
+                          {top.cards.map((c) => (
+                            <div key={c.card_id} className="flex items-center gap-2 min-w-0">
+                              <div className="w-[60px] h-9 shrink-0 rounded overflow-hidden bg-slate-700/50">
+                                <CardPhoto slug={c.photo_slug} name={c.card_name} />
+                              </div>
+                              <div className="min-w-0 flex-1 text-left">
+                                <div className="text-xs text-slate-200 truncate mb-0.5" title={c.card_name}>
+                                  {c.card_name}
                                 </div>
-                              )}
-                            </td>
-                            <td className="text-center tabular-nums px-3 py-2 border-l border-slate-800/60">
-                              {noTop ? (
-                                <span className="text-slate-700">—</span>
-                              ) : (
-                                <span className="font-semibold text-indigo-300">
+                                <div className="text-xs font-semibold text-indigo-300 tabular-nums">
                                   {formatRos(top.ros)}
-                                </span>
-                              )}
-                            </td>
-                          </>
-                        )
-                      })()
-                    )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 )
               })}

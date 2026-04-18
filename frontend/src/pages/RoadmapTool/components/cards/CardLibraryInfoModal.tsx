@@ -140,6 +140,8 @@ export function CardLibraryInfoModal({
 
   useEffect(() => {
     if (!card || rotatingGroups.length === 0) {
+      // Reset on card change — not a render loop, deps are stable.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHistory([])
       return
     }

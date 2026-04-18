@@ -3,6 +3,7 @@ export const queryKeys = {
   myWallet: () => ['my-wallet'] as const,
   cards: () => ['cards'] as const,
   credits: () => ['credits'] as const,
+  currencies: () => ['currencies'] as const,
   appSpendCategories: () => ['app-spend-categories'] as const,
   userSpendCategories: () => ['user-spend-categories'] as const,
   walletCurrencies: (walletId: number | null) => ['wallet-currencies', walletId] as const,

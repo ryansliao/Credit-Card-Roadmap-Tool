@@ -101,9 +101,6 @@ class WalletSpendItemRead(BaseModel):
     user_spend_category_id: Optional[int] = None
     amount: float
     user_spend_category: Optional[UserSpendCategoryRead] = None
-    # Legacy field for backward compatibility (use flat schema to avoid lazy load)
-    spend_category_id: Optional[int] = None
-    spend_category: Optional[SpendCategoryFlat] = None
 
 
 class WalletSpendItemCreate(BaseModel):

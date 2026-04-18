@@ -1,4 +1,4 @@
-import { useAuth } from '../../../auth/AuthContext'
+import { useAuth } from '../../../auth/useAuth'
 
 export function SettingsTab() {
   const { user, signOut } = useAuth()

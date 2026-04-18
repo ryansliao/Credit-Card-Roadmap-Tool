@@ -4,7 +4,8 @@ import { BrowserRouter, Route, Routes, Navigate, NavLink, Link } from 'react-rou
 import RoadmapTool from './pages/RoadmapTool/index'
 import Home from './pages/Home'
 import Profile from './pages/Profile'
-import { AuthProvider, useAuth } from './auth/AuthContext'
+import { AuthProvider } from './auth/AuthContext'
+import { useAuth } from './auth/useAuth'
 
 declare global {
   interface Window {

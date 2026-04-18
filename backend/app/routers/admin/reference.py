@@ -1,11 +1,9 @@
 """Admin endpoints for reference data: Issuers, Currencies, SpendCategories."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database import get_db
-from ...models import Currency, Issuer, SpendCategory
 from ...schemas import (
     AdminCreateCurrencyPayload,
     AdminCreateIssuerPayload,
@@ -13,6 +11,14 @@ from ...schemas import (
     CurrencyRead,
     IssuerRead,
     SpendCategoryRead,
+)
+from ...services import (
+    CurrencyService,
+    IssuerService,
+    SpendCategoryService,
+    get_currency_service,
+    get_issuer_service,
+    get_spend_category_service,
 )
 
 router = APIRouter()
@@ -26,12 +32,9 @@ router = APIRouter()
 async def admin_create_issuer(
     payload: AdminCreateIssuerPayload,
     db: AsyncSession = Depends(get_db),
+    issuer_service: IssuerService = Depends(get_issuer_service),
 ):
-    existing = await db.execute(select(Issuer).where(Issuer.name == payload.name.strip()))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail=f"Issuer '{payload.name}' already exists")
-    issuer = Issuer(name=payload.name.strip())
-    db.add(issuer)
+    issuer = await issuer_service.create(payload.name)
     await db.commit()
     await db.refresh(issuer)
     return issuer
@@ -45,17 +48,10 @@ async def admin_create_issuer(
 async def admin_create_currency(
     payload: AdminCreateCurrencyPayload,
     db: AsyncSession = Depends(get_db),
+    currency_service: CurrencyService = Depends(get_currency_service),
 ):
-    existing = await db.execute(select(Currency).where(Currency.name == payload.name.strip()))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail=f"Currency '{payload.name}' already exists")
-    if payload.converts_to_currency_id is not None:
-        tgt = await db.execute(select(Currency).where(Currency.id == payload.converts_to_currency_id))
-        if not tgt.scalar_one_or_none():
-            raise HTTPException(status_code=404, detail=f"Target currency id={payload.converts_to_currency_id} not found")
-
-    currency = Currency(
-        name=payload.name.strip(),
+    currency = await currency_service.create(
+        name=payload.name,
         reward_kind=payload.reward_kind,
         cents_per_point=payload.cents_per_point,
         partner_transfer_rate=payload.partner_transfer_rate,
@@ -65,7 +61,6 @@ async def admin_create_currency(
         no_transfer_cpp=payload.no_transfer_cpp,
         no_transfer_rate=payload.no_transfer_rate,
     )
-    db.add(currency)
     await db.commit()
     await db.refresh(currency)
     return currency
@@ -79,16 +74,13 @@ async def admin_create_currency(
 async def admin_create_spend_category(
     payload: AdminCreateSpendCategoryPayload,
     db: AsyncSession = Depends(get_db),
+    spend_service: SpendCategoryService = Depends(get_spend_category_service),
 ):
-    existing = await db.execute(select(SpendCategory).where(SpendCategory.category == payload.category.strip()))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail=f"SpendCategory '{payload.category}' already exists")
-    sc = SpendCategory(
-        category=payload.category.strip(),
+    sc = await spend_service.create(
+        category=payload.category,
         is_housing=payload.is_housing,
         is_foreign_eligible=payload.is_foreign_eligible,
     )
-    db.add(sc)
     await db.commit()
     await db.refresh(sc)
     return sc

@@ -397,26 +397,28 @@ export function WalletTimelineChart({
               </div>
             </div>
 
-            {/* Year gridlines behind all rows (below horizontal borders). */}
+            {/* Year gridlines — z-[25] so they cross over the currency
+                header rows (z-20) instead of being masked by them. Bars at
+                z-30 still overlay them. */}
             <div
-              className="pointer-events-none absolute"
+              className="pointer-events-none absolute z-[25]"
               style={{ left: LEFT_GUTTER, right: 0, top: 0, height: AXIS_HEIGHT + chartHeight }}
             >
               {yearTicks.map((t) => (
                 <div
                   key={t.label}
-                  className="absolute top-0 bottom-0 border-l border-slate-800"
+                  className="absolute top-0 bottom-0 border-l border-slate-700"
                   style={{ left: `${t.pct}%` }}
                 />
               ))}
             </div>
 
-            {/* Today vertical line — z-20 stacks it above every horizontal
-                divider (group header, row dividers); bars at z-30 still
-                overlay it. The line spans only the chart body so it doesn't
-                bleed into the sticky axis (z-40). */}
+            {/* Today vertical line — z-[25] stacks it above currency header
+                rows (z-20); bars at z-30 still overlay it. The line spans
+                only the chart body so it doesn't bleed into the sticky
+                axis (z-40). */}
             <div
-              className="pointer-events-none absolute z-20"
+              className="pointer-events-none absolute z-[25]"
               style={{ left: LEFT_GUTTER, right: 0, top: AXIS_HEIGHT, height: chartHeight }}
             >
               <div

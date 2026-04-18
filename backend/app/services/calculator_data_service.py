@@ -167,7 +167,6 @@ class CalculatorDataService:
             select(WalletSpendItem)
             .options(
                 selectinload(WalletSpendItem.user_spend_category),
-                selectinload(WalletSpendItem.spend_category),  # legacy fallback
             )
             .where(WalletSpendItem.wallet_id == wallet_id)
         )
@@ -212,12 +211,8 @@ class CalculatorDataService:
                     spend[ALL_OTHER_CATEGORY] = (
                         spend.get(ALL_OTHER_CATEGORY, 0.0) + item.amount
                     )
-            elif item.spend_category is not None:
-                # Legacy path: direct spend_category_id (for backward compat)
-                cat_name = item.spend_category.category
-                spend[cat_name] = spend.get(cat_name, 0.0) + item.amount
             else:
-                # Neither set - fall back to All Other
+                # user_spend_category_id unset — fall back to All Other
                 spend[ALL_OTHER_CATEGORY] = (
                     spend.get(ALL_OTHER_CATEGORY, 0.0) + item.amount
                 )

@@ -121,7 +121,7 @@ export function WalletCardModal({
     return m
   }, [creditLibrary])
   const { data: currencies } = useQuery({
-    queryKey: ['currencies'],
+    queryKey: queryKeys.currencies(),
     queryFn: () => currenciesApi.list(),
     staleTime: Infinity,
   })
@@ -244,6 +244,8 @@ export function WalletCardModal({
       const key = `add:${cardId}`
       if (hydratedKey.current === key) return
       hydratedKey.current = key
+      // One-shot hydration gated by hydratedKey.current — not a render loop.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSubPoints(lib.sub_points != null ? String(lib.sub_points) : '')
       setSubMinSpend(lib.sub_min_spend != null ? String(lib.sub_min_spend) : '')
       setSubMonths(lib.sub_months != null ? String(lib.sub_months) : '')
@@ -310,6 +312,7 @@ export function WalletCardModal({
         m[g.id] = picks
       }
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setGroupSelections(m)
   }, [mode, lib, existingGroupSelections, topNGroups])
 
@@ -323,6 +326,7 @@ export function WalletCardModal({
         mine.add(p.spend_category_id)
       }
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPriorityCategoryIds(mine)
   }, [walletCategoryPriorities, walletCard?.id])
 
