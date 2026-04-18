@@ -302,6 +302,7 @@ class WalletService(BaseService[Wallet]):
                 else None
             ),
             panel=payload.panel,
+            is_enabled=payload.is_enabled,
         )
         self.db.add(wc_obj)
         await self.db.flush()
@@ -358,6 +359,11 @@ class WalletService(BaseService[Wallet]):
     ) -> None:
         """Mark a card as product-changed on a given date.
 
+        The from-card is also closed on that date — product-change means the
+        original account no longer exists, so the calculator needs to stop
+        counting its earn/fees from that point. Respects any earlier manual
+        close_date the user may have set.
+
         Args:
             wallet_id: The wallet ID.
             from_card_id: The card that was product-changed.
@@ -366,6 +372,8 @@ class WalletService(BaseService[Wallet]):
         from_wc = await self.get_wallet_card(wallet_id, from_card_id)
         if from_wc:
             from_wc.product_changed_date = changed_date
+            if from_wc.closed_date is None or from_wc.closed_date > changed_date:
+                from_wc.closed_date = changed_date
 
     async def update_wallet_card(
         self,

@@ -34,6 +34,9 @@ export function WalletCardModal({
   onClose,
   onAdd,
   onSaveEdit,
+  onRemove,
+  onCloseCard,
+  onReopenCard,
   isLoading,
 }: {
   mode: 'add' | 'edit'
@@ -45,6 +48,12 @@ export function WalletCardModal({
   onClose: () => void
   onAdd: (payload: AddCardToWalletPayload) => void
   onSaveEdit: (payload: UpdateWalletCardPayload) => void
+  /** Edit mode only: triggers the wallet card removal flow. */
+  onRemove?: (walletCard: WalletCard) => void
+  /** Edit mode only: opens the close-date picker for this card. */
+  onCloseCard?: (walletCard: WalletCard) => void
+  /** Edit mode only: clears closed_date on this card. */
+  onReopenCard?: (walletCard: WalletCard) => void
   isLoading: boolean
 }) {
   const { data: cards } = useCardLibrary()
@@ -447,7 +456,7 @@ export function WalletCardModal({
       : `${walletCard?.card_name ?? `Card #${walletCard?.card_id ?? ''}`}`
 
   const primaryLabel =
-    mode === 'add' ? (isLoading ? 'Adding…' : 'Add Card') : isLoading ? 'Saving…' : 'Save Changes'
+    mode === 'add' ? (isLoading ? 'Adding…' : 'Add Card') : isLoading ? 'Saving…' : 'Save'
 
   const primaryDisabled =
     mode === 'add'
@@ -1145,14 +1154,41 @@ export function WalletCardModal({
         </div>
 
         {/* ── Fixed footer ── */}
-        <div className="flex-shrink-0 flex gap-2 px-6 py-4 border-t border-slate-700">
-          <button
-            type="button"
-            className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-sm py-2 rounded-lg"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
+        <div className="flex-shrink-0 flex items-center gap-2 px-6 py-4 border-t border-slate-700">
+          {mode === 'edit' && walletCard && (
+            <div className="flex items-center gap-2 mr-auto">
+              {onRemove && (
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => onRemove(walletCard)}
+                  className="text-sm text-red-400 hover:text-red-300 hover:bg-red-950/50 disabled:opacity-50 px-3 py-2 rounded-lg border border-red-900/60"
+                >
+                  Delete
+                </button>
+              )}
+              {walletCard.closed_date == null && onCloseCard && (
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => onCloseCard(walletCard)}
+                  className="text-sm text-slate-300 hover:text-white hover:bg-slate-700 disabled:opacity-50 px-3 py-2 rounded-lg border border-slate-600"
+                >
+                  Close Card
+                </button>
+              )}
+              {walletCard.closed_date != null && onReopenCard && (
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => onReopenCard(walletCard)}
+                  className="text-sm text-emerald-300 hover:text-emerald-200 hover:bg-emerald-900/40 disabled:opacity-50 px-3 py-2 rounded-lg border border-emerald-700"
+                >
+                  Reopen Card
+                </button>
+              )}
+            </div>
+          )}
           <button
             type="button"
             disabled={primaryDisabled}

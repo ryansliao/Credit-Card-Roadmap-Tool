@@ -129,7 +129,7 @@ async def wallet_results(
     active_wallet_cards = [
         wc
         for wc in wallet.wallet_cards
-        if wc.panel in ("in_wallet", "future_cards")
+        if wc.is_enabled
         and wc.added_date < window_end
         and (wc.closed_date is None or wc.closed_date >= ref_date)
     ]
@@ -200,13 +200,16 @@ async def wallet_results(
     selected_card_data = [c for c in modified_cards if c.id in card_ids_sel]
     wcids = {c.currency.id for c in selected_card_data}
 
-    in_wallet_panel_card_ids = {
-        wc.card_id for wc in active_wallet_cards if wc.panel == "in_wallet"
+    # Cards already in the user's wallet at the calc start: SUB windows for
+    # these are not projected (they would have been earned before the window,
+    # or are marked via sub_earned_date).
+    in_wallet_now_card_ids = {
+        wc.card_id for wc in active_wallet_cards if wc.added_date <= ref_date
     }
     sub_already_earned_ids = {wc.card_id for wc in active_wallet_cards if wc.sub_earned_date}
 
     def _has_sub_window(cd) -> bool:
-        if cd.id in in_wallet_panel_card_ids:
+        if cd.id in in_wallet_now_card_ids:
             return False
         if cd.id in sub_already_earned_ids:
             return False
@@ -246,7 +249,7 @@ async def wallet_results(
     plan_earn_dates: dict[int, date] = {s.card_id: s.projected_earn_date for s in sub_plan.schedules}
     projected_dates: dict[int, Optional[date]] = {}
     for wc in active_wallet_cards:
-        if wc.panel == "in_wallet":
+        if wc.added_date <= ref_date:
             proj: Optional[date] = None
         else:
             lib = library_cards_by_id.get(wc.card_id)
@@ -275,11 +278,11 @@ async def wallet_results(
         dataclasses.replace(
             c,
             sub_already_earned=(
-                False if c.id in in_wallet_panel_card_ids else c.id in sub_already_earned_ids
+                False if c.id in in_wallet_now_card_ids else c.id in sub_already_earned_ids
             ),
             sub_earnable=(
                 False
-                if c.id in in_wallet_panel_card_ids
+                if c.id in in_wallet_now_card_ids
                 else (
                     True
                     if c.id in sub_already_earned_ids
@@ -357,14 +360,16 @@ async def wallet_roadmap(
 
     today = as_of_date or date.today()
 
-    # 5/24 is projected to the added_date of the latest opened Future Card
+    # 5/24 is projected to the added_date of the latest opened future card
     # so the status reflects what the wallet looks like right after the
     # last planned acquisition. If there are no future opened cards to
-    # project to, fall back to today.
+    # project to, fall back to today. Disabled cards are excluded.
     future_opened_dates = [
         wc.added_date
         for wc in wallet.wallet_cards
-        if wc.panel == "future_cards" and wc.acquisition_type == "opened"
+        if wc.is_enabled
+        and wc.added_date > today
+        and wc.acquisition_type == "opened"
     ]
     five_twenty_four_as_of = max(future_opened_dates) if future_opened_dates else today
 
@@ -377,9 +382,10 @@ async def wallet_roadmap(
     personal_cards_24mo: list[str] = []
     cutoff_24mo = five_twenty_four_as_of - timedelta(days=730)
 
-    in_wallet_cards = [
-        wc for wc in wallet.wallet_cards if wc.panel in ("in_wallet", "future_cards")
-    ]
+    # Roadmap includes every card the user considers part of their plan
+    # (wallet cards and future acquisitions). Disabled cards are excluded —
+    # they're just being held for re-enablement.
+    in_wallet_cards = [wc for wc in wallet.wallet_cards if wc.is_enabled]
 
     for wc in in_wallet_cards:
         card = wc.card
@@ -403,7 +409,7 @@ async def wallet_roadmap(
             and eff_sub
             and eff_sub_min
             and not wc.sub_earned_date
-            and wc.panel != "in_wallet"
+            and wc.added_date > today
         ):
             sub_projected = projected_sub_earn_date(wc.added_date, eff_sub_min, eff_sub_months, roadmap_daily_rate)
 

@@ -369,6 +369,7 @@ export interface WalletCard {
   /** For product_change cards: library card_id of the card changed FROM. */
   pc_from_card_id: number | null
   panel: WalletCardPanel
+  is_enabled: boolean
   photo_slug: string | null
   issuer_name: string | null
   network_tier_name: string | null
@@ -471,6 +472,7 @@ export interface UpdateWalletCardPayload {
   closed_date?: string | null
   acquisition_type?: WalletCardAcquisitionType | null
   panel?: WalletCardPanel
+  is_enabled?: boolean
 }
 
 export const walletsApi = {

@@ -14,12 +14,18 @@ import {
 import { today } from '../../utils/format'
 import { WalletCardModal } from '../../components/cards/WalletCardModal'
 import { DeleteCardWarningModal } from '../../components/cards/DeleteCardWarningModal'
-import { WalletSettingsModal } from './components/wallet/WalletSettingsModal'
-import { WalletResultsAndCurrenciesPanel } from './components/summary/WalletResultsAndCurrenciesPanel'
-import { CardsListPanel } from './components/cards/CardsListPanel'
+import { CloseCardModal } from './components/cards/CloseCardModal'
+import { WalletSummaryStats } from './components/summary/WalletSummaryStats'
+import { MethodologyInfoPopover } from './components/summary/MethodologyInfoPopover'
+import { CurrencyEditModal } from './components/summary/CurrencyEditModal'
+import { WalletTimelineChart } from './components/timeline/WalletTimelineChart'
+import { SpendPanel } from './components/spend/SpendPanel'
 import { ApplicationRuleWarningModal } from './components/ApplicationRuleWarningModal'
+import { InfoIconButton } from '../../components/InfoPopover'
 import { useCreditLibrary } from '../../hooks/useCreditLibrary'
 import { queryKeys } from '../../lib/queryKeys'
+
+type MainView = 'timeline' | 'spend'
 
 
 type WalletCardModalOpen =
@@ -32,16 +38,19 @@ export default function RoadmapToolPage() {
   const [durationYears, setDurationYears] = useState(2)
   const [durationMonths, setDurationMonths] = useState(0)
   const [foreignSpendPercent, setForeignSpendPercent] = useState(0)
-  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [showMethodology, setShowMethodology] = useState(false)
+  const [editingCurrencyId, setEditingCurrencyId] = useState<number | null>(null)
   const [result, setResult] = useState<WalletResultResponse | null>(null)
-  const [closeCardId, setCloseCardId] = useState<number | null>(null)
-  const [closeDateInput, setCloseDateInput] = useState('')
+  const [mainView, setMainView] = useState<MainView>('timeline')
   const [applicationRuleWarnings, setApplicationRuleWarnings] = useState<RoadmapRuleStatus[] | null>(
     null
   )
   const [pendingRemoval, setPendingRemoval] = useState<{ cardId: number; cardName: string } | null>(
     null
   )
+  const [pendingClose, setPendingClose] = useState<
+    { cardId: number; cardName: string; addedDate: string } | null
+  >(null)
 
   const { data: wallet, isLoading: walletLoading } = useQuery({
     queryKey: queryKeys.myWallet(),
@@ -198,7 +207,14 @@ export default function RoadmapToolPage() {
         </div>
       )}
       <header className="mb-6 shrink-0">
-        <h1 className="text-2xl font-bold text-white">Wallet Roadmap Tool</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-white">Roadmap Tool</h1>
+          <InfoIconButton
+            onClick={() => setShowMethodology(true)}
+            label="Calculation methodology"
+            size={18}
+          />
+        </div>
         <p className="text-slate-400 text-sm mt-1">
           Add cards to your future wallet and see how much value they will provide.
         </p>
@@ -211,12 +227,24 @@ export default function RoadmapToolPage() {
           </div>
         ) : (
           <>
-            <div
-              className="grid flex-1 min-h-0 gap-6 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-2 xl:grid-rows-1"
-            >
-              <WalletResultsAndCurrenciesPanel
-                walletId={walletId}
+            <div className="mb-4 shrink-0">
+              <WalletSummaryStats
                 result={result?.wallet ?? null}
+                isCalculating={resultsMutation.isPending}
+                durationYears={durationYears}
+                durationMonths={durationMonths}
+                foreignSpendPercent={foreignSpendPercent}
+                onDurationChange={(y, m) => {
+                  setDurationYears(y)
+                  setDurationMonths(m)
+                }}
+                onDurationCommit={(y, m) => runCalculation(y, m)}
+                onForeignSpendChange={(pct) => setForeignSpendPercent(pct)}
+                onForeignSpendCommit={(pct) => {
+                  setForeignSpendPercent(pct)
+                  if (wallet) walletsApi.update(wallet.id, { foreign_spend_percent: pct })
+                  runCalculation()
+                }}
                 resultsError={
                   resultsMutation.isError
                     ? resultsMutation.error instanceof Error
@@ -224,54 +252,83 @@ export default function RoadmapToolPage() {
                       : new Error(String(resultsMutation.error))
                     : null
                 }
-                isCalculating={resultsMutation.isPending}
-                durationYears={durationYears}
-                durationMonths={durationMonths}
-                photoSlugs={Object.fromEntries(
-                  (wallet?.wallet_cards ?? []).map((wc) => [wc.card_id, wc.photo_slug])
-                )}
-                walletCards={wallet?.wallet_cards ?? []}
-                onOpenSettings={() => setShowSettingsModal(true)}
-                onCppChange={() => runCalculation()}
               />
+            </div>
+            <div className="flex flex-1 min-h-0 min-w-0 items-stretch">
+              {/* Binder-style tabs sit outside the panel on the left. */}
+              <div className="shrink-0 flex flex-col gap-1 pt-6 z-10">
+                {([
+                  {
+                    key: 'timeline' as const,
+                    label: 'Timeline',
+                    icon: (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="3" y1="6" x2="21" y2="6" />
+                        <line x1="3" y1="12" x2="14" y2="12" />
+                        <line x1="3" y1="18" x2="18" y2="18" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    key: 'spend' as const,
+                    label: 'Spend',
+                    icon: (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="1" x2="12" y2="23" />
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                      </svg>
+                    ),
+                  },
+                ]).map((tab) => {
+                  const isActive = mainView === tab.key
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setMainView(tab.key)}
+                      className={`px-2 py-3 rounded-l-md border border-r-0 transition-colors ${
+                        isActive
+                          ? 'bg-slate-900 text-indigo-300 border-slate-700 -mr-px'
+                          : 'bg-slate-800/70 text-slate-400 border-slate-800 hover:text-slate-200 hover:bg-slate-800'
+                      }`}
+                      aria-pressed={isActive}
+                      aria-label={tab.label}
+                      title={tab.label}
+                    >
+                      {tab.icon}
+                    </button>
+                  )
+                })}
+              </div>
 
-              {/* Mirror the tab column on the Results panel so both inner panels
-                  end up the same visual width inside their grid cells. */}
-              <div className="flex h-full min-w-0 min-h-0 items-stretch">
-                <div className="flex-1 min-w-0 min-h-0">
-                  <CardsListPanel
+              <div className="flex-1 min-w-0 min-h-0">
+                {mainView === 'timeline' ? (
+                  <WalletTimelineChart
                     wallet={wallet}
+                    result={result?.wallet ?? null}
                     roadmap={roadmap}
-                    inWalletLocked
-                    closeCardId={closeCardId}
-                    closeDateInput={closeDateInput}
+                    durationYears={durationYears}
+                    durationMonths={durationMonths}
                     isUpdating={updateWalletCardMutation.isPending}
-                    isRemoving={removeCardMutation.isPending}
-                    onSetCloseCard={setCloseCardId}
-                    onSetCloseDateInput={setCloseDateInput}
-                    onUpdateCard={(cardId, payload) => {
-                      updateWalletCardMutation.mutate(
-                        { walletId: wallet.id, cardId, payload },
-                        {
-                          onSuccess: () => {
-                            setCloseCardId(null)
-                            setCloseDateInput('')
-                          },
-                        }
-                      )
-                    }}
-                    onRemoveCard={(cardId) => {
-                      const wc = wallet.wallet_cards.find((c) => c.card_id === cardId)
-                      setPendingRemoval({
+                    onToggleEnabled={(cardId, enabled) =>
+                      updateWalletCardMutation.mutate({
+                        walletId: wallet.id,
                         cardId,
-                        cardName: wc?.card_name ?? `Card #${cardId}`,
+                        payload: { is_enabled: enabled },
                       })
-                    }}
+                    }
                     onEditCard={(wc) => setWalletCardModal({ mode: 'edit', walletCard: wc })}
                     onAddCard={() => setWalletCardModal({ mode: 'add' })}
+                    onEditCurrency={(cid) => setEditingCurrencyId(cid)}
                   />
-                </div>
-                <div className="shrink-0 w-[35px]" aria-hidden />
+                ) : (
+                  <SpendPanel
+                    walletId={walletId}
+                    selectedCards={result?.wallet.card_results.filter((c) => c.selected) ?? []}
+                    walletCards={wallet.wallet_cards ?? []}
+                    totalYears={Math.max(durationYears + durationMonths / 12, 1 / 12)}
+                  />
+                )}
               </div>
             </div>
 
@@ -300,28 +357,63 @@ export default function RoadmapToolPage() {
         />
       )}
 
-      {showSettingsModal && wallet && (
-        <WalletSettingsModal
-          durationYears={durationYears}
-          durationMonths={durationMonths}
-          foreignSpendPercent={foreignSpendPercent}
-          onDurationChange={(y, m) => {
-            setDurationYears(y)
-            setDurationMonths(m)
+      {pendingClose && wallet && (
+        <CloseCardModal
+          cardName={pendingClose.cardName}
+          minDate={pendingClose.addedDate}
+          isLoading={updateWalletCardMutation.isPending}
+          onClose={() => setPendingClose(null)}
+          onConfirm={(closedDate) => {
+            updateWalletCardMutation.mutate(
+              {
+                walletId: wallet.id,
+                cardId: pendingClose.cardId,
+                payload: { closed_date: closedDate },
+              },
+              { onSuccess: () => setPendingClose(null) },
+            )
           }}
-          onDurationCommit={(y, m) => runCalculation(y, m)}
-          onForeignSpendChange={(pct) => setForeignSpendPercent(pct)}
-          onForeignSpendCommit={(pct) => {
-            setForeignSpendPercent(pct)
-            walletsApi.update(wallet.id, { foreign_spend_percent: pct })
-            runCalculation()
-          }}
-          onClose={() => setShowSettingsModal(false)}
+        />
+      )}
+
+      {showMethodology && (
+        <MethodologyInfoPopover onClose={() => setShowMethodology(false)} />
+      )}
+
+      {editingCurrencyId != null && wallet && (
+        <CurrencyEditModal
+          walletId={wallet.id}
+          currencyId={editingCurrencyId}
+          onClose={() => setEditingCurrencyId(null)}
+          onCppChange={() => runCalculation()}
         />
       )}
 
       {walletCardModal && wallet && (
         <WalletCardModal
+          onRemove={(wc) => {
+            setWalletCardModal(null)
+            setPendingRemoval({
+              cardId: wc.card_id,
+              cardName: wc.card_name ?? `Card #${wc.card_id}`,
+            })
+          }}
+          onCloseCard={(wc) => {
+            setWalletCardModal(null)
+            setPendingClose({
+              cardId: wc.card_id,
+              cardName: wc.card_name ?? `Card #${wc.card_id}`,
+              addedDate: wc.added_date,
+            })
+          }}
+          onReopenCard={(wc) => {
+            updateWalletCardMutation.mutate({
+              walletId: wallet.id,
+              cardId: wc.card_id,
+              payload: { closed_date: null },
+            })
+            setWalletCardModal(null)
+          }}
           key={walletCardModal.mode === 'add' ? 'add' : walletCardModal.walletCard.id}
           mode={walletCardModal.mode}
           walletId={wallet.id}

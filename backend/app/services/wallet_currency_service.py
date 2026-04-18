@@ -28,8 +28,8 @@ class WalletCurrencyService(BaseService[WalletCurrencyBalance]):
         """Get currency IDs this wallet's cards effectively earn.
 
         Includes upgrade rule matching (e.g. UR Cash -> UR when a UR card is
-        also in the wallet) and secondary currencies (e.g. Bilt Cash).
-        Only in_wallet and future_cards panels are considered.
+        also in the wallet) and secondary currencies (e.g. Bilt Cash). Only
+        cards included in the calculation (is_enabled=True) are considered.
 
         Args:
             wallet_id: The wallet ID.
@@ -46,7 +46,9 @@ class WalletCurrencyService(BaseService[WalletCurrencyBalance]):
             )
             .where(
                 WalletCard.wallet_id == wallet_id,
-                WalletCard.panel.in_(("in_wallet", "future_cards")),
+                # Use `== True` (not `.is_(True)`) so MSSQL emits `= 1`
+                # rather than the invalid `IS 1` from the BIT column.
+                WalletCard.is_enabled == True,  # noqa: E712
             )
         )
         wcs = list(result.scalars().all())
@@ -130,16 +132,25 @@ class WalletCurrencyService(BaseService[WalletCurrencyBalance]):
         by_cid = {r.currency_id: r for r in rows}
 
         # Update existing rows, remove orphans
+        deleted_any = False
         for row in rows:
             if row.currency_id not in active_currency_ids and not row.user_tracked:
                 await self.db.delete(row)
                 by_cid.pop(row.currency_id, None)
+                deleted_any = True
                 continue
 
             earn = float(currency_pts_by_id.get(row.currency_id, 0.0))
             row.projection_earn = earn
             row.balance = round(row.initial_balance + earn, 4)
             row.updated_date = today
+
+        # Flush deletes before inserts — SQLAlchemy's unit of work may
+        # otherwise order INSERTs ahead of DELETEs for the same table,
+        # causing a unique-constraint violation on (wallet_id, currency_id)
+        # when a row is deleted-and-recreated in one pass.
+        if deleted_any:
+            await self.db.flush()
 
         # Create new rows for currencies with earn
         for cid, earn in currency_pts_by_id.items():

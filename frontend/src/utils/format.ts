@@ -46,3 +46,55 @@ export function today(): string {
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
+
+// Brand-aware color map for reward currencies. Each color is chosen to
+// evoke the issuer/partner's brand identity while staying mutually
+// distinguishable on a single chart. Unknown currencies fall back to a
+// deterministic palette hash so they still get a stable color.
+const CURRENCY_COLOR_BY_NAME: Record<string, string> = {
+  'American AAdvantage Miles': '#b91c1c',          // AA brick red
+  'American Express Membership Rewards': '#0b2d6f', // Amex deep blue
+  'Atmos Rewards': '#f97316',                       // neutral orange (no strong brand cue)
+  'Bank of America Points': '#ef4444',              // BoA red (brighter than AA)
+  'Bilt Cash': '#f472b6',                           // Bilt pink (lighter variant for cash)
+  'Bilt Rewards': '#ec4899',                        // Bilt hot pink
+  'Capital One Venture Miles': '#9f1239',           // Cap One crimson
+  'Cash': '#22c55e',                                // generic money green
+  'Chase Ultimate Rewards': '#2563eb',              // Chase blue
+  'Citi ThankYou Points': '#06b6d4',                // Citi cyan
+  'Delta SkyMiles': '#7f1d1d',                      // Delta maroon
+  'Hilton Honors': '#4c1d95',                       // Hilton indigo/purple
+  'IHG One Rewards': '#2dd4bf',                     // IHG bright teal
+  'Marriott Bonvoy': '#92400e',                     // Marriott brown
+  'United MileagePlus': '#1e3a8a',                  // United royal navy
+  'Wells Fargo Rewards': '#eab308',                 // Wells Fargo amber/gold
+  'World of Hyatt': '#0f766e',                      // Hyatt dark teal
+}
+
+// Distinct, deterministic palette hashed by currency_id for currencies that
+// aren't in the brand table (new additions, etc.).
+const CURRENCY_PALETTE = [
+  '#6366f1', // indigo
+  '#10b981', // emerald
+  '#f59e0b', // amber
+  '#ec4899', // pink
+  '#06b6d4', // cyan
+  '#a855f7', // purple
+  '#ef4444', // red
+  '#14b8a6', // teal
+  '#f97316', // orange
+  '#84cc16', // lime
+  '#8b5cf6', // violet
+  '#0ea5e9', // sky
+]
+
+export function currencyColor(
+  currencyId: number | null | undefined,
+  currencyName?: string | null,
+): string {
+  if (currencyName && CURRENCY_COLOR_BY_NAME[currencyName]) {
+    return CURRENCY_COLOR_BY_NAME[currencyName]
+  }
+  if (currencyId == null) return '#64748b' // slate fallback for unknown currency
+  return CURRENCY_PALETTE[currencyId % CURRENCY_PALETTE.length]
+}

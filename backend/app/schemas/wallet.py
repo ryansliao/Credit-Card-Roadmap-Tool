@@ -30,6 +30,7 @@ class WalletCardBase(BaseModel):
     # For product_change cards: library card_id of the card changed FROM.
     pc_from_card_id: Optional[int] = None
     panel: Literal["in_wallet", "future_cards", "considering"] = "considering"
+    is_enabled: bool = True
 
 
 class InitialWalletCardCredit(BaseModel):
@@ -63,6 +64,7 @@ class WalletCardUpdate(BaseModel):
     product_changed_date: Optional[date] = None
     acquisition_type: Optional[Literal["opened", "product_change"]] = None
     panel: Optional[Literal["in_wallet", "future_cards", "considering"]] = None
+    is_enabled: Optional[bool] = None
 
 
 class WalletCardRead(WalletCardBase):
