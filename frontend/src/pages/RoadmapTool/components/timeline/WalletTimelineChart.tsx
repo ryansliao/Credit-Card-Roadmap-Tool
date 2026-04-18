@@ -53,10 +53,20 @@ function pctOf(range: Range, ms: number): number {
   return clamp01((ms - range.startMs) / range.spanMs) * 100
 }
 
-function annualIncomePoints(c: CardResult | null, years: number): number | null {
+function annualIncomePoints(c: CardResult | null, _years: number): number | null {
   if (!c) return null
-  const effYears = c.card_active_years || years || 1
-  return (c.total_points - c.sub_points - c.sub_spend_earn) / effYears
+  // `annual_point_earn` is already per-year on both the simple path and the
+  // segmented path (which time-weights across segments). It excludes SUB and
+  // first-year bonuses, giving the recurring annual category earn we want for
+  // the currency-group header and per-card income label.
+  //
+  // Computing this via `(total_points - sub_points - sub_spend_earn) / years`
+  // was wrong on the segmented path: `sub_spend_earn` is baked into the
+  // segment-weighted earn there, so `total_points` never included it — but
+  // `cr.sub_spend_earn` still reports the raw card value, so subtracting it
+  // pushed the figure negative whenever the SUB bonus spend exceeded the
+  // card's recurring annual earn × window.
+  return c.annual_point_earn
 }
 
 /** Prefix positive values with "+"; negatives and zero keep their natural
@@ -79,32 +89,36 @@ function formatCardIncome(c: CardResult | null, years: number): string | null {
 }
 
 /** Annual dollar value of a group, regardless of reward kind. Sums from
- * enabled cards. Used for sorting currency groups on a single dollar scale
- * so cash and points rows interleave. */
+ * cards that were included in the last calc (i.e. had a CardResult). We
+ * deliberately ignore the live `wc.is_enabled` here so a toggle doesn't
+ * reorder currency groups mid-session — the order should only change when
+ * the user re-runs the calculation. */
 function groupAnnualDollars(group: GroupData, years: number): number {
-  return group.cards.reduce((s, { wc, cr }) => {
-    if (!wc.is_enabled || !cr) return s
+  return group.cards.reduce((s, { cr }) => {
+    if (!cr) return s
     const pts = annualIncomePoints(cr, years)
     if (pts == null) return s
     return s + (pts * cr.cents_per_point) / 100
   }, 0)
 }
 
-/** Group income total for display in the currency header. Sums across
- * enabled cards in the group. */
+/** Group income total for display in the currency header. Sums across the
+ * cards the last calc included (CardResult present), ignoring live enabled
+ * state so toggling doesn't silently change the header totals until the
+ * next calc. */
 function formatGroupIncome(group: GroupData, years: number): string | null {
   const { rewardKind, cards } = group
   if (!rewardKind) return null
-  const enabled = cards.filter(({ wc, cr }) => wc.is_enabled && cr != null)
-  if (enabled.length === 0) return null
+  const included = cards.filter(({ cr }) => cr != null)
+  if (included.length === 0) return null
   if (rewardKind === 'cash') {
-    const dollars = enabled.reduce((s, { cr }) => {
+    const dollars = included.reduce((s, { cr }) => {
       const pts = annualIncomePoints(cr, years) ?? 0
       return s + (pts * (cr?.cents_per_point ?? 1)) / 100
     }, 0)
     return `${signedPrefix(dollars)}${formatMoney(dollars)} /Year`
   }
-  const pts = enabled.reduce((s, { cr }) => s + (annualIncomePoints(cr, years) ?? 0), 0)
+  const pts = included.reduce((s, { cr }) => s + (annualIncomePoints(cr, years) ?? 0), 0)
   const rounded = Math.round(pts)
   return `${signedPrefix(rounded)}${formatPoints(rounded)} Pts/Year`
 }
@@ -198,12 +212,12 @@ export function WalletTimelineChart({
   const groups = useMemo<GroupData[]>(() => {
     const byCurrency = new Map<string, GroupData>()
     for (const wc of visibleCards) {
-      // CardResult is produced for every library card; only honour it when
-      // this wallet card is enabled (otherwise the card isn't in the
-      // wallet's calculation). For disabled cards, fall back to the library
-      // card's native currency so they still slot under a real currency
-      // group rather than a separate "Not Calculated" bucket.
-      const cr = wc.is_enabled ? cardResultById.get(wc.card_id) ?? null : null
+      // Pull cr directly from the last calc's result — don't gate by the
+      // live `wc.is_enabled`. The backend only emits CardResults for cards
+      // that were enabled *at calc time*, so toggling now must not make cr
+      // flip in/out of existence (that would reorder currency groups and
+      // change their totals between calcs).
+      const cr = cardResultById.get(wc.card_id) ?? null
       let name: string
       let currencyId: number | null
       let rewardKind: 'points' | 'cash' | null
@@ -243,9 +257,11 @@ export function WalletTimelineChart({
       // against the lump-sum annual_bonus). For display we want the true
       // dollar value, so we re-derive it from the library secondary
       // currency's cents_per_point × the net-pts figure.
+      // Filter by `cr` presence (i.e. "was included in the last calc"),
+      // not live `wc.is_enabled`, so toggling a card doesn't change the
+      // group's aggregated secondary-currency totals until recalc.
       let secondary: SecondaryAnnual | null = null
       if (
-        wc.is_enabled &&
         cr &&
         cr.secondary_currency_id &&
         cr.secondary_currency_net_earn !== 0
@@ -618,10 +634,21 @@ function CardRow({
     subMs <= range.endMs &&
     barWidthPct > 0
   const subPct = showSubMarker ? pctOf(range, subMs!) : null
-  // Disabled cards: calculator filters them out so `cr` is null; skip every
-  // derived metric so nothing gets rendered for the row.
-  const incomeLabel = enabled ? formatCardIncome(cr, totalYears) : null
-  const eaf = enabled ? cr?.card_effective_annual_fee ?? null : null
+  // Per-card income and EAF are driven by the last calc's `cr`, not the live
+  // toggle, so the numbers (and layout) stay stable when the user flips
+  // `is_enabled` — only a recalc refreshes what's shown. Cards that weren't
+  // in the last calc (cr == null) have nothing to display.
+  //
+  // For disabled cards we want to suppress real numbers (including "0") and
+  // show an em-dash placeholder so the row clearly reads as "not
+  // contributing right now" instead of implying $0 EAF / 0 pts.
+  const incomeLabel = enabled ? formatCardIncome(cr, totalYears) : '—'
+  const eafValue = enabled ? cr?.card_effective_annual_fee ?? null : null
+  const eafLabelText = enabled
+    ? eafValue != null
+      ? `${formatMoney(eafValue)} EAF`
+      : null
+    : '—'
 
   const tooltip = [
     `Added: ${formatDate(wc.added_date)}`,
@@ -633,8 +660,8 @@ function CardRow({
           ? `SUB projected: ${formatDate(subProjectedDate)}`
           : 'No SUB'
       : 'Not Calculated',
-    eaf != null ? `EAF: ${formatMoney(eaf)}` : null,
-    incomeLabel ? `Income: ${incomeLabel.replace(/^\+/, '')}` : null,
+    enabled && eafValue != null ? `EAF: ${formatMoney(eafValue)}` : null,
+    enabled && incomeLabel ? `Income: ${incomeLabel.replace(/^\+/, '')}` : null,
   ]
     .filter(Boolean)
     .join('\n')
@@ -706,13 +733,13 @@ function CardRow({
             }}
           />
         )}
-        {barWidthPct > 0 && eaf != null && (() => {
-          const labelText = `${formatMoney(eaf)} EAF`
+        {barWidthPct > 0 && eafLabelText != null && (() => {
+          const labelText = eafLabelText
           const labelClass = !enabled
             ? 'text-slate-500'
-            : eaf < 0
+            : eafValue != null && eafValue < 0
               ? 'text-emerald-400'
-              : eaf > 0
+              : eafValue != null && eafValue > 0
                 ? 'text-red-400'
                 : 'text-slate-200'
           const PADDING = 8

@@ -5,10 +5,16 @@ import { InfoIconButton, InfoPopover } from '../../../../components/InfoPopover'
 
 type StatTopic = 'eaf' | 'income' | 'fees' | 'duration' | null
 
-/** Annual point income for a card (excludes SUB points). */
-function cardAnnualPointIncome(c: CardResult, totalYears: number): number {
-  const y = c.card_active_years || totalYears
-  return (c.total_points - c.sub_points - c.sub_spend_earn) / y
+/** Annual point income for a card (excludes SUB and first-year bonuses).
+ *
+ * `annual_point_earn` is already per-year on both the simple and segmented
+ * calculator paths. The older `(total_points - sub_points - sub_spend_earn)
+ * / years` formulation double-subtracted `sub_spend_earn` on the segmented
+ * path (it's baked into the segment earn so never added to total_points),
+ * which pushed the figure negative for cards whose SUB spend exceeded the
+ * recurring annual earn × window. */
+function cardAnnualPointIncome(c: CardResult, _totalYears: number): number {
+  return c.annual_point_earn
 }
 
 function formatDuration(years: number, months: number): string {

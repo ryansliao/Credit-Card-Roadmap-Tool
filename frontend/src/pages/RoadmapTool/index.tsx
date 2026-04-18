@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   walletsApi,
@@ -8,6 +8,7 @@ import {
   type RoadmapResponse,
   type RoadmapRuleStatus,
   type UpdateWalletCardPayload,
+  type Wallet,
   type WalletCard,
   type WalletResultResponse,
 } from '../../api/client'
@@ -32,6 +33,46 @@ type WalletCardModalOpen =
   | { mode: 'add' }
   | { mode: 'edit'; walletCard: WalletCard }
 
+/** Serialize the wallet + projection inputs that drive the calculation.
+ * Two calls return the same string iff no calc-relevant input changed, so
+ * comparing against the snapshot from the last successful calc lets us
+ * distinguish "truly out of date" from "edited and then reverted". */
+function walletCalcSignature(
+  wallet: Wallet | null | undefined,
+  durationYears: number,
+  durationMonths: number,
+): string {
+  if (!wallet) return ''
+  const cards = [...(wallet.wallet_cards ?? [])]
+    .map((wc) => ({
+      card_id: wc.card_id,
+      is_enabled: wc.is_enabled,
+      added_date: wc.added_date,
+      closed_date: wc.closed_date,
+      sub_points: wc.sub_points,
+      sub_min_spend: wc.sub_min_spend,
+      sub_months: wc.sub_months,
+      sub_spend_earn: wc.sub_spend_earn,
+      annual_bonus: wc.annual_bonus,
+      annual_fee: wc.annual_fee,
+      first_year_fee: wc.first_year_fee,
+      secondary_currency_rate: wc.secondary_currency_rate,
+      sub_earned_date: wc.sub_earned_date,
+      product_changed_date: wc.product_changed_date,
+      transfer_enabler: wc.transfer_enabler,
+      acquisition_type: wc.acquisition_type,
+      pc_from_card_id: wc.pc_from_card_id,
+      panel: wc.panel,
+    }))
+    .sort((a, b) => a.card_id - b.card_id)
+  return JSON.stringify({
+    durationYears,
+    durationMonths,
+    foreign_spend_percent: wallet.foreign_spend_percent,
+    cards,
+  })
+}
+
 export default function RoadmapToolPage() {
   const queryClient = useQueryClient()
   const [walletCardModal, setWalletCardModal] = useState<WalletCardModalOpen | null>(null)
@@ -40,7 +81,17 @@ export default function RoadmapToolPage() {
   const [showMethodology, setShowMethodology] = useState(false)
   const [editingCurrencyId, setEditingCurrencyId] = useState<number | null>(null)
   const [result, setResult] = useState<WalletResultResponse | null>(null)
-  const [isStale, setIsStale] = useState(false)
+  // Signature of wallet + duration at the last successful calc.
+  const [snapshotSignature, setSnapshotSignature] = useState<string | null>(null)
+  // Edits to fields that are in the signature (toggle, duration, added/closed
+  // date, SUB overrides, annual fee overrides, …). Set eagerly for instant
+  // feedback; auto-clears when the signature returns to the snapshot, so a
+  // toggle-off/toggle-on round-trip clears the "out of date" warning.
+  const [inSigDirty, setInSigDirty] = useState(false)
+  // Edits to fields that aren't in the signature (wallet CPP overrides, per-card
+  // credits/multipliers/group selections/priorities saved through the modal).
+  // Only the next successful calc clears these.
+  const [outOfSigDirty, setOutOfSigDirty] = useState(false)
   const [mainView, setMainView] = useState<MainView>('timeline')
   const [applicationRuleWarnings, setApplicationRuleWarnings] = useState<RoadmapRuleStatus[] | null>(
     null
@@ -59,6 +110,30 @@ export default function RoadmapToolPage() {
 
   const walletId = wallet?.id ?? null
 
+  const currentSignature = useMemo(
+    () => walletCalcSignature(wallet ?? null, durationYears, durationMonths),
+    [wallet, durationYears, durationMonths],
+  )
+  const signatureMatchesSnapshot =
+    snapshotSignature !== null && currentSignature === snapshotSignature
+
+  // When the wallet/duration state returns to the snapshot (e.g. the user
+  // toggled a card off and then back on), drop the in-signature dirty flag.
+  // The out-of-signature dirty flag is *not* cleared here — the signature
+  // can't tell us whether a CPP/modal-deep edit has been reverted.
+  useEffect(() => {
+    if (inSigDirty && signatureMatchesSnapshot) {
+      setInSigDirty(false)
+    }
+  }, [inSigDirty, signatureMatchesSnapshot])
+
+  // A result exists but something calc-affecting has drifted since it ran.
+  // Falls back to false (no stale warning) when no calc has ever run.
+  const isStale =
+    outOfSigDirty ||
+    inSigDirty ||
+    (snapshotSignature !== null && currentSignature !== snapshotSignature)
+
   // Warm the global credit library cache so the credits picker inside
   // WalletCardModal renders instantly when a card is opened.
   useCreditLibrary()
@@ -75,14 +150,16 @@ export default function RoadmapToolPage() {
       if (payload.priority_category_ids && payload.priority_category_ids.length > 0) {
         await walletCardCategoryPriorityApi.set(walletId, payload.card_id, payload.priority_category_ids)
         queryClient.invalidateQueries({ queryKey: queryKeys.walletCategoryPriorities(walletId) })
+        // priorities are tied to this card — not in the wallet signature, so
+        // flag out-of-band until the next calc.
+        setOutOfSigDirty(true)
       }
 
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
       setWalletCardModal(null)
-
-      setIsStale(true)
+      setInSigDirty(true)
 
       try {
         await queryClient.invalidateQueries({ queryKey: queryKeys.roadmap(walletId) })
@@ -109,7 +186,7 @@ export default function RoadmapToolPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
-      setIsStale(true)
+      setInSigDirty(true)
     },
   })
 
@@ -126,17 +203,20 @@ export default function RoadmapToolPage() {
         duration_months?: number
       }
     }) => walletsApi.results(walletId, params),
-    onSuccess: (data) => {
+    // Snapshot at request time (not success time) so edits made while the
+    // calc is in-flight still register as drift after it returns.
+    onMutate: () => ({ signature: currentSignature }),
+    onSuccess: (data, _vars, ctx) => {
       setResult(data)
+      setSnapshotSignature(ctx?.signature ?? null)
+      setInSigDirty(false)
+      setOutOfSigDirty(false)
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(data.wallet_id) })
     },
   })
 
-  // Wraps runCalculation to clear staleness up-front so any edits the user
-  // makes while the calc is in-flight correctly re-mark the result as stale.
   function calculateNow() {
-    setIsStale(false)
     runCalculation()
   }
 
@@ -152,13 +232,13 @@ export default function RoadmapToolPage() {
       cardId: number
       payload: UpdateWalletCardPayload
     }) => walletsApi.updateCard(walletId, cardId, payload),
-    onSuccess: (_data, { walletId }) => {
+    onSuccess: (_data, { walletId, cardId, payload }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
       queryClient.invalidateQueries({ queryKey: queryKeys.roadmap(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCardCredits(walletId, null) })
-      setIsStale(true)
+      setInSigDirty(true)
     },
   })
 
@@ -171,24 +251,11 @@ export default function RoadmapToolPage() {
   useEffect(() => {
     if (walletId == null || !wallet) return
 
-    // One-shot init: wallet id flips from null to a number once per session.
+    // One-shot init: sync duration from the wallet's persisted calc config.
+    // We deliberately do NOT auto-fire a calculation — the Calculate button is
+    // the only thing that should trigger `walletsApi.results`.
     setDurationYears(wallet.calc_duration_years)
     setDurationMonths(wallet.calc_duration_months)
-
-    if (wallet.calc_start_date) {
-      resultsMutation.mutate({
-        walletId: walletId,
-        params: {
-          start_date: today(),
-          duration_years: wallet.calc_duration_years,
-          duration_months: wallet.calc_duration_months,
-        },
-      })
-    }
-    // resultsMutation is a stable react-query handle; wallet is intentionally
-    // gated by wallet?.id so we run this only on the initial load, not on
-    // every wallet field update.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletId, wallet?.id])
 
   function runCalculation(years = durationYears, months = durationMonths) {
@@ -269,7 +336,7 @@ export default function RoadmapToolPage() {
                 onDurationChange={(y, m) => {
                   setDurationYears(y)
                   setDurationMonths(m)
-                  setIsStale(true)
+                  setInSigDirty(true)
                 }}
                 resultsError={
                   resultsMutation.isError
@@ -411,7 +478,7 @@ export default function RoadmapToolPage() {
           walletId={wallet.id}
           currencyId={editingCurrencyId}
           onClose={() => setEditingCurrencyId(null)}
-          onCppChange={() => setIsStale(true)}
+          onCppChange={() => setOutOfSigDirty(true)}
         />
       )}
 
@@ -454,6 +521,11 @@ export default function RoadmapToolPage() {
           }
           onSaveEdit={(payload) => {
             if (walletCardModal.mode !== 'edit') return
+            // Modal save can also mutate per-card credits/multipliers/group
+            // selections/priorities before reaching this handler. Those aren't
+            // in the wallet signature, so mark out-of-sig dirty to keep the
+            // calc flagged as stale until the next run.
+            setOutOfSigDirty(true)
             updateWalletCardMutation.mutate(
               {
                 walletId: wallet.id,
