@@ -1,16 +1,15 @@
 user_spend_categories:
-  - name: Housing
-    description: Rent and mortgage payments
-    display_order: 1
+  - name: All Other
+    description: Uncategorized spend
+    display_order: 0
+    is_system: true
     mappings:
-      - earn_category: Rent
-        weight: 0.5
-      - earn_category: Mortgage
-        weight: 0.5
+      - earn_category: All Other
+        weight: 1.0
 
   - name: Groceries
     description: Supermarkets and wholesale clubs
-    display_order: 2
+    display_order: 1
     mappings:
       - earn_category: Groceries
         weight: 0.75
@@ -21,14 +20,14 @@ user_spend_categories:
 
   - name: Dining
     description: Restaurants, fast food, delivery
-    display_order: 3
+    display_order: 2
     mappings:
       - earn_category: Dining
         weight: 1.0
 
   - name: Gas & EV Charging
     description: Fuel and electric vehicle charging
-    display_order: 4
+    display_order: 3
     mappings:
       - earn_category: Gas
         weight: 0.90
@@ -37,21 +36,21 @@ user_spend_categories:
 
   - name: Airlines
     description: Flights and airfare
-    display_order: 5
+    display_order: 4
     mappings:
       - earn_category: Airlines
         weight: 1.0
 
   - name: Hotels
     description: Hotel stays
-    display_order: 6
+    display_order: 5
     mappings:
       - earn_category: Hotels
         weight: 1.0
 
   - name: Other Travel
     description: Car rentals, cruises, attractions, OTAs
-    display_order: 7
+    display_order: 6
     mappings:
       - earn_category: Travel
         weight: 0.50
@@ -66,7 +65,7 @@ user_spend_categories:
 
   - name: Local Transportation
     description: Transit and rideshare
-    display_order: 8
+    display_order: 7
     mappings:
       - earn_category: Transit
         weight: 0.60
@@ -75,7 +74,7 @@ user_spend_categories:
 
   - name: Live Entertainment
     description: Concerts, sports, movies
-    display_order: 9
+    display_order: 8
     mappings:
       - earn_category: Live Entertainment
         weight: 0.70
@@ -84,21 +83,21 @@ user_spend_categories:
 
   - name: Streaming
     description: Netflix, Spotify, etc.
-    display_order: 10
+    display_order: 9
     mappings:
       - earn_category: Streaming
         weight: 1.0
 
   - name: Online Retail
     description: Online shopping
-    display_order: 11
+    display_order: 10
     mappings:
       - earn_category: Online Shopping
         weight: 1.0
 
   - name: Health
     description: Drugstores, fitness, personal care
-    display_order: 12
+    display_order: 11
     mappings:
       - earn_category: Drugstores
         weight: 0.50
@@ -107,9 +106,38 @@ user_spend_categories:
       - earn_category: Personal Care
         weight: 0.20
 
+  - name: Housing
+    description: Rent and mortgage payments
+    display_order: 12
+    mappings:
+      - earn_category: Rent
+        weight: 0.5
+      - earn_category: Mortgage
+        weight: 0.5
+
+  - name: Phone & Internet
+    description: Phone and internet service
+    display_order: 13
+    mappings:
+      - earn_category: Phone
+        weight: 0.57
+      - earn_category: Internet
+        weight: 0.43
+
+  - name: Software & Cloud Services
+    description: SaaS subscriptions, AI services, cloud infrastructure
+    display_order: 14
+    mappings:
+      - earn_category: Software
+        weight: 0.60
+      - earn_category: AI Services
+        weight: 0.20
+      - earn_category: Cloud Services
+        weight: 0.20
+
   - name: Office & Shipping
     description: Office supplies and shipping services
-    display_order: 13
+    display_order: 15
     mappings:
       - earn_category: Office Supplies
         weight: 0.70
@@ -118,26 +146,7 @@ user_spend_categories:
 
   - name: Advertising & Marketing
     description: Social media ads, Google Ads, marketing
-    display_order: 14
+    display_order: 16
     mappings:
       - earn_category: Advertising
-        weight: 1.0
-
-  - name: Telecom & Software
-    description: Phone, internet, SaaS subscriptions
-    display_order: 15
-    mappings:
-      - earn_category: Phone
-        weight: 0.40
-      - earn_category: Internet
-        weight: 0.30
-      - earn_category: Software
-        weight: 0.30
-
-  - name: All Other
-    description: Uncategorized spend
-    display_order: 16
-    is_system: true
-    mappings:
-      - earn_category: All Other
         weight: 1.0

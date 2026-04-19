@@ -445,8 +445,6 @@ export interface WalletCurrencyBalance {
   wallet_id: number
   currency_id: number
   currency_name: string
-  initial_balance: number
-  projection_earn: number
   balance: number
   user_tracked: boolean
   updated_date: string | null
@@ -454,7 +452,6 @@ export interface WalletCurrencyBalance {
 
 export interface TrackWalletCurrencyPayload {
   currency_id: number
-  initial_balance?: number
 }
 
 export interface UpdateWalletCardPayload {
@@ -534,15 +531,7 @@ export const walletsApi = {
   trackCurrencyBalance: (walletId: number, payload: TrackWalletCurrencyPayload) =>
     request<WalletCurrencyBalance>(`/wallets/${walletId}/currency-balances`, {
       method: 'POST',
-      body: JSON.stringify({
-        currency_id: payload.currency_id,
-        initial_balance: payload.initial_balance ?? 0,
-      }),
-    }),
-  setCurrencyInitialBalance: (walletId: number, currencyId: number, initialBalance: number) =>
-    request<WalletCurrencyBalance>(`/wallets/${walletId}/currencies/${currencyId}/balance`, {
-      method: 'PUT',
-      body: JSON.stringify({ initial_balance: initialBalance }),
+      body: JSON.stringify({ currency_id: payload.currency_id }),
     }),
   deleteCurrencyBalance: (walletId: number, currencyId: number) =>
     request<void>(`/wallets/${walletId}/currencies/${currencyId}/balance`, { method: 'DELETE' }),

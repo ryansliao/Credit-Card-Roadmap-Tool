@@ -80,7 +80,6 @@ from .wallet import (
 )
 from .wallet_currency import (
     WalletCurrencyBalanceRead,
-    WalletCurrencyInitialSet,
     WalletCurrencyTrackCreate,
 )
 from .wallet_overrides import (
@@ -162,7 +161,6 @@ __all__ = [
     "WalletUpdate",
     # Wallet currency
     "WalletCurrencyBalanceRead",
-    "WalletCurrencyInitialSet",
     "WalletCurrencyTrackCreate",
     # Wallet overrides
     "WalletCardCategoryPriorityRead",

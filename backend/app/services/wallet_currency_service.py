@@ -99,8 +99,6 @@ class WalletCurrencyService(BaseService[WalletCurrencyBalance]):
                 WalletCurrencyBalance(
                     wallet_id=wallet_id,
                     currency_id=cid,
-                    initial_balance=0.0,
-                    projection_earn=0.0,
                     balance=0.0,
                     user_tracked=False,
                     updated_date=today,
@@ -141,8 +139,7 @@ class WalletCurrencyService(BaseService[WalletCurrencyBalance]):
                 continue
 
             earn = float(currency_pts_by_id.get(row.currency_id, 0.0))
-            row.projection_earn = earn
-            row.balance = round(row.initial_balance + earn, 4)
+            row.balance = round(earn, 4)
             row.updated_date = today
 
         # Flush deletes before inserts — SQLAlchemy's unit of work may
@@ -162,8 +159,6 @@ class WalletCurrencyService(BaseService[WalletCurrencyBalance]):
             new_row = WalletCurrencyBalance(
                 wallet_id=wallet_id,
                 currency_id=cid,
-                initial_balance=0.0,
-                projection_earn=float(earn),
                 balance=float(earn),
                 user_tracked=False,
                 updated_date=today,
@@ -254,16 +249,14 @@ class WalletCurrencyService(BaseService[WalletCurrencyBalance]):
         self,
         wallet_id: int,
         currency_id: int,
-        initial_balance: float,
     ) -> WalletCurrencyBalance:
         """Start tracking a currency for a wallet.
 
-        If the currency is already tracked, updates it.
+        If the currency is already tracked, this is a no-op.
 
         Args:
             wallet_id: The wallet ID.
             currency_id: The currency ID.
-            initial_balance: The starting balance.
 
         Returns:
             The balance row.
@@ -275,55 +268,18 @@ class WalletCurrencyService(BaseService[WalletCurrencyBalance]):
 
         if row:
             row.user_tracked = True
-            row.initial_balance = initial_balance
-            row.balance = round(row.initial_balance + row.projection_earn, 4)
             row.updated_date = today
         else:
             row = WalletCurrencyBalance(
                 wallet_id=wallet_id,
                 currency_id=currency_id,
-                initial_balance=initial_balance,
-                projection_earn=0.0,
-                balance=initial_balance,
+                balance=0.0,
                 user_tracked=True,
                 updated_date=today,
             )
             self.db.add(row)
             await self.db.flush()
 
-        return row
-
-    async def set_initial_balance(
-        self,
-        wallet_id: int,
-        currency_id: int,
-        initial_balance: float,
-    ) -> WalletCurrencyBalance:
-        """Update the initial balance for a tracked currency.
-
-        Args:
-            wallet_id: The wallet ID.
-            currency_id: The currency ID.
-            initial_balance: The new initial balance.
-
-        Returns:
-            The updated balance row.
-
-        Raises:
-            HTTPException: 404 if the currency is not tracked.
-        """
-        await self.get_currency_or_404(currency_id)
-
-        row = await self.get_balance(wallet_id, currency_id)
-        if not row:
-            raise HTTPException(
-                status_code=404,
-                detail="Track this currency first (POST /currency-balances) before editing initial balance",
-            )
-
-        row.initial_balance = initial_balance
-        row.balance = round(row.initial_balance + row.projection_earn, 4)
-        row.updated_date = date.today()
         return row
 
     async def delete_balance(self, wallet_id: int, currency_id: int) -> None:

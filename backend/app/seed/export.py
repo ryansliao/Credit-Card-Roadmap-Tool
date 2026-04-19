@@ -29,6 +29,8 @@ from ..models import (
     RotatingCategory,
     SpendCategory,
     TravelPortal,
+    UserSpendCategory,
+    UserSpendCategoryMapping,
 )
 from . import SEED_DIR
 
@@ -55,6 +57,7 @@ async def export_all() -> None:
         await _export_issuers(db)
         await _export_currencies(db)
         await _export_spend_categories(db)
+        await _export_user_spend_categories(db)
         await _export_travel_portals(db)
         await _export_cards(db)
         await _export_credits(db)
@@ -181,6 +184,45 @@ async def _export_spend_categories(db) -> None:
     _dump(
         SEED_DIR / "spend_categories.yaml",
         {"spend_categories": [to_dict(sc) for sc in rows]},
+    )
+
+
+async def _export_user_spend_categories(db) -> None:
+    rows = (
+        await db.execute(
+            select(UserSpendCategory)
+            .options(
+                selectinload(UserSpendCategory.mappings).selectinload(
+                    UserSpendCategoryMapping.earn_category
+                )
+            )
+            .order_by(UserSpendCategory.display_order)
+        )
+    ).scalars().all()
+
+    def to_dict(cat: UserSpendCategory) -> dict[str, Any]:
+        d: dict[str, Any] = {"name": cat.name}
+        if cat.description:
+            d["description"] = cat.description
+        d["display_order"] = cat.display_order
+        if cat.is_system:
+            d["is_system"] = True
+        if cat.mappings:
+            d["mappings"] = [
+                {
+                    "earn_category": m.earn_category.category,
+                    "weight": m.default_weight,
+                }
+                for m in sorted(
+                    cat.mappings,
+                    key=lambda x: (-x.default_weight, x.earn_category.category),
+                )
+            ]
+        return d
+
+    _dump(
+        SEED_DIR / "user_spend_categories.yaml",
+        {"user_spend_categories": [to_dict(c) for c in rows]},
     )
 
 

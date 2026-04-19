@@ -36,6 +36,8 @@ from ..models import (
     RotatingCategory,
     SpendCategory,
     TravelPortal,
+    UserSpendCategory,
+    UserSpendCategoryMapping,
 )
 from . import SEED_DIR
 
@@ -63,6 +65,8 @@ async def load_all() -> None:
         await _load_currencies(db)
         await db.commit()
         await _load_spend_categories(db)
+        await db.commit()
+        await _load_user_spend_categories(db)
         await db.commit()
         await _load_travel_portals(db)
         await db.commit()
@@ -215,6 +219,67 @@ async def _load_spend_categories(db) -> None:
         parent_name = sc_data.get("parent")
         sc = by_name[sc_data["category"]]
         sc.parent_id = by_name[parent_name].id if parent_name else None
+    await db.flush()
+
+
+async def _load_user_spend_categories(db) -> None:
+    """Sync UserSpendCategory and its mappings from YAML.
+
+    User categories are upserted by name (preserves id so
+    WalletSpendItem.user_spend_category_id references stay valid). Mappings
+    are delete-and-recreate per user category because nothing else references
+    UserSpendCategoryMapping by id.
+
+    Categories present in the DB but not in YAML are left alone — removal
+    should go through a migration that also handles WalletSpendItem fallout.
+    """
+    data = _load_yaml(SEED_DIR / "user_spend_categories.yaml")
+    categories_in = data.get("user_spend_categories", []) or []
+
+    # Pass 1: upsert user categories (without mappings yet).
+    for cat_data in categories_in:
+        await _upsert_by_unique(
+            db,
+            UserSpendCategory,
+            "name",
+            cat_data["name"],
+            description=cat_data.get("description"),
+            display_order=cat_data.get("display_order", 0),
+            is_system=cat_data.get("is_system", False),
+        )
+    await db.flush()
+
+    # Pass 2: resolve references and sync mappings.
+    all_user = (await db.execute(select(UserSpendCategory))).scalars().all()
+    user_by_name = {u.name: u for u in all_user}
+    all_spend = (await db.execute(select(SpendCategory))).scalars().all()
+    spend_by_name = {s.category: s for s in all_spend}
+
+    for cat_data in categories_in:
+        user_cat = user_by_name[cat_data["name"]]
+
+        existing = (
+            await db.execute(
+                select(UserSpendCategoryMapping).where(
+                    UserSpendCategoryMapping.user_category_id == user_cat.id
+                )
+            )
+        ).scalars().all()
+        for m in existing:
+            await db.delete(m)
+        await db.flush()
+
+        for m_data in cat_data.get("mappings", []) or []:
+            earn_cat = spend_by_name.get(m_data["earn_category"])
+            if earn_cat is None:
+                continue
+            db.add(
+                UserSpendCategoryMapping(
+                    user_category_id=user_cat.id,
+                    earn_category_id=earn_cat.id,
+                    default_weight=m_data["weight"],
+                )
+            )
     await db.flush()
 
 

@@ -3,13 +3,10 @@ import { useState } from 'react'
 import {
   walletSpendItemsApi,
   walletsApi,
-  type UserSpendCategory,
   type WalletSpendItem,
 } from '../../../api/client'
-import { useUserSpendCategories } from '../../../hooks/useUserSpendCategories'
 import { useMyWallet } from '../hooks/useMyWallet'
 import { queryKeys } from '../../../lib/queryKeys'
-import { ModalBackdrop } from '../../../components/ModalBackdrop'
 import { InfoIconButton, InfoPopover } from '../../../components/InfoPopover'
 
 interface SpendingTabProps {
@@ -20,7 +17,6 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
   const queryClient = useQueryClient()
   const [editingAmountId, setEditingAmountId] = useState<number | null>(null)
   const [amountDraft, setAmountDraft] = useState('')
-  const [showPicker, setShowPicker] = useState(false)
   // In-flight slider drag; null means "show committed value from wallet".
   const [draftForeignPct, setDraftForeignPct] = useState<number | null>(null)
   const [showForeignInfo, setShowForeignInfo] = useState(false)
@@ -31,7 +27,6 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
     enabled: walletId != null,
   })
 
-  const { data: categories = [] } = useUserSpendCategories()
   const { data: wallet } = useMyWallet()
 
   const foreignSpendPercent = draftForeignPct ?? wallet?.foreign_spend_percent ?? 0
@@ -46,12 +41,6 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
   })
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.walletSpendItems(walletId) })
-
-  const createMutation = useMutation({
-    mutationFn: (payload: { user_spend_category_id: number; amount?: number }) =>
-      walletSpendItemsApi.create(walletId!, payload),
-    onSuccess: invalidate,
-  })
 
   const updateMutation = useMutation({
     mutationFn: ({ id, amount }: { id: number; amount: number }) =>
@@ -77,11 +66,6 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
     setEditingAmountId(null)
   }
 
-  function handlePickCategory(category: UserSpendCategory) {
-    setShowPicker(false)
-    createMutation.mutate({ user_spend_category_id: category.id })
-  }
-
   function requestDeleteItem(item: WalletSpendItem) {
     const catName = item.user_spend_category?.name ?? 'Unknown'
     if (window.confirm(`Remove "${catName}" from spend?`)) {
@@ -89,7 +73,6 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
     }
   }
 
-  const existingCategoryIds = new Set(spendItems.map((i) => i.user_spend_category_id).filter((id): id is number => id != null))
   const totalSpend = spendItems.reduce((sum, item) => sum + (item.amount || 0), 0)
 
   if (isLoading) {
@@ -98,22 +81,9 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center justify-between mb-5 shrink-0">
-        <div>
-          <h2 className="text-xl font-bold text-white">Annual Spending</h2>
-          <p className="text-slate-400 text-sm mt-1">Track how much you spend in each category per year.</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowPicker(true)}
-          className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          Add Category
-        </button>
+      <div className="mb-5 shrink-0">
+        <h2 className="text-xl font-bold text-white">Annual Spending</h2>
+        <p className="text-slate-400 text-sm mt-1">Track how much you spend in each category per year.</p>
       </div>
 
       <div className="flex gap-3 mb-4 shrink-0">
@@ -270,42 +240,6 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
         )}
       </div>
 
-      {showPicker && (
-        <ModalBackdrop onClose={() => setShowPicker(false)}>
-          <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-xl max-w-xl w-full m-4 max-h-[90vh] flex flex-col">
-            <div className="p-5 border-b border-slate-700 shrink-0">
-              <h3 className="text-lg font-bold text-white">Add spend category</h3>
-              <p className="text-xs text-slate-400 mt-1">Pick a category to track your annual spend.</p>
-            </div>
-            <div className="overflow-y-auto flex-1 divide-y divide-slate-800">
-              {categories.map((cat) => {
-                const alreadyAdded = existingCategoryIds.has(cat.id)
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => !alreadyAdded && handlePickCategory(cat)}
-                    disabled={alreadyAdded}
-                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                      alreadyAdded ? 'text-slate-600 cursor-default' : 'text-slate-200 hover:bg-slate-800'
-                    }`}
-                  >
-                    <span>{cat.name}</span>
-                    {alreadyAdded && <span className="ml-2 text-xs text-slate-600">added</span>}
-                  </button>
-                )
-              })}
-            </div>
-            <div className="p-3 border-t border-slate-700 shrink-0">
-              <button
-                onClick={() => setShowPicker(false)}
-                className="w-full text-sm text-slate-400 hover:text-slate-200 py-1.5 rounded-lg hover:bg-slate-800 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </ModalBackdrop>
-      )}
     </div>
   )
 }

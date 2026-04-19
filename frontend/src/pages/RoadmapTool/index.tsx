@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import {
   walletsApi,
   walletCardCategoryPriorityApi,
+  walletSpendItemsApi,
   type AddCardToWalletPayload,
   type RoadmapResponse,
   type RoadmapRuleStatus,
@@ -11,6 +12,7 @@ import {
   type Wallet,
   type WalletCard,
   type WalletResultResponse,
+  type WalletSpendItem,
 } from '../../api/client'
 import { today } from '../../utils/format'
 import { WalletCardModal } from '../../components/cards/WalletCardModal'
@@ -33,6 +35,25 @@ type WalletCardModalOpen =
   | { mode: 'add' }
   | { mode: 'edit'; walletCard: WalletCard }
 
+const SNAPSHOT_SIG_STORAGE_PREFIX = 'roadmap:snapshot-sig:'
+function snapshotSigKey(walletId: number) {
+  return `${SNAPSHOT_SIG_STORAGE_PREFIX}${walletId}`
+}
+function readStoredSnapshotSig(walletId: number): string | null {
+  try {
+    return localStorage.getItem(snapshotSigKey(walletId))
+  } catch {
+    return null
+  }
+}
+function writeStoredSnapshotSig(walletId: number, sig: string) {
+  try {
+    localStorage.setItem(snapshotSigKey(walletId), sig)
+  } catch {
+    /* storage full or unavailable — stale flag falls back to in-session only */
+  }
+}
+
 /** Serialize the wallet + projection inputs that drive the calculation.
  * Two calls return the same string iff no calc-relevant input changed, so
  * comparing against the snapshot from the last successful calc lets us
@@ -41,6 +62,7 @@ function walletCalcSignature(
   wallet: Wallet | null | undefined,
   durationYears: number,
   durationMonths: number,
+  spendItems: WalletSpendItem[] | undefined,
 ): string {
   if (!wallet) return ''
   const cards = [...(wallet.wallet_cards ?? [])]
@@ -65,11 +87,18 @@ function walletCalcSignature(
       panel: wc.panel,
     }))
     .sort((a, b) => a.card_id - b.card_id)
+  const spend = [...(spendItems ?? [])]
+    .map((it) => ({
+      user_spend_category_id: it.user_spend_category_id,
+      amount: it.amount,
+    }))
+    .sort((a, b) => a.user_spend_category_id - b.user_spend_category_id)
   return JSON.stringify({
     durationYears,
     durationMonths,
     foreign_spend_percent: wallet.foreign_spend_percent,
     cards,
+    spend,
   })
 }
 
@@ -120,9 +149,15 @@ export default function RoadmapToolPage() {
     staleTime: Infinity,
   })
 
+  const { data: spendItems, isFetched: spendItemsFetched } = useQuery({
+    queryKey: queryKeys.walletSpendItems(walletId),
+    queryFn: () => walletSpendItemsApi.list(walletId!),
+    enabled: walletId != null,
+  })
+
   const currentSignature = useMemo(
-    () => walletCalcSignature(wallet ?? null, durationYears, durationMonths),
-    [wallet, durationYears, durationMonths],
+    () => walletCalcSignature(wallet ?? null, durationYears, durationMonths, spendItems),
+    [wallet, durationYears, durationMonths, spendItems],
   )
   const signatureMatchesSnapshot =
     snapshotSignature !== null && currentSignature === snapshotSignature
@@ -218,7 +253,9 @@ export default function RoadmapToolPage() {
     onMutate: () => ({ signature: currentSignature }),
     onSuccess: (data, _vars, ctx) => {
       setResult(data)
-      setSnapshotSignature(ctx?.signature ?? null)
+      const sig = ctx?.signature ?? null
+      setSnapshotSignature(sig)
+      if (sig != null) writeStoredSnapshotSig(data.wallet_id, sig)
       setInSigDirty(false)
       setOutOfSigDirty(false)
       queryClient.setQueryData(queryKeys.walletLatestResults(data.wallet_id), data)
@@ -270,27 +307,32 @@ export default function RoadmapToolPage() {
   }, [walletId, wallet?.id])
 
   // Hydrate result state from the persisted snapshot exactly once per mount.
-  // The snapshot signature is set to the current wallet signature at hydration
-  // time — edits made after hydration correctly flag the calc as stale. We
-  // can't retroactively detect edits made between the last Calculate and
-  // this mount; if that matters the user can click Calculate again.
+  // The snapshot signature is read from localStorage (written at calc time) so
+  // edits made on *other* pages between calc and this mount still flag the
+  // calc as stale. If nothing was stored (first visit after upgrade, or a
+  // different browser), fall back to the current wallet signature — equivalent
+  // to the pre-persistence behaviour.
   const [hasHydrated, setHasHydrated] = useState(false)
   useEffect(() => {
     if (hasHydrated) return
     if (!latestResultFetched) return
+    if (!spendItemsFetched) return
     if (!wallet) return
     if (latestResult) {
       setResult(latestResult)
+      const stored = readStoredSnapshotSig(wallet.id)
       setSnapshotSignature(
-        walletCalcSignature(
-          wallet,
-          latestResult.duration_years,
-          latestResult.duration_months,
-        ),
+        stored ??
+          walletCalcSignature(
+            wallet,
+            latestResult.duration_years,
+            latestResult.duration_months,
+            spendItems,
+          ),
       )
     }
     setHasHydrated(true)
-  }, [hasHydrated, latestResultFetched, latestResult, wallet])
+  }, [hasHydrated, latestResultFetched, latestResult, spendItemsFetched, spendItems, wallet])
 
   function runCalculation(years = durationYears, months = durationMonths) {
     if (walletId == null) return
@@ -318,7 +360,7 @@ export default function RoadmapToolPage() {
           <div className="h-full bg-indigo-500 animate-progress-bar" />
         </div>
       )}
-      <header className="mb-4 shrink-0 flex items-start justify-between gap-4">
+      <header className="mb-3 shrink-0 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-white">Roadmap Tool</h1>

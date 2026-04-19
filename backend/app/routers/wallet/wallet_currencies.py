@@ -10,7 +10,6 @@ from ...schemas import (
     CurrencyRead,
     WalletCurrencyBalanceRead,
     WalletCurrencyCppSet,
-    WalletCurrencyInitialSet,
     WalletCurrencyTrackCreate,
     WalletSettingsCurrencyIds,
 )
@@ -76,39 +75,14 @@ async def track_wallet_currency_balance(
     wallet_service: WalletService = Depends(get_wallet_service),
     currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
 ):
-    """Start tracking a currency for this wallet (optional starting balance)."""
+    """Start tracking a currency for this wallet."""
     await wallet_service.get_user_wallet(wallet_id, user)
     row = await currency_service.track_currency(
         wallet_id=wallet_id,
         currency_id=payload.currency_id,
-        initial_balance=payload.initial_balance,
     )
     await db.commit()
     await db.refresh(row)
-    return await currency_service.get_balance_with_currency(row.id)
-
-
-@router.put(
-    "/wallets/{wallet_id}/currencies/{currency_id}/balance",
-    response_model=WalletCurrencyBalanceRead,
-)
-async def set_wallet_currency_initial_balance(
-    wallet_id: int,
-    currency_id: int,
-    payload: WalletCurrencyInitialSet,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    wallet_service: WalletService = Depends(get_wallet_service),
-    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
-):
-    """Update starting balance; total = initial + last projection earn from Calculate."""
-    await wallet_service.get_user_wallet(wallet_id, user)
-    row = await currency_service.set_initial_balance(
-        wallet_id=wallet_id,
-        currency_id=currency_id,
-        initial_balance=payload.initial_balance,
-    )
-    await db.commit()
     return await currency_service.get_balance_with_currency(row.id)
 
 

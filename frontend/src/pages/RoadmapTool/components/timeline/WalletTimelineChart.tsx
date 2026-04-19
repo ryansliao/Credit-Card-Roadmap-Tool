@@ -102,6 +102,19 @@ function groupAnnualDollars(group: GroupData, years: number): number {
   }, 0)
 }
 
+/** End-of-projection dollar value of a group's balance. Used to order
+ * groups by projected balance. Falls back to the first card's CPP when
+ * `balanceCpp` isn't set (i.e. points-kind groups). */
+function groupBalanceDollars(group: GroupData): number {
+  if (group.totalBalance == null) return 0
+  const cpp =
+    group.balanceCpp ??
+    group.cards.find((e) => e.cr != null)?.cr?.cents_per_point ??
+    null
+  if (cpp == null) return 0
+  return (group.totalBalance * cpp) / 100
+}
+
 /** Group income total for display in the currency header. Sums across the
  * cards the last calc included (CardResult present), ignoring live enabled
  * state so toggling doesn't silently change the header totals until the
@@ -132,6 +145,28 @@ function formatSecondaryAnnual(
   }
   const rounded = Math.round(secondary.units)
   return `${signedPrefix(rounded)}${formatPoints(rounded)} ${secondary.name}`
+}
+
+/** Format a currency's end-of-projection balance. Uses the same
+ * pts-vs-dollars split as the per-year figure so the two read consistently. */
+function formatGroupBalance(group: GroupData): string | null {
+  if (group.totalBalance == null) return null
+  if (group.rewardKind === 'cash' && group.balanceCpp != null) {
+    const dollars = (group.totalBalance * group.balanceCpp) / 100
+    return `${formatMoney(dollars)} Balance`
+  }
+  const rounded = Math.round(group.totalBalance)
+  return `${formatPoints(rounded)} Pts Balance`
+}
+
+function formatSecondaryBalance(
+  secondary: { name: string; totalUnits: number; totalDollars: number; rewardKind: 'points' | 'cash' },
+): string {
+  if (secondary.rewardKind === 'cash') {
+    return `${formatMoney(secondary.totalDollars)} ${secondary.name} Balance`
+  }
+  const rounded = Math.round(secondary.totalUnits)
+  return `${formatPoints(rounded)} ${secondary.name} Balance`
 }
 
 function formatDate(s: string | null): string {
@@ -246,6 +281,8 @@ export function WalletTimelineChart({
           rewardKind,
           cards: [],
           secondaries: [],
+          totalBalance: null,
+          balanceCpp: null,
         })
       }
       const g = byCurrency.get(name)!
@@ -278,6 +315,8 @@ export function WalletTimelineChart({
           units: annualUnits,
           dollars: (annualUnits * secCpp) / 100,
           rewardKind: kind,
+          totalUnits: 0,
+          totalDollars: 0,
         }
       }
       g.cards.push({ wc, cr, secondary })
@@ -300,18 +339,42 @@ export function WalletTimelineChart({
         prev.dollars += s.dollars
         byId.set(s.id, prev)
       }
+      // Populate end-of-projection balance totals from the last calc.
+      // `currency_pts_by_id` / `secondary_currency_pts_by_id` are keyed by
+      // currency id (stringified) and hold total pts over the window.
+      if (g.currencyId != null) {
+        const total = result?.currency_pts_by_id?.[String(g.currencyId)]
+        if (total != null) {
+          g.totalBalance = total
+          if (g.rewardKind === 'cash') {
+            const firstCpp = g.cards.find((e) => e.cr != null)?.cr?.cents_per_point ?? null
+            g.balanceCpp = firstCpp
+          }
+        }
+      }
+      for (const [secId, s] of byId) {
+        const total = result?.secondary_currency_pts_by_id?.[String(secId)]
+        if (total == null) continue
+        s.totalUnits = total
+        const perUnitDollars = s.units !== 0 ? s.dollars / s.units : 0
+        s.totalDollars = total * perUnitDollars
+      }
       g.secondaries = Array.from(byId.values())
     }
 
-    // Sort by annual dollar value descending so cash and points currencies
-    // interleave correctly (e.g. $41 cash between $858 and $388 of points).
+    // Sort by end-of-projection balance (in dollars) descending. Fall back
+    // to annual dollar value when balances are absent or equal so groups
+    // without calc results still order sensibly.
     return Array.from(byCurrency.values()).sort((a, b) => {
+      const ba = groupBalanceDollars(a)
+      const bb = groupBalanceDollars(b)
+      if (ba !== bb) return bb - ba
       const da = groupAnnualDollars(a, totalYears)
       const db = groupAnnualDollars(b, totalYears)
       if (da !== db) return db - da
       return a.name.localeCompare(b.name)
     })
-  }, [visibleCards, cardResultById, libraryById, totalYears])
+  }, [visibleCards, cardResultById, libraryById, totalYears, result])
 
   const yearTicks = useMemo(() => {
     const out: Array<{ pct: number; label: string }> = []
@@ -389,6 +452,17 @@ export function WalletTimelineChart({
                   5/24: {roadmap.five_twenty_four_count}/5
                 </span>
               )}
+              <span
+                className="ml-10 flex items-center gap-1.5 text-[11px] text-slate-400"
+                title="Amber line marks the SUB earned date (dashed when projected)"
+              >
+                <span
+                  aria-hidden
+                  className="inline-block"
+                  style={{ width: 2, height: 12, backgroundColor: '#f59e0b' }}
+                />
+                SUB Earned Date
+              </span>
             </div>
             <div
               className={`sticky top-0 z-40 bg-slate-900 ${DIVIDER_CLASS} relative`}
@@ -471,6 +545,11 @@ interface SecondaryAnnual {
   units: number
   dollars: number
   rewardKind: 'points' | 'cash'
+  /** Total projected balance (not annualised). Populated at the aggregated
+   * group level from `result.secondary_currency_pts_by_id`; per-card rows
+   * leave it at 0. */
+  totalUnits: number
+  totalDollars: number
 }
 
 interface GroupCardEntry {
@@ -491,6 +570,12 @@ interface GroupData {
    * group (e.g. Bilt Cash under Bilt Rewards). Shown as extra income
    * figures alongside the primary total. */
   secondaries: SecondaryAnnual[]
+  /** End-of-projection balance in this currency, straight from the last
+   * calc's `currency_pts_by_id`. Null when the calc hasn't run or the
+   * currency doesn't appear in the result. */
+  totalBalance: number | null
+  /** CPP to value the balance against when rendering a cash group. */
+  balanceCpp: number | null
 }
 
 interface GroupSectionProps {
@@ -517,6 +602,7 @@ function GroupSection({
   onEditCurrency,
 }: GroupSectionProps) {
   const incomeLabel = formatGroupIncome(group, totalYears)
+  const balanceLabel = formatGroupBalance(group)
 
   return (
     <>
@@ -553,15 +639,29 @@ function GroupSection({
         className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} bg-slate-800`}
         style={{ height: CURRENCY_ROW_HEIGHT }}
       >
-        {incomeLabel && (
-          <div className="ml-auto text-xs text-slate-400">{incomeLabel}</div>
-        )}
-        {group.secondaries.map((s) => (
-          <div key={s.id} className={`text-xs text-slate-500 ${incomeLabel ? '' : 'ml-auto'}`}>
-            <span className="mr-1 text-slate-700">·</span>
-            {formatSecondaryAnnual(s)}
-          </div>
-        ))}
+        {/* Left cluster — annual income sits just right of the Today line
+            (which is at left:0 of this column). */}
+        <div className="flex items-center gap-2 pl-2">
+          {incomeLabel && <div className="text-xs text-slate-400">{incomeLabel}</div>}
+          {group.secondaries.map((s) => (
+            <div key={`annual-${s.id}`} className="text-xs text-slate-500">
+              <span className="mr-1 text-slate-700">·</span>
+              {formatSecondaryAnnual(s)}
+            </div>
+          ))}
+        </div>
+        {/* Right cluster — end-of-projection balance, right aligned. */}
+        <div className="ml-auto flex items-center gap-2">
+          {balanceLabel && (
+            <div className="text-xs text-slate-300 font-medium">{balanceLabel}</div>
+          )}
+          {group.secondaries.map((s) => (
+            <div key={`balance-${s.id}`} className="text-xs text-slate-500">
+              <span className="mr-1 text-slate-700">·</span>
+              {formatSecondaryBalance(s)}
+            </div>
+          ))}
+        </div>
       </div>
       {group.cards.map(({ wc, cr, secondary }) => (
         <CardRow

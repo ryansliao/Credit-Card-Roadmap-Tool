@@ -24,8 +24,9 @@ if TYPE_CHECKING:
 
 class WalletCurrencyBalance(Base):
     """
-    Per-wallet currency points: user-set initial balance plus projection-period earn
-    updated when the wallet is calculated. user_tracked = user added this row explicitly.
+    Per-wallet currency points earned during the projection window, updated
+    when the wallet is calculated. user_tracked = user added this row
+    explicitly (as opposed to auto-added from an earning card).
     """
 
     __tablename__ = "wallet_currency_balances"
@@ -38,8 +39,6 @@ class WalletCurrencyBalance(Base):
     currency_id: Mapped[int] = mapped_column(
         ForeignKey("currencies.id", ondelete="CASCADE"), nullable=False
     )
-    initial_balance: Mapped[float] = mapped_column(Float, default=0.0)
-    projection_earn: Mapped[float] = mapped_column(Float, default=0.0)
     balance: Mapped[float] = mapped_column(Float, default=0.0)
     user_tracked: Mapped[bool] = mapped_column(Boolean, default=False)
     updated_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
@@ -50,7 +49,7 @@ class WalletCurrencyBalance(Base):
     def __repr__(self) -> str:
         return (
             f"<WalletCurrencyBalance w={self.wallet_id} c={self.currency_id} "
-            f"init={self.initial_balance} proj={self.projection_earn}>"
+            f"bal={self.balance}>"
         )
 
 

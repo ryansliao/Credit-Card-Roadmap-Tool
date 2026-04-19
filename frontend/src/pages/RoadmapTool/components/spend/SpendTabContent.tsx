@@ -130,8 +130,10 @@ export function SpendTabContent({
     return `${ros.toFixed(2).replace(/\.?0+$/, '')}%`
   }
 
-  // Build a category × card lookup of points (in raw effective-currency units, per-year).
-  // The backend returns category_earn keyed by spend-category name; we match by name.
+  // Build an earn-category × card lookup of annual points. The backend keys
+  // `category_earn` by the granular earn-category name ("Wholesale Clubs"),
+  // not the user-facing spend category ("Groceries"), so we need to
+  // aggregate across a user category's mappings when reading per row.
   const earnByCategoryByCard = useMemo(() => {
     const map = new Map<string, Map<number, number>>()
     for (const card of selectedCards) {
@@ -143,9 +145,24 @@ export function SpendTabContent({
     return map
   }, [selectedCards])
 
+  function earnForUserCategory(
+    card: CardResult,
+    userCategory: UserSpendCategory | null,
+  ): number {
+    if (!userCategory) return 0
+    let total = 0
+    for (const m of userCategory.mappings) {
+      total += earnByCategoryByCard.get(m.earn_category.category)?.get(card.card_id) ?? 0
+    }
+    return total
+  }
+
   function formatCardEarn(card: CardResult, points: number): string {
-    const cardYears = card.card_active_years || totalYears
-    const adjusted = isTotal ? points * totalYears : points * totalYears / cardYears
+    // `points` is already the time-weighted annual earn (same basis as
+    // `card.annual_point_earn` shown on the main tab). For the "Total"
+    // view multiply by the window length; for the annual view display
+    // the time-weighted annual rate directly so it matches the main tab.
+    const adjusted = isTotal ? points * totalYears : points
     if ((card.effective_reward_kind ?? 'points') === 'cash') {
       return formatMoneyExact((adjusted * card.cents_per_point) / 100)
     }
@@ -186,7 +203,7 @@ export function SpendTabContent({
                         <polyline points="15 18 9 12 15 6" />
                       </svg>
                     </button>
-                    <span className="flex-1 min-w-0 truncate">Annual Card Spend</span>
+                    <span className="flex-1 min-w-0 truncate">Annual Point Income</span>
                     <button
                       type="button"
                       onClick={() => cycleCard(1)}
@@ -229,7 +246,6 @@ export function SpendTabContent({
             <tbody>
               {spendItems.map((item) => {
                 const catName = item.user_spend_category?.name ?? 'Unknown'
-                const earnRow = earnByCategoryByCard.get(catName)
                 const top = topCardsForCategory(catName)
                 const noTop = top.cards.length === 0 || top.ros <= 0
                 return (
@@ -263,7 +279,7 @@ export function SpendTabContent({
                     <td className="text-center tabular-nums px-3 py-2 text-slate-200 border-r border-slate-800/60">
                       {currentCard ? (
                         (() => {
-                          const pts = earnRow?.get(currentCard.card_id) ?? 0
+                          const pts = earnForUserCategory(currentCard, item.user_spend_category)
                           return pts > 0 ? (
                             formatCardEarn(currentCard, pts)
                           ) : (
