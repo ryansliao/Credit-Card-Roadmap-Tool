@@ -23,6 +23,15 @@ export function formatMoneyExact(n: number): string {
   })
 }
 
+/** Format a dollar amount with k/M suffix (e.g. $1.5k, $2.3M). Returns '$0' for zero/non-finite. */
+export function formatMoneyCompact(n: number): string {
+  if (!Number.isFinite(n) || n === 0) return '$0'
+  const a = Math.abs(n)
+  if (a >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`
+  if (a >= 1_000) return `$${(n / 1_000).toFixed(1)}k`
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+}
+
 /** Format a point count with no abbreviation (e.g. 12,345). Returns '0' for zero/non-finite. */
 export function formatPointsExact(n: number): string {
   if (!Number.isFinite(n) || n === 0) return '0'

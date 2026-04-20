@@ -130,7 +130,7 @@ export function WalletSummaryStats({
         {/* Right: duration slider */}
         <div className="w-64 lg:w-72 shrink-0 flex flex-col justify-center gap-3">
           <div>
-            <div className="flex items-center justify-between mb-0.5">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
                 <span className="text-xs text-slate-400">Duration</span>
                 <InfoIconButton onClick={() => setStatTopic('duration')} label="How duration affects calculation" />

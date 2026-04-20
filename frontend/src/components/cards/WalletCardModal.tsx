@@ -692,6 +692,9 @@ export function WalletCardModal({
                   </button>
                   {creditsExpanded && (
                     <div className="border-t border-slate-700">
+                      <p className="text-[11px] text-slate-500 px-6 pt-3 pb-2 border-b border-slate-700/60">
+                        Input your valuation of each credit.
+                      </p>
                       {creditLibraryLoading || creditOverridesLoading ? (
                         <div className="flex items-center gap-2 px-6 py-3 text-xs text-slate-400">
                           <svg
@@ -976,11 +979,21 @@ export function WalletCardModal({
                   >
                     <span>
                       Spend Category Priority
-                      {priorityCategoryIds.size > 0 && (
-                        <span className="text-indigo-300 ml-1">
-                          ({priorityCategoryIds.size})
-                        </span>
-                      )}
+                      {(() => {
+                        if (!walletSpendItems || priorityCategoryIds.size === 0) return null
+                        const selectedUserCatCount = walletSpendItems.filter((item) => {
+                          const userCat = item.user_spend_category
+                          if (!userCat) return false
+                          const earnCatIds = userCat.mappings.map((m) => m.earn_category_id)
+                          return earnCatIds.length > 0 && earnCatIds.every((id) => priorityCategoryIds.has(id))
+                        }).length
+                        if (selectedUserCatCount === 0) return null
+                        return (
+                          <span className="text-indigo-300 ml-1">
+                            ({selectedUserCatCount})
+                          </span>
+                        )
+                      })()}
                     </span>
                     <svg
                       className={`w-4 h-4 text-slate-400 transition-transform ${priorityExpanded ? 'rotate-180' : ''}`}
@@ -995,7 +1008,7 @@ export function WalletCardModal({
                   {priorityExpanded && (
                     <div className="border-t border-slate-700 px-6 py-3">
                       <p className="text-[11px] text-slate-500 mb-2">
-                        Force category spend onto this card only.
+                        Force category spend onto this card only. Does not affect SUB spend allocation.
                       </p>
                       {!walletSpendItems || walletSpendItems.length === 0 ? (
                         <p className="text-xs text-slate-500 py-1">

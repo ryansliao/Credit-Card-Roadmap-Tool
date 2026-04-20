@@ -6,7 +6,7 @@ import type {
   WalletCard,
   WalletResult,
 } from '../../../../api/client'
-import { formatMoney, formatPoints, formatPointsExact, today } from '../../../../utils/format'
+import { formatMoney, formatMoneyCompact, formatPoints, formatPointsExact, today } from '../../../../utils/format'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
 
 interface Props {
@@ -70,12 +70,6 @@ function annualIncomePoints(c: CardResult | null, _years: number): number | null
   return c.annual_point_earn
 }
 
-/** Prefix positive values with "+"; negatives and zero keep their natural
- * sign (so we never produce "+-42.9k"). */
-function signedPrefix(n: number): string {
-  return n > 0 ? '+' : ''
-}
-
 /** Format a card's annual income using the same "Pts/Year" / "/Year" suffix
  * as the currency group header so the two read consistently. */
 function formatCardIncome(c: CardResult | null, years: number): string | null {
@@ -125,22 +119,22 @@ function formatGroupIncome(group: GroupData): string | null {
       const pts = cr?.annual_point_earn ?? 0
       return s + (pts * (cr?.cents_per_point ?? 1)) / 100
     }, 0)
-    return `${formatMoney(dollars)} /yr`
+    return `${formatMoney(dollars)} /Year`
   }
   const pts = included.reduce((s, { cr }) => s + (cr?.annual_point_earn ?? 0), 0)
   const rounded = Math.round(pts)
-  return `${formatPointsExact(rounded)} /yr`
+  return `${formatPoints(rounded)} Pts/Year`
 }
 
-/** Format a single secondary-currency annual total, e.g. "+$25 Bilt Cash".
+/** Format a single secondary-currency annual total, e.g. "$25 Bilt Cash /Year".
  * Group-level aggregates use summed per-card annualised rates (each
  * card's `secondary_currency_net_earn / card_active_years`). */
 function formatSecondaryAnnual(secondary: SecondaryAnnual): string {
   if (secondary.rewardKind === 'cash') {
-    return `${signedPrefix(secondary.dollars)}${formatMoney(secondary.dollars)} ${secondary.name}`
+    return `${formatMoneyCompact(secondary.dollars)} ${secondary.name} /Year`
   }
   const rounded = Math.round(secondary.units)
-  return `${signedPrefix(rounded)}${formatPoints(rounded)} ${secondary.name}`
+  return `${formatPoints(rounded)} ${secondary.name} /Year`
 }
 
 /** Format a currency's end-of-projection balance. Uses the same
@@ -156,13 +150,13 @@ function formatGroupBalance(group: GroupData): string | null {
 }
 
 function formatSecondaryBalance(
-  secondary: { name: string; totalUnits: number; totalDollars: number; rewardKind: 'points' | 'cash' },
+  secondary: { name: string; units: number; dollars: number; rewardKind: 'points' | 'cash' },
 ): string {
   if (secondary.rewardKind === 'cash') {
-    return `${formatMoney(secondary.totalDollars)} ${secondary.name}`
+    return `${formatMoneyCompact(secondary.dollars)} ${secondary.name} /Year`
   }
-  const rounded = Math.round(secondary.totalUnits)
-  return `${formatPointsExact(rounded)} ${secondary.name}`
+  const rounded = Math.round(secondary.units)
+  return `${formatPoints(rounded)} ${secondary.name} /Year`
 }
 
 function formatDate(s: string | null): string {

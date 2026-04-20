@@ -14,7 +14,7 @@ from datetime import date
 
 from ..date_utils import add_months
 from .allocation import (
-    _tied_cards_for_category,
+    _compute_category_shares,
     calc_annual_allocated_spend,
     calc_category_earn_breakdown,
 )
@@ -151,19 +151,13 @@ def _segment_card_earn_pts_per_cat(
       individual seg-allocated spend (Phase 1a — order-independent). The
       remainder of each category's spend earns at the All Other rate.
 
-    - **Rotating capped group (Discover IT, Chase Freedom Flex):** the cap is
-      the FULL `cap_per_billing_cycle` per category per period (not scaled by
-      p_C). The bonus rate applied to spend up to the cap is the *expected*
-      rate over the period:
-
-          ev_rate(C) = p_C × bonus_rate_when_active + (1 − p_C) × overflow_rate
-
-      where p_C is the historical activation probability for category C.
-      This credits expected points instead of assuming the user can perfectly
-      time their spend toward whichever category the issuer activates in a
-      given quarter. Categories with p_C = 0 (never historically active)
-      collapse to the overflow rate. There is no pooling across categories
-      within the rotating group; each gets its own per-period budget.
+    - **Rotating capped group (Discover IT, Chase Freedom Flex):** uses
+      frequency-weighted allocation where spend is split based on activation
+      probability. The card captures p_C share of category spend and earns at
+      the full bonus rate on that share (up to the cap). Spend above the cap
+      earns at the overflow rate. Categories with p_C = 0 (never historically
+      active) get no bonus. There is no pooling across categories within the
+      rotating group; each gets its own per-period budget.
 
     Both flavors share `cap_state`, keyed by:
       - non-rotating: ``("pool", group_id, period_start)`` → remaining $
@@ -222,17 +216,23 @@ def _segment_card_earn_pts_per_cat(
 
         if len(active_cards) <= 1:
             allocated_annual = s
+            cat_mult = _multiplier_for_category(card, cat, spend)
         else:
-            tied = _tied_cards_for_category(
+            # Use frequency-weighted allocation for rotating categories
+            shares = _compute_category_shares(
                 active_cards, spend, cat, seg_currency_ids,
                 sub_priority_card_ids, for_balance=for_balance,
             )
-            if not tied or card.id not in {c.id for c in tied}:
+            card_share = next(
+                ((share, mult) for c, share, mult in shares if c.id == card.id),
+                None
+            )
+            if card_share is None:
                 continue
-            allocated_annual = s / len(tied)
+            share_frac, cat_mult = card_share
+            allocated_annual = s * share_frac
 
         seg_alloc_dollars = allocated_annual * seg_years
-        cat_mult = _multiplier_for_category(card, cat, spend)
         cat_lower = cat.strip().lower()
         gid = cat_to_capped_gid.get(cat_lower)
 
@@ -286,17 +286,18 @@ def _segment_card_earn_pts_per_cat(
         period_start, _ = _cap_period_bounds(seg_start, g_cap_months)
 
         if is_rotating:
-            # Expected-value rate for this category. See docstring above.
+            # With frequency-weighted allocation, the activation probability
+            # is already accounted for in the spend share allocated to this
+            # card. The card earns at the full bonus rate on its allocated
+            # share, not an EV-blended rate.
             p_c = rot_weights.get(cat_lower, 0.0)
             if p_c <= 0.0:
                 # Category is in the rotating universe but has never been
-                # active in our recorded history → no bonus path; ev_rate
-                # collapses to overflow.
+                # active in our recorded history → no bonus path.
                 pts = seg_alloc_dollars * overflow_rate
                 if pts > 0:
                     out[cat] = out.get(cat, 0.0) + pts
                 continue
-            ev_rate = p_c * bonus_rate + (1.0 - p_c) * overflow_rate
             key = ("rot", gid, period_start, cat_lower)
             if key not in cap_state:
                 cap_state[key] = float(g_cap_amt)
@@ -304,7 +305,8 @@ def _segment_card_earn_pts_per_cat(
             bonus_dollars = min(seg_alloc_dollars, remaining)
             overflow_dollars = seg_alloc_dollars - bonus_dollars
             cap_state[key] = remaining - bonus_dollars
-            pts = bonus_dollars * ev_rate + overflow_dollars * overflow_rate
+            # Use the full bonus rate since frequency is in the allocation share
+            pts = bonus_dollars * bonus_rate + overflow_dollars * overflow_rate
             if pts > 0:
                 out[cat] = out.get(cat, 0.0) + pts
             continue

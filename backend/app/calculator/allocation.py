@@ -19,7 +19,7 @@ from .currency import (
     _conversion_rate,
     _secondary_currency_comparison_bonus,
 )
-from .multipliers import _multiplier_for_category, _pct_bonus
+from .multipliers import _multiplier_for_category, _pct_bonus, _get_category_appearance_rate
 from .types import CardData
 
 # Duplicated here to avoid importing from compute.py (which imports from this
@@ -65,6 +65,77 @@ def _category_priority_cards(
     return [c for c in selected_cards if key in c.priority_categories]
 
 
+def _compute_category_shares(
+    selected_cards: list[CardData],
+    spend: dict[str, float],
+    category: str,
+    wallet_currency_ids: set[int],
+    sub_priority_card_ids: set[int] | None = None,
+    for_balance: bool = False,
+) -> list[tuple[CardData, float, float]]:
+    """
+    Compute each card's share of a category's spend using frequency-weighted allocation.
+
+    For rotating categories, cards compete at their full bonus rate and capture
+    their activation frequency's share of spend. Higher-rate cards get priority;
+    remaining spend goes to the next-best card.
+
+    Returns list of (card, share, multiplier) tuples sorted by share descending.
+    ``share`` is a fraction in [0, 1] summing to 1.0 across all cards.
+    ``multiplier`` is the rate at which the card earns on its share.
+
+    Example: Freedom (5x, freq=0.167) vs CSP (3x, freq=1.0) for dining
+    - Freedom has higher rate (5x > 3x), gets first priority
+    - Freedom captures 0.167 of spend at 5x
+    - CSP captures remaining 0.833 at 3x
+    """
+    # SUB priority filtering
+    candidates = selected_cards
+    if sub_priority_card_ids:
+        priority = [c for c in selected_cards if c.id in sub_priority_card_ids]
+        if priority:
+            candidates = priority
+
+    # Manual category pin: pinned cards get all spend
+    pinned = _category_priority_cards(candidates, category)
+    if pinned:
+        n = len(pinned)
+        return [(c, 1.0 / n, _portal_blended_multiplier(c, category, _multiplier_for_category(c, category, spend))) for c in pinned]
+
+    # Build scored list: (score, card, multiplier, frequency)
+    scored: list[tuple[float, CardData, float, float]] = []
+    for c in candidates:
+        m = _multiplier_for_category(c, category, spend)
+        m = _portal_blended_multiplier(c, category, m)
+        freq = _get_category_appearance_rate(c, category)
+        cpp = _comparison_cpp(c, wallet_currency_ids, for_balance=for_balance)
+        sec_bonus = _secondary_currency_comparison_bonus(c, category=category, for_balance=for_balance)
+        score = m * cpp * c.earn_bonus_factor + sec_bonus
+        scored.append((score, c, m, freq))
+
+    if not scored:
+        return []
+
+    # Sort by score descending (highest rate gets priority)
+    scored.sort(key=lambda x: (-x[0], x[1].id))
+
+    # Greedy allocation: each card gets min(their_frequency, remaining) share
+    remaining = 1.0
+    result: list[tuple[CardData, float, float]] = []
+
+    for score, card, mult, freq in scored:
+        if remaining <= 0:
+            break
+        share = min(freq, remaining)
+        if share > 1e-9:
+            result.append((card, share, mult))
+            remaining -= share
+
+    # Sort by share descending for consistent output
+    result.sort(key=lambda x: (-x[1], x[0].id))
+    return result
+
+
 def _tied_cards_for_category(
     selected_cards: list[CardData],
     spend: dict[str, float],
@@ -81,27 +152,32 @@ def _tied_cards_for_category(
     sub_priority_card_ids: when provided, cards with IDs in this set get absolute
     priority — they are the only candidates unless none are present. When multiple
     SUB-priority cards compete, they use normal multiplier × CPP scoring against
-    each other.
+    each other. SUB priority takes precedence over manual category pins since
+    hitting minimum spend is critical.
 
-    Category priority override: if any selected card pins ``category`` via its
-    ``priority_categories`` set, only those cards compete. This takes precedence
-    over the SUB priority filter so a manual pin always wins.
+    Category priority override: if any candidate card pins ``category`` via its
+    ``priority_categories`` set, only those cards compete. This applies after
+    SUB priority filtering, so pins only affect allocation among non-SUB cards
+    or among SUB cards if multiple have pins.
 
     for_balance: when True, uses default (non-overridden) CPP for scoring so that
     balance point totals are independent of wallet CPP overrides.
     """
-    # Manual category pin overrides every other filter — honoured ahead of
-    # SUB priority so a user pin always wins even during a SUB boost window.
-    pinned = _category_priority_cards(selected_cards, category)
-    if pinned:
-        return sorted(pinned, key=lambda c: c.id)
-
-    # SUB priority: if any selected cards are in the priority set, only they compete
+    # SUB priority: if any selected cards are in the priority set, only they compete.
+    # SUB priority takes precedence over manual category pins since hitting the
+    # minimum spend is more important than category optimization.
     candidates = selected_cards
     if sub_priority_card_ids:
         priority = [c for c in selected_cards if c.id in sub_priority_card_ids]
         if priority:
             candidates = priority
+
+    # Manual category pin: if any candidate has this category pinned, use only
+    # the pinned cards. This applies after SUB filtering, so pins only affect
+    # allocation among non-SUB cards or among multiple SUB cards with pins.
+    pinned = _category_priority_cards(candidates, category)
+    if pinned:
+        return sorted(pinned, key=lambda c: c.id)
 
     scored: list[tuple[float, CardData]] = []
     for c in candidates:
@@ -147,9 +223,12 @@ def calc_annual_point_earn_allocated(
     for_balance: bool = False,
 ) -> float:
     """
-    Points from spend: each category is assigned to the card(s) with the best
-    multiplier × effective CPP; tied cards split category dollars evenly, each
-    earning (share × own multiplier). Annual bonus still applies in full to every card.
+    Points from spend using time-weighted allocation for rotating categories.
+
+    Each category's spend is split among cards based on their rates and activation
+    probabilities. Higher-rate cards get priority; rotating cards capture their
+    probability share at full bonus rate, with remaining spend going to the next
+    best card.
 
     sub_priority_card_ids: optional set of card IDs with active SUBs that get
     absolute priority in category allocation.
@@ -163,13 +242,14 @@ def calc_annual_point_earn_allocated(
     for cat, s in spend.items():
         if s <= 0:
             continue
-        tied = _tied_cards_for_category(selected_cards, spend, cat, wallet_currency_ids, sub_priority_card_ids, for_balance=for_balance)
-        if not tied or card.id not in {c.id for c in tied}:
-            continue
-        n = len(tied)
-        m = _multiplier_for_category(card, cat, spend)
-        m = _portal_blended_multiplier(card, cat, m)
-        cat_pts += (s / n) * m
+        shares = _compute_category_shares(
+            selected_cards, spend, cat, wallet_currency_ids,
+            sub_priority_card_ids, for_balance=for_balance
+        )
+        for c, share, mult in shares:
+            if c.id == card.id:
+                cat_pts += s * share * mult
+                break
     return float(card.annual_bonus) + cat_pts + _pct_bonus(card, cat_pts)
 
 
@@ -200,10 +280,11 @@ def calc_annual_allocated_spend(
     for cat, s in spend.items():
         if s <= 0 or _excluded(cat):
             continue
-        tied = _tied_cards_for_category(selected_cards, spend, cat, wallet_currency_ids, sub_priority_card_ids)
-        if not tied or card.id not in {c.id for c in tied}:
-            continue
-        total += s / len(tied)
+        shares = _compute_category_shares(selected_cards, spend, cat, wallet_currency_ids, sub_priority_card_ids)
+        for c, share, _mult in shares:
+            if c.id == card.id:
+                total += s * share
+                break
     return total
 
 
@@ -235,15 +316,13 @@ def calc_category_earn_breakdown(
         for cat, s in spend.items():
             if s <= 0:
                 continue
-            tied = _tied_cards_for_category(selected_cards, spend, cat, wallet_currency_ids, sub_priority_card_ids)
-            if not tied or card.id not in {c.id for c in tied}:
-                continue
-            n = len(tied)
-            m = _multiplier_for_category(card, cat, spend)
-            m = _portal_blended_multiplier(card, cat, m)
-            pts = (s / n) * m
-            if pts > 0:
-                result.append((cat, round(pts, 2)))
+            shares = _compute_category_shares(selected_cards, spend, cat, wallet_currency_ids, sub_priority_card_ids)
+            for c, share, mult in shares:
+                if c.id == card.id:
+                    pts = s * share * mult
+                    if pts > 0:
+                        result.append((cat, round(pts, 2)))
+                    break
     if card.annual_bonus > 0:
         result.append(("Annual Bonus", float(card.annual_bonus)))
     # Percentage-based bonus line items

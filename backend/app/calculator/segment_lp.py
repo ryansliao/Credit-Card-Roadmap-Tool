@@ -36,12 +36,9 @@ def _solve_segment_allocation_lp(
     scipy.linprog. Honors:
       - per-category flow conservation (Σ_k allocated = segment_dollars)
       - pooled cap constraints on non-rotating capped groups
-      - per-category cap constraints on rotating groups, where the bonus
-        var earns at the expected rate
-        ``p_C × bonus + (1 − p_C) × overflow`` up to the FULL per-quarter
-        cap (the LP allocates *expected* points, not perfectly-timed spend)
-      - rotating overrides (pooled cap restricted to pinned categories
-        in that calendar quarter)
+      - frequency-weighted allocation for rotating groups: each card can
+        capture at most p_C share of category spend at the full bonus rate
+      - per-category cap constraints on rotating groups
       - SUB priority filtering (when SUB-priority cards are present, they
         are the only candidates)
       - segment-prorated cap budgets that flow forward via cap_state
@@ -57,24 +54,13 @@ def _solve_segment_allocation_lp(
     seg_years = seg_days / 365.25
 
     # SUB-priority filter: if any priority cards are active in this segment,
-    # only they compete for category allocation (matches the existing
-    # _tied_cards_for_category logic).
+    # only they compete for category allocation. SUB priority takes precedence
+    # over manual category pins since hitting minimum spend is critical.
     competing = active_cards
     if sub_priority_card_ids:
         priority = [c for c in active_cards if c.id in sub_priority_card_ids]
         if priority:
             competing = priority
-
-    # Manual category-priority pins outrank SUB priority: if a card owns a
-    # pinned category via ``priority_categories`` but is not in the SUB
-    # subset, make sure it's still in ``competing`` so the LP can assign
-    # the pinned category's dollars to it.
-    pinned_needed = [
-        c for c in active_cards
-        if c.priority_categories and c not in competing
-    ]
-    if pinned_needed:
-        competing = list(competing) + pinned_needed
 
     # Effective per-card multipliers and CPPs.
     card_mult: dict[int, dict[str, float]] = {}  # card_idx -> cat_lower -> mult
@@ -119,6 +105,9 @@ def _solve_segment_allocation_lp(
     # that pair earns at the always-on rate (additive) or at the card's All
     # Other (non-additive) — i.e., what overflow above the cap looks like.
     pair_is_additive: dict[tuple[int, str], bool] = {}
+    # For rotating categories, track the frequency (activation probability).
+    # Used to constrain each card's allocation to its frequency share.
+    rotating_freq: dict[tuple[int, str], float] = {}
 
     def _bonus_rate_for_pair(k_idx: int, cl: str, g_mult: float, g_is_add: bool) -> float:
         """Effective bonus rate when this group's cap applies. For additive
@@ -165,10 +154,10 @@ def _solve_segment_allocation_lp(
             cat_lower_set = {(x or "").strip().lower() for x in g_cats}
 
             if g_is_rot:
-                # Per-category EV-blended bonus rate applied up to the FULL
-                # quarterly cap. See _segment_card_earn_pts_per_cat for the
-                # full explanation of why we credit expected points rather
-                # than perfectly-timed spend.
+                # Frequency-weighted allocation: rotating cards capture only
+                # their frequency share of category spend at the FULL bonus
+                # rate (not EV-blended). The frequency constraint is enforced
+                # via upper bounds on the card's allocation variables.
                 rot_lookup = {(k or "").strip().lower(): float(v) for k, v in g_rot_weights.items()}
                 for cl in cat_lower_set:
                     p_c = rot_lookup.get(cl, 0.0)
@@ -178,22 +167,15 @@ def _solve_segment_allocation_lp(
                     state_key = ("rot", g_id, period_start, cl)
                     if state_key not in cap_state:
                         cap_state[state_key] = float(g_cap_amt)
+                    # Use the FULL bonus rate since frequency is enforced via
+                    # upper bounds on allocation, not via EV-blended rates.
                     active_bonus_rate = _bonus_rate_for_pair(
                         k_idx, cl, float(g_mult), g_is_add
                     )
-                    if g_is_add:
-                        overflow_rate_for_pair = card_mult[k_idx].get(
-                            cl, card_all_other[k_idx]
-                        )
-                    else:
-                        overflow_rate_for_pair = card_all_other[k_idx]
-                    ev_rate = (
-                        p_c * active_bonus_rate
-                        + (1.0 - p_c) * overflow_rate_for_pair
-                    )
-                    bonus_mult[(k_idx, cl)] = ev_rate
+                    bonus_mult[(k_idx, cl)] = active_bonus_rate
                     pair_is_additive[(k_idx, cl)] = g_is_add
                     capped_pairs.add((k_idx, cl))
+                    rotating_freq[(k_idx, cl)] = p_c
                     if cap_state[state_key] > 0:
                         constraints.append(_CapConstraint(
                             members=[(k_idx, cl)],
@@ -371,11 +353,13 @@ def _solve_segment_allocation_lp(
     # Variable bounds: 0 ≤ var ≤ d_C (a single category never receives more
     # than its own segment dollars on any one card).
     #
-    # Manual category priority: for every category pinned by some selected
+    # Manual category priority: for every category pinned by some competing
     # card, zero-bound the base + bonus variables for every OTHER competing
     # card on that category. This forces all of that category's segment
     # dollars onto the pinned card without breaking flow conservation (the
-    # pinned card still has positive upper bounds).
+    # pinned card still has positive upper bounds). Note: pins only affect
+    # cards in `competing` — if SUB priority filtered the pinned card out,
+    # the pin has no effect and SUB cards get the spend.
     pinned_by_cat: dict[int, set[int]] = {}
     for cat, _d in cat_dollars:
         base_cat = cat[len(_FOREIGN_CAT_PREFIX):] if cat.startswith(_FOREIGN_CAT_PREFIX) else cat
@@ -391,11 +375,21 @@ def _solve_segment_allocation_lp(
 
     bounds = []
     for kind, k_idx, cat_idx in var_indices:
+        cat_name, d_c = cat_dollars[cat_idx]
+        cat_lower = cat_name.strip().lower()
         pinned_set = pinned_by_cat.get(cat_idx)
         if pinned_set is not None and k_idx not in pinned_set:
             bounds.append((0.0, 0.0))
         else:
-            bounds.append((0.0, cat_dollars[cat_idx][1]))
+            # For rotating categories, limit allocation to frequency share.
+            # This ensures each card only captures its activation probability
+            # worth of spend, with the remainder going to other cards.
+            freq = rotating_freq.get((k_idx, cat_lower))
+            if freq is not None and freq < 1.0:
+                upper = d_c * freq
+            else:
+                upper = d_c
+            bounds.append((0.0, upper))
 
     # Solve. Only scipy-missing (ImportError) should trigger the greedy
     # fallback silently — real solver errors indicate a bug in our LP setup

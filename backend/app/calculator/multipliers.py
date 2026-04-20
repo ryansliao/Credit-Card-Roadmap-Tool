@@ -146,27 +146,15 @@ def _compute_optimal_topn_selections(
                     incremental_values.append((cat, 0.0))
                     continue
 
-                # Apply cap: only capped_spend gets the boosted rate
+                # Disqualify categories where spend exceeds the cap — tracking
+                # "spend exactly to the cap then switch cards" is not realistic
+                # human behavior, so we don't consider these for top-N selection.
                 if annual_cap is not None and cat_spend > annual_cap:
-                    capped_spend = annual_cap
-                    overflow_spend = cat_spend - annual_cap
-                else:
-                    capped_spend = cat_spend
-                    overflow_spend = 0.0
+                    incremental_values.append((cat, 0.0))
+                    continue
 
-                # Value from capped portion: boosted rate vs best alternative
-                capped_value = (our_boosted_score - best_other) * capped_spend / 100.0
-
-                # Value from overflow: our base rate vs best alternative
-                # (overflow goes to All Other rate regardless of boost)
-                if overflow_spend > 0 and our_base_score > best_other:
-                    overflow_value = (our_base_score - best_other) * overflow_spend / 100.0
-                else:
-                    overflow_value = 0.0
-
-                # Total incremental value is the gain on the capped portion only,
-                # since overflow earns the same whether or not we pick this category
-                incremental = capped_value
+                # Value from spend: boosted rate vs best alternative
+                incremental = (our_boosted_score - best_other) * cat_spend / 100.0
                 incremental_values.append((cat, incremental))
 
             incremental_values.sort(key=lambda x: x[1], reverse=True)
@@ -184,20 +172,62 @@ def _compute_optimal_topn_selections(
 def _build_effective_multipliers(card: CardData, spend: dict[str, float]) -> dict[str, float]:
     """
     Build category -> multiplier map for this card given spend.
-    Applies top-N logic for groups: only the top N spending categories in each group
-    get the group rate; the rest get All Other.
 
-    If ``group_selected_categories`` is populated (pre-computed by
-    ``_compute_optimal_topn_selections``), uses those selections instead of
-    falling back to spend-based ranking.
+    - **Top-N groups**: only the top N spending categories in the group get the
+      group rate; the rest fall back to All Other. If ``group_selected_categories``
+      is populated (pre-computed by ``_compute_optimal_topn_selections``), uses
+      those selections instead of spend-based ranking.
+
+    - **Rotating groups**: returns the **full bonus rate** (not EV-blended).
+      The activation probability is applied separately in allocation via
+      ``_get_category_appearance_rate``. For additive groups, the bonus stacks
+      on the base rate; for non-additive groups, the bonus replaces the base.
     """
     effective = dict(card.multipliers)
     all_other = _all_other_multiplier(effective)
 
     for (
         group_mult, group_cats, top_n, group_id,
-        _cap_amt, _cap_months, is_rotating, _rot_weights, _is_add,
+        _cap_amt, _cap_months, is_rotating, rot_weights, is_add,
     ) in card.multiplier_groups:
+        # Rotating groups: use full bonus rate (not blended)
+        if is_rotating:
+            for cat in group_cats:
+                key = cat.strip() if cat else ""
+                if not key:
+                    continue
+                key_lower = key.lower()
+                p_c = rot_weights.get(key, 0.0) or rot_weights.get(key_lower, 0.0)
+                if p_c <= 0.0:
+                    # Category never active historically - skip
+                    continue
+
+                # Find existing base rate for this category (for additive mode)
+                base_rate = all_other
+                for ek, ev in effective.items():
+                    if (ek or "").strip().lower() == key_lower:
+                        base_rate = ev
+                        break
+
+                if is_add:
+                    # Additive: premium stacks on base rate when active
+                    full_rate = base_rate + group_mult
+                else:
+                    # Non-additive: group_mult replaces base when active
+                    full_rate = group_mult
+
+                # Upsert by case-insensitive match
+                found = False
+                for ek in list(effective):
+                    if (ek or "").strip().lower() == key_lower:
+                        effective[ek] = full_rate
+                        found = True
+                        break
+                if not found:
+                    effective[key] = full_rate
+            continue
+
+        # Non-rotating groups: top-N logic
         if top_n is None or top_n <= 0:
             continue
 
@@ -215,16 +245,7 @@ def _build_effective_multipliers(card: CardData, spend: dict[str, float]) -> dic
             key = cat.strip() if cat else ""
             if not key:
                 continue
-            # Promotion only applies to non-rotating top-N groups (e.g. Bilt
-            # Obsidian's "Dining or Groceries" choice). Rotating groups are
-            # EV-blended by the segmented path via rotation_weights; the
-            # simple path doesn't attempt to model them accurately.
-            if key in top_set:
-                if is_rotating:
-                    continue  # leave whatever is in effective unchanged
-                target_rate = group_mult
-            else:
-                target_rate = all_other
+            target_rate = group_mult if key in top_set else all_other
             # Upsert by case-insensitive match; only create a new key if none exists.
             for ek in list(effective):
                 if (ek or "").strip().lower() == key.lower():
@@ -234,6 +255,31 @@ def _build_effective_multipliers(card: CardData, spend: dict[str, float]) -> dic
                 effective[key] = target_rate
 
     return effective
+
+
+def _get_category_appearance_rate(card: CardData, category: str) -> float:
+    """Return the activation probability for a category on this card.
+
+    For rotating categories, returns the historical probability (0 < p <= 1).
+    For non-rotating categories (including additive base rates), returns 1.0.
+    """
+    cat_lower = (category or "").strip().lower()
+    if not cat_lower:
+        return 1.0
+
+    for (
+        _mult, group_cats, _topn, _gid,
+        _cap, _cap_months, is_rotating, rot_weights, _is_add,
+    ) in card.multiplier_groups:
+        if not is_rotating:
+            continue
+        # Check if category is in this rotating group
+        group_cats_lower = {(c or "").strip().lower() for c in group_cats}
+        if cat_lower in group_cats_lower:
+            p_c = rot_weights.get(category, 0.0) or rot_weights.get(cat_lower, 0.0)
+            return p_c if p_c > 0.0 else 1.0
+
+    return 1.0
 
 
 def _multiplier_for_category(

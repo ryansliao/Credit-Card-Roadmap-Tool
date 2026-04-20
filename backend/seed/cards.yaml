@@ -853,16 +853,7 @@ cards:
   - category: Hotels
     multiplier: 5.0
     group_index: 0
-  - category: Internet
-    multiplier: 5.0
-    group_index: 0
   - category: Live Entertainment
-    multiplier: 5.0
-    group_index: 0
-  - category: Personal Care
-    multiplier: 5.0
-    group_index: 0
-  - category: Phone
     multiplier: 5.0
     group_index: 0
   - category: Rideshare

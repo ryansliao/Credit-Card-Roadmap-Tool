@@ -88,12 +88,10 @@ class CardData:
     # - cap_amount:        per-period spend cap in dollars (None = uncapped)
     # - cap_period_months: 1=monthly, 3=quarterly, 6=semi-annual, 12=annual (None = uncapped)
     # - is_rotating:       True for rotating-bonus cards (Discover IT, Chase Freedom Flex).
-    #                      Each category earns at the EV-blended rate
-    #                      `p_C × bonus + (1 − p_C) × overflow` up to the FULL
-    #                      per-period cap, instead of pretending the user can
-    #                      perfectly time spend toward whichever quarter the
-    #                      issuer activates. There is no pooling across
-    #                      categories within the rotating group.
+    #                      Uses frequency-weighted allocation: each card captures
+    #                      p_C share of category spend at the FULL bonus rate,
+    #                      with the remainder going to the next-best card. There
+    #                      is no pooling across categories within the rotating group.
     # - rotation_weights:  category_name -> p_C (activation probability in [0, 1]),
     #                      empty when is_rotating is False.
     # - is_additive:       True if the group's multiplier is a *premium* that
