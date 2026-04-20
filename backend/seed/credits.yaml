@@ -322,13 +322,6 @@ credits:
   cards:
   - card: Chase Sapphire Reserve
     value: 300.0
-- credit_name: TakeOff15
-  value: 0.0
-  currency: Cash
-  cards:
-  - card: Delta SkyMiles Gold
-  - card: Delta SkyMiles Platinum
-  - card: Delta SkyMiles Reserve
 - credit_name: The Edit Hotel Credit
   currency: Cash
   cards:

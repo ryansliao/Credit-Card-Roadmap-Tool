@@ -6,6 +6,7 @@ Pure transform functions (apply_*) live in ``app.card_data_transforms``.
 
 from __future__ import annotations
 
+from dataclasses import replace as _replace
 from typing import TYPE_CHECKING
 
 from fastapi import Depends
@@ -407,6 +408,8 @@ class CalculatorDataService:
             out.append(card_data)
         return out
 
+    _TAKEOFF15_FACTOR = 1.0 / (1.0 - 0.15)  # ≈ 1.1765
+
     def _build_card_data(
         self,
         card: Card,
@@ -416,6 +419,13 @@ class CalculatorDataService:
     ) -> CardData:
         """Build a CardData from a Card ORM object."""
         currency = _currency_data(card.currency_obj, cpp_overrides)
+        if getattr(card, "takeoff15_enabled", False):
+            f = self._TAKEOFF15_FACTOR
+            currency = _replace(
+                currency,
+                cents_per_point=currency.cents_per_point * f,
+                comparison_cpp=currency.comparison_cpp * f,
+            )
 
         # Get all-other base rate
         all_other_rate = 1.0

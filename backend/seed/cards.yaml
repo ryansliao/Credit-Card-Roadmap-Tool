@@ -1022,6 +1022,7 @@ cards:
   sub_points: 80000
   sub_min_spend: 2000
   sub_months: 6
+  takeoff15_enabled: true
   photo_slug: delta_skymiles_gold
   multipliers:
   - category: Airlines
@@ -1042,6 +1043,7 @@ cards:
   sub_points: 90000
   sub_min_spend: 3000
   sub_months: 6
+  takeoff15_enabled: true
   photo_slug: delta_skymiles_platinum
   multipliers:
   - category: Airlines
@@ -1064,6 +1066,7 @@ cards:
   sub_points: 100000
   sub_min_spend: 5000
   sub_months: 6
+  takeoff15_enabled: true
   photo_slug: delta_skymiles_reserve
   multipliers:
   - category: Airlines

@@ -303,6 +303,8 @@ def _card_to_dict(c: Card) -> dict[str, Any]:
         d["foreign_transaction_fee"] = True
     if c.housing_fee_waived:
         d["housing_fee_waived"] = True
+    if c.takeoff15_enabled:
+        d["takeoff15_enabled"] = True
 
     groups_sorted = sorted(c.multiplier_groups, key=lambda g: g.id)
     group_idx: dict[int, int] = {g.id: i for i, g in enumerate(groups_sorted)}

@@ -138,6 +138,10 @@ class Card(Base):
     # payments.  Only Bilt cards waive this fee via their built-in platform.
     housing_fee_waived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
+    # Delta TakeOff 15: when true, the card earns a 15% discount on Delta
+    # award redemptions. Modelled as a CPP boost: effective CPP = cpp / 0.85.
+    takeoff15_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
     # Roadmap: how many months before the SUB can be earned again (e.g. 48 for Sapphire family)
     sub_recurrence_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # Roadmap: SUB eligibility family (cards in same family share a cooldown, e.g. "sapphire")
