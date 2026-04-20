@@ -479,6 +479,7 @@ export default function RoadmapToolPage() {
                     durationYears={durationYears}
                     durationMonths={durationMonths}
                     isUpdating={updateWalletCardMutation.isPending}
+                    isStale={isStale}
                     onToggleEnabled={(cardId, enabled) =>
                       updateWalletCardMutation.mutate({
                         walletId: wallet.id,
@@ -496,6 +497,7 @@ export default function RoadmapToolPage() {
                     selectedCards={result?.wallet.card_results.filter((c) => c.selected) ?? []}
                     walletCards={wallet.wallet_cards ?? []}
                     totalYears={Math.max(durationYears + durationMonths / 12, 1 / 12)}
+                    isStale={isStale}
                   />
                 )}
               </div>

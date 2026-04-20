@@ -16,6 +16,7 @@ interface Props {
   durationYears: number
   durationMonths: number
   isUpdating: boolean
+  isStale: boolean
   onToggleEnabled: (cardId: number, enabled: boolean) => void
   onEditCard: (wc: WalletCard) => void
   onAddCard: () => void
@@ -89,12 +90,12 @@ function formatCardIncome(c: CardResult | null, years: number): string | null {
 }
 
 /** Annual dollar value of a group, regardless of reward kind. Sums only
- * cards that are both enabled and were included in the last calc, so the
- * group header reflects what the per-card rows actually display (disabled
- * cards show "—" and contribute 0 to the header). */
+ * cards that were included in the last calc (have a `cr`). Does NOT gate
+ * by live `is_enabled` so group totals/ordering stay stable until the
+ * user clicks Calculate again. */
 function groupAnnualDollars(group: GroupData): number {
-  return group.cards.reduce((s, { wc, cr }) => {
-    if (!cr || !wc.is_enabled) return s
+  return group.cards.reduce((s, { cr }) => {
+    if (!cr) return s
     const pts = cr.annual_point_earn
     return s + (pts * cr.cents_per_point) / 100
   }, 0)
@@ -117,7 +118,7 @@ function groupBalanceDollars(group: GroupData): number {
 function formatGroupIncome(group: GroupData): string | null {
   const { rewardKind, cards } = group
   if (!rewardKind) return null
-  const included = cards.filter(({ wc, cr }) => cr != null && wc.is_enabled)
+  const included = cards.filter(({ cr }) => cr != null)
   if (included.length === 0) return null
   if (rewardKind === 'cash') {
     const dollars = included.reduce((s, { cr }) => {
@@ -133,8 +134,7 @@ function formatGroupIncome(group: GroupData): string | null {
 
 /** Format a single secondary-currency annual total, e.g. "+$25 Bilt Cash".
  * Group-level aggregates use summed per-card annualised rates (each
- * card's `secondary_currency_net_earn / card_active_years`), so disabled
- * cards drop out and the header matches the enabled per-card rows. */
+ * card's `secondary_currency_net_earn / card_active_years`). */
 function formatSecondaryAnnual(secondary: SecondaryAnnual): string {
   if (secondary.rewardKind === 'cash') {
     return `${signedPrefix(secondary.dollars)}${formatMoney(secondary.dollars)} ${secondary.name}`
@@ -192,6 +192,7 @@ export function WalletTimelineChart({
   durationYears,
   durationMonths,
   isUpdating,
+  isStale,
   onToggleEnabled,
   onEditCard,
   onAddCard,
@@ -328,17 +329,16 @@ export function WalletTimelineChart({
         return ea - eb
       })
 
-      // Aggregate primary-currency balance and secondary totals over the
-      // group's enabled cards. Summing per-card values (rather than reading
-      // the backend's `currency_pts_by_id` aggregate) lets a disabled card
-      // drop out live: `cr.total_points` is already amortised by each
-      // card's active years, so toggling a card now zeroes its
-      // contribution even though the last calc still includes it.
+      // Aggregate primary-currency balance and secondary totals based on
+      // calc results only. Don't gate by live `is_enabled` — the results
+      // must stay stable (including currency group order) until the user
+      // clicks Calculate again. Cards that weren't enabled at calc time
+      // won't have a `cr` anyway.
       let balanceSum = 0
       let balanceCount = 0
       const byId = new Map<number, SecondaryAnnual>()
       for (const entry of g.cards) {
-        if (!entry.wc.is_enabled || !entry.cr) continue
+        if (!entry.cr) continue
         balanceSum += entry.cr.total_points
         balanceCount += 1
         const s = entry.secondary
@@ -530,6 +530,7 @@ export function WalletTimelineChart({
                 totalYears={totalYears}
                 roadmapById={roadmapById}
                 isUpdating={isUpdating}
+                isStale={isStale}
                 rightColumnPx={rightColumnPx}
                 onToggleEnabled={onToggleEnabled}
                 onEditCard={onEditCard}
@@ -590,6 +591,7 @@ interface GroupSectionProps {
   totalYears: number
   roadmapById: Map<number, RoadmapResponse['cards'][number]>
   isUpdating: boolean
+  isStale: boolean
   rightColumnPx: number
   onToggleEnabled: (cardId: number, enabled: boolean) => void
   onEditCard: (wc: WalletCard) => void
@@ -602,6 +604,7 @@ function GroupSection({
   totalYears,
   roadmapById,
   isUpdating,
+  isStale,
   rightColumnPx,
   onToggleEnabled,
   onEditCard,
@@ -624,7 +627,10 @@ function GroupSection({
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-slate-200 truncate">{group.name}</div>
           {(balanceLabel || incomeLabel || group.secondaries.length > 0) && (
-            <div className="flex items-center gap-1.5 text-xs text-slate-400 truncate">
+            <div
+              className={`flex items-center gap-1.5 text-xs text-slate-400 truncate transition-opacity ${isStale ? 'opacity-50' : ''}`}
+              title={isStale ? 'Results are out of date — click Calculate to refresh' : undefined}
+            >
               {balanceLabel && <span>{balanceLabel}</span>}
               {incomeLabel && (
                 <>
@@ -676,6 +682,7 @@ function GroupSection({
           totalYears={totalYears}
           roadmapStatus={roadmapById.get(wc.card_id)}
           isUpdating={isUpdating}
+          isStale={isStale}
           rightColumnPx={rightColumnPx}
           onToggleEnabled={onToggleEnabled}
           onEditCard={onEditCard}
@@ -694,6 +701,7 @@ interface CardRowProps {
   totalYears: number
   roadmapStatus: RoadmapResponse['cards'][number] | undefined
   isUpdating: boolean
+  isStale: boolean
   rightColumnPx: number
   onToggleEnabled: (cardId: number, enabled: boolean) => void
   onEditCard: (wc: WalletCard) => void
@@ -708,6 +716,7 @@ function CardRow({
   totalYears,
   roadmapStatus,
   isUpdating,
+  isStale,
   rightColumnPx,
   onToggleEnabled,
   onEditCard,
@@ -793,7 +802,10 @@ function CardRow({
               {wc.card_name ?? `Card #${wc.card_id}`}
             </div>
             {incomeLabel && (
-              <div className="text-xs text-slate-500 truncate">
+              <div
+                className={`text-xs text-slate-500 truncate transition-opacity ${isStale ? 'opacity-50' : ''}`}
+                title={isStale ? 'Out of date' : undefined}
+              >
                 {incomeLabel}
                 {secondary && (
                   <>
@@ -837,13 +849,14 @@ function CardRow({
         )}
         {barWidthPct > 0 && eafLabelText != null && (() => {
           const labelText = eafLabelText
-          const labelClass = !enabled
+          const baseColor = !enabled
             ? 'text-slate-500'
             : eafValue != null && eafValue < 0
               ? 'text-emerald-400'
               : eafValue != null && eafValue > 0
                 ? 'text-red-400'
                 : 'text-slate-200'
+          const labelClass = `${baseColor} ${isStale ? 'opacity-50' : ''}`
           const PADDING = 8
           const GAP = 4
           // When the container isn't measured yet, fall back to drawing the

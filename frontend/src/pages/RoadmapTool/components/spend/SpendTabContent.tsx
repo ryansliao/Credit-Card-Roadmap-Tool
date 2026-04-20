@@ -12,6 +12,7 @@ interface Props {
   walletCards: WalletCard[]
   isTotal: boolean
   totalYears: number
+  isStale: boolean
 }
 
 function CardPhoto({ slug, name }: { slug: string | null; name: string }) {
@@ -43,6 +44,7 @@ export function SpendTabContent({
   walletCards,
   isTotal,
   totalYears,
+  isStale,
 }: Props) {
   const { data: spendItems = [], isLoading } = useQuery({
     queryKey: queryKeys.walletSpendItems(walletId),
@@ -276,7 +278,10 @@ export function SpendTabContent({
                         ${item.amount === 0 ? '0' : Math.round(item.amount).toLocaleString()}
                       </span>
                     </td>
-                    <td className="text-center tabular-nums px-3 py-2 text-slate-200 border-r border-slate-800/60">
+                    <td
+                      className={`text-center tabular-nums px-3 py-2 text-slate-200 border-r border-slate-800/60 transition-opacity ${isStale ? 'opacity-50' : ''}`}
+                      title={isStale ? 'Out of date' : undefined}
+                    >
                       {currentCard ? (
                         (() => {
                           const pts = earnForUserCategory(currentCard, item.user_spend_category)
@@ -290,7 +295,10 @@ export function SpendTabContent({
                         <span className="text-slate-700">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-slate-200">
+                    <td
+                      className={`px-3 py-2 text-slate-200 transition-opacity ${isStale ? 'opacity-50' : ''}`}
+                      title={isStale ? 'Out of date' : undefined}
+                    >
                       {noTop ? (
                         <div className="text-center text-slate-700">—</div>
                       ) : (
