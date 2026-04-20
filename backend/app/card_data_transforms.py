@@ -157,26 +157,6 @@ def apply_wallet_card_multiplier_overrides(
     return out
 
 
-def apply_wallet_card_group_selections(
-    card_data_list: list[CardData],
-    selections: dict[int, dict[int, set[str]]],
-) -> list[CardData]:
-    """
-    Return CardData copies with manual group category selections applied.
-    Sets CardData.group_selected_categories for each card that has selections.
-    """
-    if not selections:
-        return card_data_list
-    out: list[CardData] = []
-    for cd in card_data_list:
-        card_sels = selections.get(cd.id)
-        if not card_sels:
-            out.append(cd)
-            continue
-        out.append(dataclasses.replace(cd, group_selected_categories=card_sels))
-    return out
-
-
 def apply_wallet_card_category_priorities(
     card_data_list: list[CardData],
     priorities_by_card: dict[int, frozenset[str]],

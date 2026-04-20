@@ -7,11 +7,12 @@ allocation paths.
 """
 from __future__ import annotations
 
+from dataclasses import replace as dataclass_replace
 from datetime import date
 
 from ..constants import ALL_OTHER_CATEGORY
 from ..date_utils import add_months
-from .currency import _comparison_cpp
+from .currency import _comparison_cpp, _secondary_currency_comparison_bonus
 from .types import CardData
 
 
@@ -39,11 +40,156 @@ def _spend_for_category(spend: dict[str, float], category: str) -> float:
     return 0.0
 
 
+def _compute_optimal_topn_selections(
+    cards: list[CardData],
+    selected_ids: set[int],
+    spend: dict[str, float],
+    wallet_currency_ids: set[int],
+) -> list[CardData]:
+    """Pre-compute optimal top-N category selections for all cards.
+
+    For each card with a top-N multiplier group, selects the categories that
+    maximize **incremental wallet value** — the additional dollar value the
+    wallet gains by this card winning the category with the boosted rate vs
+    the best alternative card earning it instead.
+
+    This is smarter than just picking by raw spend: if another card already
+    earns 4x on Groceries, boosting this card to 5x only provides +1x
+    incremental; but boosting Gas from 1x to 5x provides +4x incremental even
+    if Gas spend is lower.
+
+    Spend caps are respected: if a group has a $1,500/quarter cap, only the
+    first $6,000/year of spend in that category gets the bonus rate. Excess
+    spend falls back to the All Other rate.
+
+    Returns a new list of CardData with ``group_selected_categories`` populated.
+    """
+    if not cards:
+        return cards
+
+    selected_cards = [c for c in cards if c.id in selected_ids]
+    if len(selected_cards) <= 1:
+        return cards
+
+    def _card_category_score(card: CardData, category: str, with_mult: float) -> float:
+        """Compute allocation score for a card on a category with a given multiplier."""
+        cpp = _comparison_cpp(card, wallet_currency_ids)
+        sec_bonus = _secondary_currency_comparison_bonus(card, category=category)
+        return with_mult * cpp * card.earn_bonus_factor + sec_bonus
+
+    def _best_other_score(exclude_card: CardData, category: str) -> float:
+        """Best score from other selected cards on this category (no top-N boost)."""
+        best = 0.0
+        for c in selected_cards:
+            if c.id == exclude_card.id:
+                continue
+            m = c.multipliers.get(category)
+            if m is None:
+                for k, v in c.multipliers.items():
+                    if k.strip().lower() == category.strip().lower():
+                        m = v
+                        break
+            if m is None:
+                m = _all_other_multiplier(c.multipliers)
+            score = _card_category_score(c, category, m)
+            if score > best:
+                best = score
+        return best
+
+    result: list[CardData] = []
+    for card in cards:
+        if card.id not in selected_ids:
+            result.append(card)
+            continue
+
+        has_topn_group = any(
+            top_n is not None and top_n > 0
+            for _, _, top_n, _, _, _, is_rot, _, _ in card.multiplier_groups
+            if not is_rot
+        )
+        if not has_topn_group:
+            result.append(card)
+            continue
+
+        selections: dict[int, set[str]] = {}
+
+        for (
+            group_mult, group_cats, top_n, group_id,
+            cap_amt, cap_months, is_rotating, _rot_weights, _is_add,
+        ) in card.multiplier_groups:
+            if top_n is None or top_n <= 0 or is_rotating or group_id is None:
+                continue
+
+            all_other = _all_other_multiplier(card.multipliers)
+
+            # Compute annual cap from per-period cap if present
+            annual_cap: float | None = None
+            if cap_amt is not None and cap_months and cap_months > 0:
+                periods_per_year = 12 / cap_months
+                annual_cap = cap_amt * periods_per_year
+
+            incremental_values: list[tuple[str, float]] = []
+            for cat in group_cats:
+                if not cat:
+                    continue
+                cat_spend = _spend_for_category(spend, cat)
+                if cat_spend <= 0:
+                    incremental_values.append((cat, 0.0))
+                    continue
+
+                our_boosted_score = _card_category_score(card, cat, group_mult)
+                our_base_score = _card_category_score(card, cat, all_other)
+                best_other = _best_other_score(card, cat)
+
+                if our_boosted_score <= best_other:
+                    # Even with boost, we don't win this category
+                    incremental_values.append((cat, 0.0))
+                    continue
+
+                # Apply cap: only capped_spend gets the boosted rate
+                if annual_cap is not None and cat_spend > annual_cap:
+                    capped_spend = annual_cap
+                    overflow_spend = cat_spend - annual_cap
+                else:
+                    capped_spend = cat_spend
+                    overflow_spend = 0.0
+
+                # Value from capped portion: boosted rate vs best alternative
+                capped_value = (our_boosted_score - best_other) * capped_spend / 100.0
+
+                # Value from overflow: our base rate vs best alternative
+                # (overflow goes to All Other rate regardless of boost)
+                if overflow_spend > 0 and our_base_score > best_other:
+                    overflow_value = (our_base_score - best_other) * overflow_spend / 100.0
+                else:
+                    overflow_value = 0.0
+
+                # Total incremental value is the gain on the capped portion only,
+                # since overflow earns the same whether or not we pick this category
+                incremental = capped_value
+                incremental_values.append((cat, incremental))
+
+            incremental_values.sort(key=lambda x: x[1], reverse=True)
+            top_cats = {cat for cat, _ in incremental_values[:top_n]}
+            selections[group_id] = top_cats
+
+        if selections:
+            result.append(dataclass_replace(card, group_selected_categories=selections))
+        else:
+            result.append(card)
+
+    return result
+
+
 def _build_effective_multipliers(card: CardData, spend: dict[str, float]) -> dict[str, float]:
     """
     Build category -> multiplier map for this card given spend.
     Applies top-N logic for groups: only the top N spending categories in each group
     get the group rate; the rest get All Other.
+
+    If ``group_selected_categories`` is populated (pre-computed by
+    ``_compute_optimal_topn_selections``), uses those selections instead of
+    falling back to spend-based ranking.
     """
     effective = dict(card.multipliers)
     all_other = _all_other_multiplier(effective)
@@ -54,12 +200,11 @@ def _build_effective_multipliers(card: CardData, spend: dict[str, float]) -> dic
     ) in card.multiplier_groups:
         if top_n is None or top_n <= 0:
             continue
-        # Use manual selections if present for this group, otherwise auto-pick by spend
-        manual = card.group_selected_categories.get(group_id) if group_id else None
-        if manual:
-            top_set = manual
+
+        precomputed = card.group_selected_categories.get(group_id) if group_id else None
+        if precomputed:
+            top_set = precomputed
         else:
-            # Rank group categories by spend (desc); only top N get group_mult
             ranked = sorted(
                 group_cats,
                 key=lambda c: _spend_for_category(spend, c) if c else 0.0,

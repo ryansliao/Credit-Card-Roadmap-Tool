@@ -15,7 +15,6 @@ from ...calculator import calc_annual_allocated_spend, compute_wallet, plan_sub_
 from ...database import get_db
 from ...card_data_transforms import (
     apply_wallet_card_category_priorities,
-    apply_wallet_card_group_selections,
     apply_wallet_card_multiplier_overrides,
     apply_wallet_card_overrides,
     apply_wallet_portal_shares,
@@ -183,8 +182,6 @@ async def wallet_results(
     )
     wallet_multiplier_rows = await calc_data_service.load_wallet_card_multipliers(wallet_id)
     modified_cards = apply_wallet_card_multiplier_overrides(modified_cards, wallet_multiplier_rows)
-    group_selections = await calc_data_service.load_wallet_card_group_selections(wallet_id)
-    modified_cards = apply_wallet_card_group_selections(modified_cards, group_selections)
     category_priorities = await calc_data_service.load_wallet_card_category_priorities(wallet_id)
     modified_cards = apply_wallet_card_category_priorities(modified_cards, category_priorities)
     portal_shares = await calc_data_service.load_wallet_portal_shares(wallet_id)

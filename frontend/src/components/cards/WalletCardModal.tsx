@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   type AddCardToWalletPayload,
   type CardCredit,
-  type CardMultiplierGroup,
   type UpdateWalletCardPayload,
   type WalletCard,
   type WalletCardAcquisitionType,
@@ -11,7 +10,6 @@ import {
   currenciesApi,
   walletCardCategoryPriorityApi,
   walletCardCreditApi,
-  walletCardGroupSelectionApi,
   walletSpendItemsApi,
 } from '../../api/client'
 import { ModalBackdrop } from '../ModalBackdrop'
@@ -95,9 +93,7 @@ export function WalletCardModal({
   const [creditsExpanded, setCreditsExpanded] = useState(false)
   const [creditSearch, setCreditSearch] = useState('')
   const [creditOptionsOpen, setCreditOptionsOpen] = useState<number | null>(null)
-  const [groupSelectionsExpanded, setGroupSelectionsExpanded] = useState(false)
-  // group_id -> array of selected spend_category_ids (length == top_n)
-  const [groupSelections, setGroupSelections] = useState<Record<number, number[]>>({})
+  const [showCreditPicker, setShowCreditPicker] = useState(false)
   // Set of spend_category_ids this wallet card claims as priority-pinned.
   const [priorityCategoryIds, setPriorityCategoryIds] = useState<Set<number>>(new Set())
   const [priorityExpanded, setPriorityExpanded] = useState(false)
@@ -140,13 +136,6 @@ export function WalletCardModal({
   const { data: existingCreditOverrides, isLoading: creditOverridesLoading } = useQuery({
     queryKey: queryKeys.walletCardCredits(walletCard?.wallet_id ?? null, walletCard?.card_id ?? null),
     queryFn: () => walletCardCreditApi.list(walletCard!.wallet_id, walletCard!.card_id),
-    enabled: mode === 'edit' && walletCard != null,
-  })
-
-  // Fetch existing group category selections (edit mode only)
-  const { data: existingGroupSelections } = useQuery({
-    queryKey: queryKeys.walletCardGroupSelections(walletCard?.wallet_id ?? null, walletCard?.card_id ?? null),
-    queryFn: () => walletCardGroupSelectionApi.list(walletCard!.wallet_id, walletCard!.card_id),
     enabled: mode === 'edit' && walletCard != null,
   })
 
@@ -211,12 +200,6 @@ export function WalletCardModal({
     [effectiveCardId, cards]
   )
 
-  // Groups with top-N behavior on the selected card
-  const topNGroups = useMemo<CardMultiplierGroup[]>(() => {
-    if (!lib) return []
-    return lib.multiplier_groups.filter((g) => g.top_n_categories != null && g.top_n_categories > 0)
-  }, [lib])
-
 
 
 
@@ -263,7 +246,6 @@ export function WalletCardModal({
       }
       setSelectedCredits(defaults)
       setCreditsExpanded(Object.keys(defaults).length > 0)
-      setGroupSelections({})
       setFormError(null)
     } else {
       if (!walletCard || !lib) return
@@ -295,26 +277,9 @@ export function WalletCardModal({
       }
       setSelectedCredits(m)
       setCreditsExpanded(Object.keys(m).length > 0)
-      setGroupSelections({})
       setFormError(null)
     }
   }, [mode, cardId, lib, walletCard, creditLibrary, existingCreditOverrides])
-
-  // Populate group selection state from the wallet-specific API data (edit mode).
-  useEffect(() => {
-    if (mode !== 'edit' || !lib || existingGroupSelections === undefined) return
-    const m: Record<number, number[]> = {}
-    for (const g of topNGroups) {
-      const picks = existingGroupSelections
-        .filter((s) => s.multiplier_group_id === g.id)
-        .map((s) => s.spend_category_id)
-      if (picks.length > 0) {
-        m[g.id] = picks
-      }
-    }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setGroupSelections(m)
-  }, [mode, lib, existingGroupSelections, topNGroups])
 
   // Hydrate this card's own priority pins from the wallet-wide list.
   useEffect(() => {
@@ -413,20 +378,6 @@ export function WalletCardModal({
         )
       }
     }
-    // Save group selections via the dedicated API.
-    const groupOps: Promise<unknown>[] = []
-    for (const g of topNGroups) {
-      const rawPicks = groupSelections[g.id] ?? []
-      const realPicks = rawPicks.filter((id) => id !== 0)
-      const hadExisting = existingGroupSelections?.some((s) => s.multiplier_group_id === g.id)
-      if (realPicks.length === (g.top_n_categories ?? 1)) {
-        groupOps.push(walletCardGroupSelectionApi.set(walletCard.wallet_id, walletCard.card_id, g.id, realPicks))
-      } else if (hadExisting && realPicks.length === 0) {
-        // All slots reverted to auto — delete selections
-        groupOps.push(walletCardGroupSelectionApi.delete(walletCard.wallet_id, walletCard.card_id, g.id))
-      }
-      // If partially filled (some auto, some real), skip saving — user needs to fill all slots
-    }
 
     // Save category-priority pins via the dedicated API.
     const priorityOp = walletCardCategoryPriorityApi
@@ -436,7 +387,7 @@ export function WalletCardModal({
       })
 
     try {
-      await Promise.all([...creditOps, ...groupOps, priorityOp])
+      await Promise.all([...creditOps, priorityOp])
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to save overrides.'
       setFormError(msg)
@@ -904,145 +855,109 @@ export function WalletCardModal({
                           })}
                         </ul>
                       )}
-                      <div className="px-6 py-2 border-t border-slate-700/60 space-y-1.5">
-                        <input
-                          type="search"
-                          value={creditSearch}
-                          onChange={(e) => {
-                            setCreditSearch(e.target.value)
-                          }}
-                          placeholder="Search credits…"
-                          className="w-full bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1.5 rounded outline-none focus:border-indigo-500"
-                        />
-                        {(() => {
-                          const trimmed = creditSearch.trim()
-                          const q = trimmed.toLowerCase()
-                          const matches = (creditLibrary ?? [])
-                            .filter((c) => !(c.id in selectedCredits))
-                            .filter((c) => !q || c.credit_name.toLowerCase().includes(q))
-                          const exactExists = (creditLibrary ?? []).some(
-                            (c) => c.credit_name.toLowerCase() === q,
-                          )
-                          const canCreate = trimmed.length > 0 && !exactExists
-                          if (matches.length === 0 && !canCreate) {
-                            return (
-                              <p className="text-[11px] text-slate-500 px-1 py-1">
-                                No matching credits.
-                              </p>
-                            )
-                          }
-                          return (
-                            <ul className="max-h-40 overflow-y-auto rounded border border-slate-700 divide-y divide-slate-700/60">
-                              {matches.map((c) => (
-                                <li key={c.id}>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const cardVal = cardId ? (c.card_values[cardId] ?? c.value ?? 0) : (c.value ?? 0)
-                                      setSelectedCredits((prev) => ({
-                                        ...prev,
-                                        [c.id]: cardVal,
-                                      }))
-                                      setCreditSearch('')
-                                    }}
-                                    className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-700/60"
-                                  >
-                                    <span className="truncate min-w-0">{c.credit_name}</span>
-                                    <span className="text-slate-500 tabular-nums shrink-0">
-                                      {formatMoney(cardId ? (c.card_values[cardId] ?? c.value ?? 0) : (c.value ?? 0))}
-                                    </span>
-                                  </button>
-                                </li>
-                              ))}
-                              {canCreate && (
-                                <li>
-                                  <button
-                                    type="button"
-                                    disabled={createCreditMutation.isPending}
-                                    onClick={() => createCreditMutation.mutate(trimmed)}
-                                    className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-indigo-300 hover:bg-slate-700/60 disabled:opacity-50"
-                                  >
-                                    <span className="shrink-0">+</span>
-                                    <span className="truncate min-w-0">
-                                      {createCreditMutation.isPending
-                                        ? `Creating "${trimmed}"…`
-                                        : `Create "${trimmed}"`}
-                                    </span>
-                                  </button>
-                                </li>
-                              )}
-                            </ul>
-                          )
-                        })()}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Bonus Category Selections inline collapsible */}
-              {topNGroups.length > 0 && (
-                <div className="-mx-6 border-t border-slate-700">
-                  <button
-                    type="button"
-                    onClick={() => setGroupSelectionsExpanded((prev) => !prev)}
-                    className="w-full flex items-center justify-between px-6 py-3 text-sm text-slate-300 hover:bg-slate-700/40"
-                  >
-                    <span>Bonus Category Selections</span>
-                    <svg
-                      className={`w-4 h-4 text-slate-400 transition-transform ${groupSelectionsExpanded ? 'rotate-180' : ''}`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {groupSelectionsExpanded && (
-                    <div className="border-t border-slate-700 px-6 py-3 space-y-4">
-                      {topNGroups.map((g) => {
-                        const topN = g.top_n_categories ?? 1
-                        const picks = groupSelections[g.id] ?? []
-                        return (
-                          <div key={g.id}>
-                            <p className="text-xs text-slate-400 mb-2">
-                              {g.multiplier}x — pick {topN} of {g.categories.length} categories
-                            </p>
-                            {Array.from({ length: topN }, (_, slotIdx) => {
-                              const currentPick = picks[slotIdx] ?? 0
-                              // Categories already picked in other slots for this group
-                              const otherPicks = picks.filter((_, i) => i !== slotIdx)
-                              return (
-                                <select
-                                  key={slotIdx}
-                                  className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 mb-2"
-                                  value={currentPick}
-                                  onChange={(e) => {
-                                    const val = Number(e.target.value)
-                                    setGroupSelections((prev) => {
-                                      const arr = [...(prev[g.id] ?? Array(topN).fill(0))]
-                                      arr[slotIdx] = val
-                                      return { ...prev, [g.id]: arr }
-                                    })
-                                  }}
-                                >
-                                  <option value={0}>Auto (by spend)</option>
-                                  {g.categories.map((cat) => (
-                                    <option
-                                      key={cat.spend_category_id}
-                                      value={cat.spend_category_id}
-                                      disabled={otherPicks.includes(cat.spend_category_id)}
-                                    >
-                                      {cat.name}
-                                    </option>
-                                  ))}
-                                </select>
+                      <div className="px-6 py-2 border-t border-slate-700/60">
+                        {!showCreditPicker ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowCreditPicker(true)}
+                            className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-indigo-400 hover:text-indigo-300 hover:bg-slate-700/40 rounded transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                            Add Credit
+                          </button>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="search"
+                                value={creditSearch}
+                                onChange={(e) => {
+                                  setCreditSearch(e.target.value)
+                                }}
+                                placeholder="Search credits…"
+                                className="flex-1 bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1.5 rounded outline-none focus:border-indigo-500"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowCreditPicker(false)
+                                  setCreditSearch('')
+                                }}
+                                className="p-1 text-slate-500 hover:text-slate-300 rounded hover:bg-slate-700/80"
+                                title="Cancel"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                            {(() => {
+                              const trimmed = creditSearch.trim()
+                              const q = trimmed.toLowerCase()
+                              const matches = (creditLibrary ?? [])
+                                .filter((c) => !(c.id in selectedCredits))
+                                .filter((c) => !q || c.credit_name.toLowerCase().includes(q))
+                              const exactExists = (creditLibrary ?? []).some(
+                                (c) => c.credit_name.toLowerCase() === q,
                               )
-                            })}
+                              const canCreate = trimmed.length > 0 && !exactExists
+                              if (matches.length === 0 && !canCreate) {
+                                return (
+                                  <p className="text-[11px] text-slate-500 px-1 py-1">
+                                    No matching credits.
+                                  </p>
+                                )
+                              }
+                              return (
+                                <ul className="max-h-40 overflow-y-auto rounded border border-slate-700 divide-y divide-slate-700/60">
+                                  {matches.map((c) => (
+                                    <li key={c.id}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const cardVal = cardId ? (c.card_values[cardId] ?? c.value ?? 0) : (c.value ?? 0)
+                                          setSelectedCredits((prev) => ({
+                                            ...prev,
+                                            [c.id]: cardVal,
+                                          }))
+                                          setCreditSearch('')
+                                          setShowCreditPicker(false)
+                                        }}
+                                        className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-700/60"
+                                      >
+                                        <span className="truncate min-w-0">{c.credit_name}</span>
+                                        <span className="text-slate-500 tabular-nums shrink-0">
+                                          {formatMoney(cardId ? (c.card_values[cardId] ?? c.value ?? 0) : (c.value ?? 0))}
+                                        </span>
+                                      </button>
+                                    </li>
+                                  ))}
+                                  {canCreate && (
+                                    <li>
+                                      <button
+                                        type="button"
+                                        disabled={createCreditMutation.isPending}
+                                        onClick={() => createCreditMutation.mutate(trimmed)}
+                                        className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-indigo-300 hover:bg-slate-700/60 disabled:opacity-50"
+                                      >
+                                        <span className="shrink-0">+</span>
+                                        <span className="truncate min-w-0">
+                                          {createCreditMutation.isPending
+                                            ? `Creating "${trimmed}"…`
+                                            : `Create "${trimmed}"`}
+                                        </span>
+                                      </button>
+                                    </li>
+                                  )}
+                                </ul>
+                              )
+                            })()}
                           </div>
-                        )
-                      })}
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

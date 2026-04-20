@@ -34,6 +34,7 @@
       "effective_annual_fee": -677.5134,
       "effective_currency_id": 1,
       "effective_currency_name": "Chase Ultimate Rewards",
+      "effective_currency_photo_slug": null,
       "effective_reward_kind": "points",
       "first_year_fee": null,
       "secondary_currency_earn": 0.0,
@@ -83,6 +84,7 @@
       "effective_annual_fee": -1003.8693,
       "effective_currency_id": 2,
       "effective_currency_name": "Amex Membership Rewards",
+      "effective_currency_photo_slug": null,
       "effective_reward_kind": "points",
       "first_year_fee": null,
       "secondary_currency_earn": 0.0,
@@ -96,7 +98,7 @@
       "sub_opp_cost_gross_dollars": 0.0,
       "sub_points": 60000,
       "sub_spend_earn": 6000,
-      "total_points": 136977.41
+      "total_points": 127474.03
     },
     {
       "accelerator_activations": 0,
@@ -130,6 +132,7 @@
       "effective_annual_fee": -312.3457,
       "effective_currency_id": 3,
       "effective_currency_name": "Cash",
+      "effective_currency_photo_slug": null,
       "effective_reward_kind": "cash",
       "first_year_fee": null,
       "secondary_currency_earn": 0.0,
@@ -147,13 +150,13 @@
     }
   ],
   "currency_pts": {
-    "Amex Membership Rewards": 136977.41,
+    "Amex Membership Rewards": 127474.03,
     "Cash": 62340.86,
     "Chase Ultimate Rewards": 80402.46
   },
   "currency_pts_by_id": {
     "1": 80402.46,
-    "2": 136977.41,
+    "2": 127474.03,
     "3": 62340.86
   },
   "secondary_currency_pts": {},
@@ -161,7 +164,7 @@
   "total_annual_pts": 48790.12,
   "total_cash_reward_dollars": 623.4086,
   "total_effective_annual_fee": -1993.7284,
-  "total_points_earned": 217379.87,
-  "total_reward_value_usd": 4399.2689,
+  "total_points_earned": 207876.49,
+  "total_reward_value_usd": 4237.7114,
   "years_counted": 2
 }

@@ -37,6 +37,7 @@ class CurrencyData:
     # Default CPP from the currency definition (never overridden by wallet CPP).
     # Used for balance/point-count calculations that should be CPP-independent.
     comparison_cpp: float = 0.0
+    photo_slug: Optional[str] = None
     cash_transfer_rate: float = 1.0
     partner_transfer_rate: Optional[float] = None
     # When set, this currency upgrades to the target when any wallet card earns the target directly
@@ -250,6 +251,7 @@ class CardResult:
     effective_currency_name: str = ""
     effective_currency_id: int = 0
     effective_reward_kind: str = "points"
+    effective_currency_photo_slug: Optional[str] = None
     # Per-category earn breakdown: (category_name, annual_points), sorted desc by points
     category_earn: list[tuple[str, float]] = field(default_factory=list)
     # Effective multiplier per spend-category for this card (top-N applied,

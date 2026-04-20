@@ -12,6 +12,7 @@ class CurrencyRead(BaseModel):
 
     id: int
     name: str
+    photo_slug: Optional[str] = None
     reward_kind: str = "points"
     cents_per_point: float
     partner_transfer_rate: Optional[float] = None

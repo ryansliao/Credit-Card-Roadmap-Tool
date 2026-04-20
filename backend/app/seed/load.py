@@ -177,6 +177,7 @@ async def _load_currencies(db) -> None:
             Currency,
             "name",
             cd["name"],
+            photo_slug=cd.get("photo_slug"),
             reward_kind=cd.get("reward_kind", "points"),
             cents_per_point=cd.get("cents_per_point", 1.0),
             partner_transfer_rate=cd.get("partner_transfer_rate"),

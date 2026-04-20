@@ -86,6 +86,7 @@ def wallet_to_schema(wallet, photo_slugs: dict[int, str | None] | None = None) -
             effective_currency_name=cr.effective_currency_name,
             effective_currency_id=cr.effective_currency_id,
             effective_reward_kind=cr.effective_reward_kind,
+            effective_currency_photo_slug=cr.effective_currency_photo_slug,
             category_earn=[
                 CategoryEarnItem(category=cat, points=pts)
                 for cat, pts in cr.category_earn
@@ -113,5 +114,7 @@ def wallet_to_schema(wallet, photo_slugs: dict[int, str | None] | None = None) -
         total_reward_value_usd=wallet.total_reward_value_usd,
         currency_pts=wallet.currency_pts,
         currency_pts_by_id=wallet.currency_pts_by_id,
+        secondary_currency_pts=wallet.secondary_currency_pts,
+        secondary_currency_pts_by_id=wallet.secondary_currency_pts_by_id,
         card_results=card_schemas,
     )

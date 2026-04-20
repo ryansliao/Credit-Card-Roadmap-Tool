@@ -35,6 +35,7 @@ from .multipliers import (
     _all_other_multiplier,
     _build_effective_multipliers,
     _calc_earn_bonus_factor,
+    _compute_optimal_topn_selections,
     _first_year_pct_bonus,
     _segment_earn_bonus_factor,
 )
@@ -234,6 +235,14 @@ def compute_wallet(
 
     active_wallet_currency_ids = _wallet_currency_ids(selected_cards)
 
+    # Pre-compute optimal top-N category selections for cards with selectable
+    # bonus groups. Uses incremental value (opportunity cost) to pick the
+    # categories where the bonus provides the most gain over alternatives.
+    all_cards = _compute_optimal_topn_selections(
+        all_cards, selected_ids, spend, active_wallet_currency_ids
+    )
+    selected_cards = [c for c in all_cards if c.id in selected_ids]
+
     # Compute total housing spend for secondary currency conversion cap.
     # When foreign spend split is in effect, housing categories may exist as both
     # "Rent" and "__foreign__Rent" entries; both contribute to total housing.
@@ -420,6 +429,7 @@ def compute_wallet(
                     effective_currency_name=card.currency.name,
                     effective_currency_id=card.currency.id,
                     effective_reward_kind=card.currency.reward_kind,
+                    effective_currency_photo_slug=card.currency.photo_slug,
                 )
             )
             continue
@@ -449,19 +459,27 @@ def compute_wallet(
             total_years_window = (window_end - window_start).days / 365.25  # type: ignore[operator]
             card_net_annual = net_annual * total_years_window / card_active_years
             card_effective_annual_fee = round(-card_net_annual, 4)
-            # total_points: annualized earn × total window years + one-time SUB bonus.
-            # Uses the wallet's CPP overrides for allocation (same view as the EV path).
-            # sub_spend_earn and net_opp are excluded (already captured in segment earn).
+            # total_points: the displayed "annual point income" multiplied by
+            # the card's active years in the window, plus one-time SUB. This
+            # is what the user reads as "balance": a card earning X/year and
+            # active for Y years shows a balance of X*Y, so a card active
+            # less than a year shows a balance less than X. We use the
+            # balance-view earn here (default CPP allocation) so wallet CPP
+            # overrides don't skew the point totals.
             sub_earnable_pts = card.sub_points if card.sub_earnable else 0
-            total_points = annual_point_earn_for_balance * total_years_window + sub_earnable_pts
+            total_points = annual_point_earn_for_balance * card_active_years + sub_earnable_pts
         else:
+            # Simple path has no time windowing, so the SUB priority boost
+            # (which only applies during a card's SUB window) is meaningless
+            # here. Passing it would redirect the full year's spend to the
+            # priority card while `calc_total_points` still adds
+            # `sub_spend_earn` on top, double-counting SUB-window earn.
             annual_point_earn = _effective_annual_earn_allocated(
                 card, spend, selected_cards, active_wallet_currency_ids,
-                sub_priority_card_ids=sub_priority_card_ids,
             )
             annual_point_earn_for_balance = _effective_annual_earn_allocated(
                 card, spend, selected_cards, active_wallet_currency_ids,
-                sub_priority_card_ids=sub_priority_card_ids, for_balance=True,
+                for_balance=True,
             )
             net_annual = _average_annual_net_dollars(
                 card, spend, years, active_wallet_currency_ids, selected_cards,
@@ -488,7 +506,6 @@ def compute_wallet(
         else:
             cat_earn = calc_category_earn_breakdown(
                 card, selected_cards, spend, active_wallet_currency_ids,
-                sub_priority_card_ids=sub_priority_card_ids,
             )
             # sub_spend_earn is a separate one-time contribution not captured in annual_point_earn
             # on the simple path; add it explicitly. On the segmented path it is already embedded
@@ -576,6 +593,7 @@ def compute_wallet(
                 effective_currency_name=eff_currency.name,
                 effective_currency_id=eff_currency.id,
                 effective_reward_kind=eff_currency.reward_kind,
+                effective_currency_photo_slug=eff_currency.photo_slug,
                 category_earn=cat_earn,
                 category_multipliers=category_multipliers,
                 secondary_currency_earn=round(sec_gross_total, 2),

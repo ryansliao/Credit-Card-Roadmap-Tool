@@ -6,7 +6,7 @@ import type {
   WalletCard,
   WalletResult,
 } from '../../../../api/client'
-import { currencyColor, formatMoney, formatPoints, today } from '../../../../utils/format'
+import { formatMoney, formatPoints, formatPointsExact, today } from '../../../../utils/format'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
 
 interface Props {
@@ -23,9 +23,9 @@ interface Props {
 }
 
 const LEFT_GUTTER = 380 // px
-const CURRENCY_ROW_HEIGHT = 30
-const CARD_ROW_HEIGHT = 56
-const AXIS_HEIGHT = 44
+const CURRENCY_ROW_HEIGHT = 45
+const CARD_ROW_HEIGHT = 50
+const AXIS_HEIGHT = 50
 const DIVIDER_CLASS = 'border-b border-slate-800'
 
 interface Range {
@@ -82,22 +82,20 @@ function formatCardIncome(c: CardResult | null, years: number): string | null {
   if (pts == null || c == null) return null
   if (c.effective_reward_kind === 'cash') {
     const dollars = (pts * c.cents_per_point) / 100
-    return `${signedPrefix(dollars)}${formatMoney(dollars)} /Year`
+    return `${formatMoney(dollars)} /Year`
   }
   const rounded = Math.round(pts)
-  return `${signedPrefix(rounded)}${formatPoints(rounded)} Pts/Year`
+  return `${formatPoints(rounded)} Pts/Year`
 }
 
-/** Annual dollar value of a group, regardless of reward kind. Sums from
- * cards that were included in the last calc (i.e. had a CardResult). We
- * deliberately ignore the live `wc.is_enabled` here so a toggle doesn't
- * reorder currency groups mid-session — the order should only change when
- * the user re-runs the calculation. */
-function groupAnnualDollars(group: GroupData, years: number): number {
-  return group.cards.reduce((s, { cr }) => {
-    if (!cr) return s
-    const pts = annualIncomePoints(cr, years)
-    if (pts == null) return s
+/** Annual dollar value of a group, regardless of reward kind. Sums only
+ * cards that are both enabled and were included in the last calc, so the
+ * group header reflects what the per-card rows actually display (disabled
+ * cards show "—" and contribute 0 to the header). */
+function groupAnnualDollars(group: GroupData): number {
+  return group.cards.reduce((s, { wc, cr }) => {
+    if (!cr || !wc.is_enabled) return s
+    const pts = cr.annual_point_earn
     return s + (pts * cr.cents_per_point) / 100
   }, 0)
 }
@@ -115,31 +113,29 @@ function groupBalanceDollars(group: GroupData): number {
   return (group.totalBalance * cpp) / 100
 }
 
-/** Group income total for display in the currency header. Sums across the
- * cards the last calc included (CardResult present), ignoring live enabled
- * state so toggling doesn't silently change the header totals until the
- * next calc. */
-function formatGroupIncome(group: GroupData, years: number): string | null {
+
+function formatGroupIncome(group: GroupData): string | null {
   const { rewardKind, cards } = group
   if (!rewardKind) return null
-  const included = cards.filter(({ cr }) => cr != null)
+  const included = cards.filter(({ wc, cr }) => cr != null && wc.is_enabled)
   if (included.length === 0) return null
   if (rewardKind === 'cash') {
     const dollars = included.reduce((s, { cr }) => {
-      const pts = annualIncomePoints(cr, years) ?? 0
+      const pts = cr?.annual_point_earn ?? 0
       return s + (pts * (cr?.cents_per_point ?? 1)) / 100
     }, 0)
-    return `${signedPrefix(dollars)}${formatMoney(dollars)} /Year`
+    return `${formatMoney(dollars)} /yr`
   }
-  const pts = included.reduce((s, { cr }) => s + (annualIncomePoints(cr, years) ?? 0), 0)
+  const pts = included.reduce((s, { cr }) => s + (cr?.annual_point_earn ?? 0), 0)
   const rounded = Math.round(pts)
-  return `${signedPrefix(rounded)}${formatPoints(rounded)} Pts/Year`
+  return `${formatPointsExact(rounded)} /yr`
 }
 
-/** Format a single secondary-currency annual total, e.g. "+$25 Bilt Cash". */
-function formatSecondaryAnnual(
-  secondary: { name: string; units: number; dollars: number; rewardKind: 'points' | 'cash' },
-): string {
+/** Format a single secondary-currency annual total, e.g. "+$25 Bilt Cash".
+ * Group-level aggregates use summed per-card annualised rates (each
+ * card's `secondary_currency_net_earn / card_active_years`), so disabled
+ * cards drop out and the header matches the enabled per-card rows. */
+function formatSecondaryAnnual(secondary: SecondaryAnnual): string {
   if (secondary.rewardKind === 'cash') {
     return `${signedPrefix(secondary.dollars)}${formatMoney(secondary.dollars)} ${secondary.name}`
   }
@@ -153,20 +149,20 @@ function formatGroupBalance(group: GroupData): string | null {
   if (group.totalBalance == null) return null
   if (group.rewardKind === 'cash' && group.balanceCpp != null) {
     const dollars = (group.totalBalance * group.balanceCpp) / 100
-    return `${formatMoney(dollars)} Balance`
+    return `${formatMoney(dollars)}`
   }
   const rounded = Math.round(group.totalBalance)
-  return `${formatPoints(rounded)} Pts Balance`
+  return formatPointsExact(rounded)
 }
 
 function formatSecondaryBalance(
   secondary: { name: string; totalUnits: number; totalDollars: number; rewardKind: 'points' | 'cash' },
 ): string {
   if (secondary.rewardKind === 'cash') {
-    return `${formatMoney(secondary.totalDollars)} ${secondary.name} Balance`
+    return `${formatMoney(secondary.totalDollars)} ${secondary.name}`
   }
   const rounded = Math.round(secondary.totalUnits)
-  return `${formatPoints(rounded)} ${secondary.name} Balance`
+  return `${formatPointsExact(rounded)} ${secondary.name}`
 }
 
 function formatDate(s: string | null): string {
@@ -255,10 +251,12 @@ export function WalletTimelineChart({
       const cr = cardResultById.get(wc.card_id) ?? null
       let name: string
       let currencyId: number | null
+      let photoSlug: string | null
       let rewardKind: 'points' | 'cash' | null
       if (cr) {
         name = cr.effective_currency_name
         currencyId = cr.effective_currency_id ?? null
+        photoSlug = cr.effective_currency_photo_slug ?? null
         rewardKind = cr.effective_reward_kind ?? 'points'
       } else {
         const lib = libraryById.get(wc.card_id)
@@ -266,6 +264,7 @@ export function WalletTimelineChart({
         if (cur) {
           name = cur.name
           currencyId = cur.id
+          photoSlug = cur.photo_slug ?? null
           rewardKind = cur.reward_kind === 'cash' ? 'cash' : 'points'
         } else {
           // Library not loaded yet or card missing — skip so we never show
@@ -277,7 +276,8 @@ export function WalletTimelineChart({
         byCurrency.set(name, {
           name,
           currencyId,
-          color: currencyColor(currencyId, name),
+          photoSlug,
+          color: rewardKind === 'cash' ? '#4ade80' : '#818cf8',
           rewardKind,
           cards: [],
           secondaries: [],
@@ -315,8 +315,8 @@ export function WalletTimelineChart({
           units: annualUnits,
           dollars: (annualUnits * secCpp) / 100,
           rewardKind: kind,
-          totalUnits: 0,
-          totalDollars: 0,
+          totalUnits: cr.secondary_currency_net_earn,
+          totalDollars: (cr.secondary_currency_net_earn * secCpp) / 100,
         }
       }
       g.cards.push({ wc, cr, secondary })
@@ -328,36 +328,40 @@ export function WalletTimelineChart({
         return ea - eb
       })
 
-      // Aggregate the secondaries to surface the group's total (e.g. Bilt
-      // Cash under Bilt Rewards) alongside the primary income.
+      // Aggregate primary-currency balance and secondary totals over the
+      // group's enabled cards. Summing per-card values (rather than reading
+      // the backend's `currency_pts_by_id` aggregate) lets a disabled card
+      // drop out live: `cr.total_points` is already amortised by each
+      // card's active years, so toggling a card now zeroes its
+      // contribution even though the last calc still includes it.
+      let balanceSum = 0
+      let balanceCount = 0
       const byId = new Map<number, SecondaryAnnual>()
       for (const entry of g.cards) {
+        if (!entry.wc.is_enabled || !entry.cr) continue
+        balanceSum += entry.cr.total_points
+        balanceCount += 1
         const s = entry.secondary
-        if (!s) continue
-        const prev = byId.get(s.id) ?? { ...s, units: 0, dollars: 0 }
-        prev.units += s.units
-        prev.dollars += s.dollars
-        byId.set(s.id, prev)
-      }
-      // Populate end-of-projection balance totals from the last calc.
-      // `currency_pts_by_id` / `secondary_currency_pts_by_id` are keyed by
-      // currency id (stringified) and hold total pts over the window.
-      if (g.currencyId != null) {
-        const total = result?.currency_pts_by_id?.[String(g.currencyId)]
-        if (total != null) {
-          g.totalBalance = total
-          if (g.rewardKind === 'cash') {
-            const firstCpp = g.cards.find((e) => e.cr != null)?.cr?.cents_per_point ?? null
-            g.balanceCpp = firstCpp
+        if (s) {
+          const prev = byId.get(s.id) ?? {
+            ...s,
+            units: 0,
+            dollars: 0,
+            totalUnits: 0,
+            totalDollars: 0,
           }
+          prev.units += s.units
+          prev.dollars += s.dollars
+          prev.totalUnits += s.totalUnits
+          prev.totalDollars += s.totalDollars
+          byId.set(s.id, prev)
         }
       }
-      for (const [secId, s] of byId) {
-        const total = result?.secondary_currency_pts_by_id?.[String(secId)]
-        if (total == null) continue
-        s.totalUnits = total
-        const perUnitDollars = s.units !== 0 ? s.dollars / s.units : 0
-        s.totalDollars = total * perUnitDollars
+      if (balanceCount > 0) {
+        g.totalBalance = balanceSum
+        if (g.rewardKind === 'cash') {
+          g.balanceCpp = g.cards.find((e) => e.cr != null)?.cr?.cents_per_point ?? null
+        }
       }
       g.secondaries = Array.from(byId.values())
     }
@@ -369,12 +373,12 @@ export function WalletTimelineChart({
       const ba = groupBalanceDollars(a)
       const bb = groupBalanceDollars(b)
       if (ba !== bb) return bb - ba
-      const da = groupAnnualDollars(a, totalYears)
-      const db = groupAnnualDollars(b, totalYears)
+      const da = groupAnnualDollars(a)
+      const db = groupAnnualDollars(b)
       if (da !== db) return db - da
       return a.name.localeCompare(b.name)
     })
-  }, [visibleCards, cardResultById, libraryById, totalYears, result])
+  }, [visibleCards, cardResultById, libraryById, totalYears])
 
   const yearTicks = useMemo(() => {
     const out: Array<{ pct: number; label: string }> = []
@@ -545,9 +549,9 @@ interface SecondaryAnnual {
   units: number
   dollars: number
   rewardKind: 'points' | 'cash'
-  /** Total projected balance (not annualised). Populated at the aggregated
-   * group level from `result.secondary_currency_pts_by_id`; per-card rows
-   * leave it at 0. */
+  /** Total projected balance (not annualised). At the per-card entry it
+   * holds `cr.secondary_currency_net_earn`; the group header sums those
+   * across enabled cards. */
   totalUnits: number
   totalDollars: number
 }
@@ -563,6 +567,7 @@ interface GroupCardEntry {
 interface GroupData {
   name: string
   currencyId: number | null
+  photoSlug: string | null
   color: string
   rewardKind: 'points' | 'cash' | null
   cards: GroupCardEntry[]
@@ -570,9 +575,10 @@ interface GroupData {
    * group (e.g. Bilt Cash under Bilt Rewards). Shown as extra income
    * figures alongside the primary total. */
   secondaries: SecondaryAnnual[]
-  /** End-of-projection balance in this currency, straight from the last
-   * calc's `currency_pts_by_id`. Null when the calc hasn't run or the
-   * currency doesn't appear in the result. */
+  /** End-of-projection balance in this currency: sum of per-card
+   * `cr.total_points` across enabled cards (`annual_point_earn_for_balance
+   * × card_active_years + SUB`). Null when the calc hasn't run or no
+   * enabled card in this group has a result. */
   totalBalance: number | null
   /** CPP to value the balance against when rendering a cash group. */
   balanceCpp: number | null
@@ -601,8 +607,8 @@ function GroupSection({
   onEditCard,
   onEditCurrency,
 }: GroupSectionProps) {
-  const incomeLabel = formatGroupIncome(group, totalYears)
   const balanceLabel = formatGroupBalance(group)
+  const incomeLabel = formatGroupIncome(group)
 
   return (
     <>
@@ -614,17 +620,36 @@ function GroupSection({
         className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} bg-slate-800`}
         style={{ height: CURRENCY_ROW_HEIGHT, borderLeft: `3px solid ${group.color}` }}
       >
-        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
-        <div className="text-sm font-medium text-slate-200 truncate">{group.name}</div>
+        <CurrencyPhoto slug={group.photoSlug} name={group.name} fallbackColor={group.color} isCash={group.rewardKind === 'cash'} />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium text-slate-200 truncate">{group.name}</div>
+          {(balanceLabel || incomeLabel || group.secondaries.length > 0) && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 truncate">
+              {balanceLabel && <span>{balanceLabel}</span>}
+              {incomeLabel && (
+                <>
+                  {balanceLabel && <span className="text-slate-600 text-sm leading-none">·</span>}
+                  <span className="text-slate-500">{incomeLabel}</span>
+                </>
+              )}
+              {group.secondaries.map((s) => (
+                <span key={`bal-${s.id}`} className="text-slate-500">
+                  <span className="mr-1 text-slate-700">·</span>
+                  {formatSecondaryBalance(s)}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
         {group.currencyId != null && (
           <button
             type="button"
             onClick={() => onEditCurrency(group.currencyId!)}
-            className="ml-auto p-1 rounded text-slate-500 hover:text-indigo-400 hover:bg-slate-700 transition-colors shrink-0"
+            className="ml-auto p-1.5 rounded text-slate-500 hover:text-indigo-400 hover:bg-slate-700 transition-colors shrink-0"
             title={`Edit ${group.name} settings`}
             aria-label={`Edit ${group.name} settings`}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
@@ -639,29 +664,6 @@ function GroupSection({
         className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} bg-slate-800`}
         style={{ height: CURRENCY_ROW_HEIGHT }}
       >
-        {/* Left cluster — annual income sits just right of the Today line
-            (which is at left:0 of this column). */}
-        <div className="flex items-center gap-2 pl-2">
-          {incomeLabel && <div className="text-xs text-slate-400">{incomeLabel}</div>}
-          {group.secondaries.map((s) => (
-            <div key={`annual-${s.id}`} className="text-xs text-slate-500">
-              <span className="mr-1 text-slate-700">·</span>
-              {formatSecondaryAnnual(s)}
-            </div>
-          ))}
-        </div>
-        {/* Right cluster — end-of-projection balance, right aligned. */}
-        <div className="ml-auto flex items-center gap-2">
-          {balanceLabel && (
-            <div className="text-xs text-slate-300 font-medium">{balanceLabel}</div>
-          )}
-          {group.secondaries.map((s) => (
-            <div key={`balance-${s.id}`} className="text-xs text-slate-500">
-              <span className="mr-1 text-slate-700">·</span>
-              {formatSecondaryBalance(s)}
-            </div>
-          ))}
-        </div>
       </div>
       {group.cards.map(({ wc, cr, secondary }) => (
         <CardRow
@@ -791,7 +793,7 @@ function CardRow({
               {wc.card_name ?? `Card #${wc.card_id}`}
             </div>
             {incomeLabel && (
-              <div className="text-[11px] text-slate-500 truncate">
+              <div className="text-xs text-slate-500 truncate">
                 {incomeLabel}
                 {secondary && (
                   <>
@@ -958,13 +960,40 @@ function CardThumb({ slug, name }: { slug: string | null; name: string }) {
   }
   return (
     <img
-      src={`/photos/${slug}.png`}
+      src={`/photos/cards/${slug}.png`}
       alt={name}
       className="w-14 h-9 object-contain shrink-0"
       onError={(e) => {
         const el = e.currentTarget
         el.style.display = 'none'
       }}
+    />
+  )
+}
+
+function CurrencyPhoto({ slug, name, fallbackColor, isCash }: { slug: string | null; name: string; fallbackColor: string; isCash?: boolean }) {
+  const [failed, setFailed] = useState(false)
+  if (!slug || failed) {
+    if (isCash) {
+      return (
+        <div className="w-7 h-7 rounded-full shrink-0 bg-emerald-600 flex items-center justify-center">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23" />
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+          </svg>
+        </div>
+      )
+    }
+    return (
+      <div className="w-7 h-7 rounded-full shrink-0" style={{ backgroundColor: fallbackColor }} />
+    )
+  }
+  return (
+    <img
+      src={`/photos/currencies/${slug}`}
+      alt={name}
+      className="w-7 h-7 rounded-full object-cover shrink-0"
+      onError={() => setFailed(true)}
     />
   )
 }

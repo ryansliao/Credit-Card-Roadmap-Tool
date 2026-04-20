@@ -1,31 +1,38 @@
 currencies:
 - name: American AAdvantage Miles
+  photo_slug: american.png
   reward_kind: points
   cents_per_point: 1.7
   partner_transfer_rate: 1.0
 - name: American Express Membership Rewards
+  photo_slug: amex.png
   reward_kind: points
   cents_per_point: 2.0
   partner_transfer_rate: 1.0
   cash_transfer_rate: 0.6
 - name: Atmos Rewards
+  photo_slug: atmos.png
   reward_kind: points
   cents_per_point: 1.4
   partner_transfer_rate: 1.0
 - name: Bank of America Points
+  photo_slug: bank_of_america.png
   reward_kind: points
   cents_per_point: 1.0
   cash_transfer_rate: 1.0
 - name: Bilt Cash
+  photo_slug: bilt.png
   reward_kind: cash
   cents_per_point: 1.0
   cash_transfer_rate: 1.0
 - name: Bilt Rewards
+  photo_slug: bilt.png
   reward_kind: points
   cents_per_point: 2.2
   partner_transfer_rate: 1.0
   cash_transfer_rate: 0.55
 - name: Capital One Venture Miles
+  photo_slug: capital_one.png
   reward_kind: points
   cents_per_point: 1.85
   partner_transfer_rate: 1.0
@@ -35,43 +42,52 @@ currencies:
   cents_per_point: 1.0
   cash_transfer_rate: 1.0
 - name: Chase Ultimate Rewards
+  photo_slug: chase.png
   reward_kind: points
   cents_per_point: 2.05
   partner_transfer_rate: 1.0
   cash_transfer_rate: 1.0
   no_transfer_cpp: 1.0
 - name: Citi ThankYou Points
+  photo_slug: citi.png
   reward_kind: points
   cents_per_point: 1.9
   partner_transfer_rate: 1.0
   cash_transfer_rate: 1.0
   no_transfer_rate: 0.7
 - name: Delta SkyMiles
+  photo_slug: delta.png
   reward_kind: points
   cents_per_point: 1.2
   partner_transfer_rate: 1.0
 - name: Hilton Honors
+  photo_slug: hilton.jpg
   reward_kind: points
   cents_per_point: 0.4
   partner_transfer_rate: 1.0
 - name: IHG One Rewards
+  photo_slug: ihg.png
   reward_kind: points
   cents_per_point: 0.6
   partner_transfer_rate: 1.0
 - name: Marriott Bonvoy
+  photo_slug: marriott.jpg
   reward_kind: points
   cents_per_point: 0.75
   partner_transfer_rate: 1.0
 - name: United MileagePlus
+  photo_slug: united.png
   reward_kind: points
   cents_per_point: 1.35
   partner_transfer_rate: 1.0
 - name: Wells Fargo Rewards
+  photo_slug: wells_fargo.png
   reward_kind: points
   cents_per_point: 1.65
   partner_transfer_rate: 1.0
   cash_transfer_rate: 1.0
 - name: World of Hyatt
+  photo_slug: hyatt.png
   reward_kind: points
   cents_per_point: 1.7
   partner_transfer_rate: 1.0

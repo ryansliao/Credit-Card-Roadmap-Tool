@@ -22,7 +22,7 @@ function CardPhoto({ slug, name }: { slug: string | null; name: string }) {
   }
   return (
     <img
-      src={`/photos/${slug}.png`}
+      src={`/photos/cards/${slug}.png`}
       alt={name}
       className="w-full h-full object-contain"
       onError={() => setFailed(true)}

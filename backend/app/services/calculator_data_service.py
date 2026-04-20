@@ -66,6 +66,7 @@ def _currency_data(
     return CurrencyData(
         id=orm_currency.id,
         name=orm_currency.name,
+        photo_slug=getattr(orm_currency, "photo_slug", None),
         reward_kind=rk,
         cents_per_point=cpp,
         comparison_cpp=cpp,

@@ -28,7 +28,7 @@ function CardPhoto({ slug, name }: { slug: string | null; name: string }) {
   }
   return (
     <img
-      src={`/photos/${slug}.png`}
+      src={`/photos/cards/${slug}.png`}
       alt={name}
       title={name}
       className="w-full h-full object-contain"

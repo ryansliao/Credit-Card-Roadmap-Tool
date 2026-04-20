@@ -3,11 +3,13 @@ import { useState } from 'react'
 import {
   walletSpendItemsApi,
   walletsApi,
+  type UserSpendCategory,
   type WalletSpendItem,
 } from '../../../api/client'
 import { useMyWallet } from '../hooks/useMyWallet'
 import { queryKeys } from '../../../lib/queryKeys'
 import { InfoIconButton, InfoPopover } from '../../../components/InfoPopover'
+import { ModalBackdrop } from '../../../components/ModalBackdrop'
 
 interface SpendingTabProps {
   walletId: number | null
@@ -20,6 +22,7 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
   // In-flight slider drag; null means "show committed value from wallet".
   const [draftForeignPct, setDraftForeignPct] = useState<number | null>(null)
   const [showForeignInfo, setShowForeignInfo] = useState(false)
+  const [infoCategory, setInfoCategory] = useState<UserSpendCategory | null>(null)
 
   const { data: spendItems = [], isLoading } = useQuery({
     queryKey: queryKeys.walletSpendItems(walletId),
@@ -191,7 +194,25 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
                   const isLocked = item.user_spend_category?.is_system && catName === 'All Other'
                   return (
                     <tr key={item.id} className="border-b border-slate-800/60 last:border-b-0">
-                      <td className="text-left px-3 py-2 text-slate-200">{catName}</td>
+                      <td className="text-left px-3 py-2 text-slate-200">
+                        <div className="flex items-center gap-1.5">
+                          <span>{catName}</span>
+                          {item.user_spend_category && item.user_spend_category.mappings.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setInfoCategory(item.user_spend_category)}
+                              className="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700/50"
+                              title="View category details"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M12 16v-4" />
+                                <path d="M12 8h.01" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </td>
                       <td className="text-center px-2 py-2 tabular-nums">
                         <div className="relative w-full">
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none">$</span>
@@ -240,6 +261,45 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
         )}
       </div>
 
+      {infoCategory && (
+        <ModalBackdrop onClose={() => setInfoCategory(null)}>
+          <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-full max-w-md p-5">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-white">{infoCategory.name}</h3>
+                {infoCategory.description && (
+                  <p className="text-sm text-slate-400 mt-1">{infoCategory.description}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setInfoCategory(null)}
+                className="shrink-0 p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-800"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="border-t border-slate-700 pt-4">
+              <h4 className="text-sm font-medium text-slate-300 mb-3">Includes spend on:</h4>
+              <ul className="space-y-2">
+                {infoCategory.mappings
+                  .sort((a, b) => b.default_weight - a.default_weight)
+                  .map((mapping) => (
+                    <li key={mapping.id} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-200">{mapping.earn_category.category}</span>
+                      <span className="text-slate-500 tabular-nums">
+                        {Math.round(mapping.default_weight * 100)}%
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          </div>
+        </ModalBackdrop>
+      )}
     </div>
   )
 }

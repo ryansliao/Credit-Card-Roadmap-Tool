@@ -17,8 +17,6 @@ export const queryKeys = {
     ['wallet-latest-results', walletId] as const,
   walletCardCredits: (walletId: number | null, cardId: number | null) =>
     ['wallet-card-credits', walletId, cardId] as const,
-  walletCardGroupSelections: (walletId: number | null, cardId: number | null) =>
-    ['wallet-card-group-selections', walletId, cardId] as const,
   walletCategoryPriorities: (walletId: number | null) =>
     ['wallet-category-priorities', walletId] as const,
   walletPortalShares: (walletId: number | null) =>

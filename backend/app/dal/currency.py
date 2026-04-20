@@ -26,6 +26,7 @@ class Currency(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    photo_slug: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     # "points" (incl. miles) vs "cash" — affects display and CPP override behavior
     reward_kind: Mapped[str] = mapped_column(String(20), default="points", nullable=False)
     cents_per_point: Mapped[float] = mapped_column(Float, default=1.0)

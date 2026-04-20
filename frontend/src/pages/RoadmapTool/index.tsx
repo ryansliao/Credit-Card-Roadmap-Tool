@@ -92,7 +92,7 @@ function walletCalcSignature(
       user_spend_category_id: it.user_spend_category_id,
       amount: it.amount,
     }))
-    .sort((a, b) => a.user_spend_category_id - b.user_spend_category_id)
+    .sort((a, b) => (a.user_spend_category_id ?? 0) - (b.user_spend_category_id ?? 0))
   return JSON.stringify({
     durationYears,
     durationMonths,
@@ -280,7 +280,7 @@ export default function RoadmapToolPage() {
       cardId: number
       payload: UpdateWalletCardPayload
     }) => walletsApi.updateCard(walletId, cardId, payload),
-    onSuccess: (_data, { walletId, cardId, payload }) => {
+    onSuccess: (_data, { walletId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
       queryClient.invalidateQueries({ queryKey: queryKeys.roadmap(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
@@ -375,22 +375,22 @@ export default function RoadmapToolPage() {
           <button
             type="button"
             onClick={calculateNow}
-            disabled={resultsMutation.isPending}
+            disabled={resultsMutation.isPending || !isStale}
             aria-live="polite"
             className={`shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
               resultsMutation.isPending
                 ? 'bg-slate-700 text-slate-400 cursor-wait'
                 : isStale
                 ? 'bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-sm shadow-amber-900/40'
-                : 'bg-slate-700 hover:bg-slate-600 text-slate-200'
+                : 'bg-slate-700 text-slate-500 cursor-not-allowed'
             }`}
-            title={isStale ? 'Results are out of date — click to recalculate' : 'Recalculate with current settings'}
+            title={isStale ? 'Results are out of date — click to recalculate' : 'Results are up to date'}
           >
             {resultsMutation.isPending
               ? 'Calculating…'
               : isStale
-              ? 'Calculate (out of date)'
-              : 'Calculate'}
+              ? 'Calculate'
+              : 'Up to Date'}
           </button>
         )}
       </header>

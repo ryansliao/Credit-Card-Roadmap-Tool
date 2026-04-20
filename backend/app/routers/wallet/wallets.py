@@ -41,7 +41,7 @@ async def get_my_wallet(
             name="My Wallet",
             description=None,
         )
-        await spend_service.ensure_all_other_item(wallet.id)
+        await spend_service.ensure_all_user_categories(wallet.id)
         await db.commit()
         wallet = await wallet_service.get_with_cards(wallet.id)
     read = WalletRead.model_validate(wallet)

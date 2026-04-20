@@ -168,6 +168,7 @@ export interface CoBrandRead {
 export interface CurrencyRead {
   id: number
   name: string
+  photo_slug?: string | null
   /** Default `points` when omitted (older API). */
   reward_kind?: 'points' | 'cash'
   cents_per_point: number
@@ -308,6 +309,7 @@ export interface CardResult {
   effective_currency_name: string
   effective_currency_id?: number
   effective_reward_kind?: 'points' | 'cash'
+  effective_currency_photo_slug?: string | null
   category_earn: CategoryEarnItem[]
   /** Effective multiplier per spend category (top-N + manual group selections applied). */
   category_multipliers?: Record<string, number>
@@ -722,30 +724,6 @@ export const walletCardCreditApi = {
 
 // ─── Wallet card multiplier overrides ────────────────────────────────────────
 
-
-// ─── Wallet card group category selections ─────────────────────────────────
-
-export interface WalletCardGroupSelection {
-  id: number
-  wallet_card_id: number
-  multiplier_group_id: number
-  spend_category_id: number
-  category_name: string
-}
-
-export const walletCardGroupSelectionApi = {
-  list: (walletId: number, cardId: number) =>
-    request<WalletCardGroupSelection[]>(`/wallets/${walletId}/cards/${cardId}/group-selections`),
-  set: (walletId: number, cardId: number, groupId: number, spendCategoryIds: number[]) =>
-    request<WalletCardGroupSelection[]>(
-      `/wallets/${walletId}/cards/${cardId}/group-selections/${groupId}`,
-      { method: 'PUT', body: JSON.stringify({ spend_category_ids: spendCategoryIds }) },
-    ),
-  delete: (walletId: number, cardId: number, groupId: number) =>
-    request<void>(`/wallets/${walletId}/cards/${cardId}/group-selections/${groupId}`, {
-      method: 'DELETE',
-    }),
-}
 
 // ─── Wallet card category priorities ──────────────────────────────────────
 

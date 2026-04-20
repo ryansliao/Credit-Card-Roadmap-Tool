@@ -442,6 +442,39 @@ def _solve_segment_allocation_lp(
         else:
             slot[1] += x
 
+    # ---- Tie-split redistribution across cards on a single category. ----
+    # The LP solver picks a degenerate vertex when multiple cards have identical
+    # rates on a category, assigning all spend to one card. Detect and correct
+    # this by redistributing that category's dollars evenly among tied winners,
+    # matching the simple-path _tied_cards_for_category behaviour.
+    for cat_idx, (cat_name, _d_c) in enumerate(cat_dollars):
+        cat_lower = cat_name.strip().lower()
+        card_rates: list[tuple[int, float]] = []
+        for k_idx in range(len(competing)):
+            cpp = card_cpp[k_idx]
+            mult = card_mult[k_idx].get(cat_lower, card_all_other[k_idx])
+            sec_bonus = _secondary_currency_comparison_bonus(
+                competing[k_idx], category=cat_name, for_balance=for_balance
+            )
+            card_rates.append((k_idx, mult * cpp / 100.0 + sec_bonus / 100.0))
+        if not card_rates:
+            continue
+        best_rate = max(r for _, r in card_rates)
+        tied = [k for k, r in card_rates if abs(r - best_rate) <= 1e-9]
+        if len(tied) <= 1:
+            continue
+        # Sum dollars allocated to tied cards only (non-tied cards at lower rates
+        # should have received nothing from the LP).
+        total_tied = sum(
+            sum(alloc.get((k, cat_idx), [0.0, 0.0]))
+            for k in tied
+        )
+        if total_tied <= 1e-12:
+            continue
+        per_card = total_tied / len(tied)
+        for k in tied:
+            alloc[(k, cat_idx)] = [0.0, per_card]
+
     # ---- Cosmetic redistribution for pooled constraints. ----
     # The LP can pick degenerate solutions when multiple categories within a
     # pooled group have identical bonus rates. The total earn is correct,

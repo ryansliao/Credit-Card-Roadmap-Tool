@@ -143,9 +143,11 @@ async def _export_currencies(db) -> None:
     def to_dict(c: Currency) -> dict[str, Any]:
         d: dict[str, Any] = {
             "name": c.name,
-            "reward_kind": c.reward_kind,
-            "cents_per_point": c.cents_per_point,
         }
+        if c.photo_slug is not None:
+            d["photo_slug"] = c.photo_slug
+        d["reward_kind"] = c.reward_kind
+        d["cents_per_point"] = c.cents_per_point
         if c.partner_transfer_rate is not None:
             d["partner_transfer_rate"] = c.partner_transfer_rate
         if c.cash_transfer_rate is not None:
