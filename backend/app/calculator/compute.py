@@ -559,6 +559,16 @@ def compute_wallet(
         sec_net_total = sec.net_annual_pts * years
         sec_cost_total = sec.cost_pts_annual * years
         sec_bonus_total = sec.bonus_pts_annual * years
+        # Off-band redemptions (set by ``apply_bilt_2_housing_mode`` in Bilt
+        # Cash mode): Tier 1 BC consumed by the housing-payment → BP
+        # conversion + BC spent on Point Accelerator activations. Subtracted
+        # from the displayed balance so the UI reflects what's actually left
+        # after those redemptions fire. ``_calc_secondary_currency`` can't
+        # see these because the card is patched to ``accelerator_cost=0``
+        # (the BP benefit is already in ``annual_bonus``).
+        sec_consumption_total = card.secondary_consumption_pts * years
+        sec_gross_total -= sec_consumption_total
+        sec_net_total -= sec_consumption_total
         # One-time SUB in the secondary currency (e.g. Bilt Cash welcome offer)
         # — rolls into the balance once (not multiplied by years). Honors the
         # housing cap: if the cap blocks conversion, the SUB is still added to

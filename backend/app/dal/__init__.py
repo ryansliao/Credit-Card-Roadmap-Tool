@@ -23,7 +23,7 @@ from .card import (
 from .credit import Credit, CardCredit
 from .travel_portal import TravelPortal
 from .wallet import Wallet, WalletCard
-from .wallet_currency import WalletCurrencyBalance, WalletCurrencyCpp
+from .wallet_currency import WalletCurrencyCpp
 from .wallet_card_override import (
     WalletCardCredit,
     WalletCardGroupSelection,
@@ -61,7 +61,6 @@ __all__ = [
     "Wallet",
     "WalletCard",
     # Wallet currency
-    "WalletCurrencyBalance",
     "WalletCurrencyCpp",
     # Wallet card overrides
     "WalletCardCredit",

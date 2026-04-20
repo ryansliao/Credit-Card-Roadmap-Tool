@@ -178,6 +178,14 @@ class CardData:
     accelerator_bonus_multiplier: float = 0.0  # extra primary multiplier per activation
     accelerator_max_activations: int = 0  # max activations per year
 
+    # Annual secondary-currency units consumed by off-band redemptions that
+    # ``_calc_secondary_currency`` can't see. Currently populated only by
+    # ``apply_bilt_2_housing_mode`` in Bilt Cash mode to account for Tier 1
+    # Bilt Cash spent on the housing-payment → Bilt Points redemption and
+    # Tier 2 Bilt Cash spent on Point Accelerator activations. Subtracted
+    # from the card's displayed secondary-currency balance.
+    secondary_consumption_pts: float = 0.0
+
     # Bilt 2.0: when true, the card has two mutually exclusive housing
     # earning modes — direct tiered points on Rent/Mortgage scaled by the
     # non-housing:housing spend ratio on this card, OR the secondary-currency

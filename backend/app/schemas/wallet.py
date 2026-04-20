@@ -92,12 +92,6 @@ class WalletUpdate(BaseModel):
     foreign_spend_percent: Optional[float] = None
 
 
-class WalletSettingsCurrencyIds(BaseModel):
-    """Currencies relevant to wallet settings: earned by cards in the wallet or user-tracked."""
-
-    currency_ids: list[int]
-
-
 class WalletRead(WalletBase):
     model_config = ConfigDict(from_attributes=True)
     id: int

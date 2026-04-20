@@ -296,7 +296,7 @@ cards:
   network_tier: World Elite Mastercard
   annual_fee: 0.0
   sub_points: 0
-  sub_secondary_points: 10000
+  sub_secondary_points: 100
   transfer_enabler: true
   secondary_currency: Bilt Cash
   secondary_currency_rate: 0.04
@@ -313,12 +313,12 @@ cards:
   network_tier: World Elite Mastercard
   annual_fee: 95.0
   sub_points: 0
-  sub_secondary_points: 20000
+  sub_secondary_points: 200
   transfer_enabler: true
   secondary_currency: Bilt Cash
   secondary_currency_rate: 0.04
   secondary_currency_cap_rate: 0.75
-  accelerator_cost: 20000
+  accelerator_cost: 200
   accelerator_spend_limit: 5000.0
   accelerator_bonus_multiplier: 1.0
   accelerator_max_activations: 5
@@ -354,12 +354,12 @@ cards:
   sub_points: 50000
   sub_min_spend: 4000
   sub_months: 3
-  sub_secondary_points: 30000
+  sub_secondary_points: 300
   transfer_enabler: true
   secondary_currency: Bilt Cash
   secondary_currency_rate: 0.04
   secondary_currency_cap_rate: 0.75
-  accelerator_cost: 20000
+  accelerator_cost: 200
   accelerator_spend_limit: 1000.0
   accelerator_bonus_multiplier: 1.0
   accelerator_max_activations: 5

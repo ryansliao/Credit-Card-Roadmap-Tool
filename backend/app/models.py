@@ -31,7 +31,6 @@ from .dal import (
     Wallet,
     WalletCard,
     # Wallet currency
-    WalletCurrencyBalance,
     WalletCurrencyCpp,
     # Wallet card overrides
     WalletCardCredit,
@@ -66,7 +65,6 @@ __all__ = [
     "TravelPortal",
     "Wallet",
     "WalletCard",
-    "WalletCurrencyBalance",
     "WalletCurrencyCpp",
     "WalletCardCredit",
     "WalletCardGroupSelection",

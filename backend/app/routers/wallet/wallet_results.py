@@ -29,11 +29,9 @@ from ...date_utils import (
 from ...schemas import wallet_to_schema
 from ...services import (
     WalletService,
-    WalletCurrencyService,
     CalculatorDataService,
     IssuerService,
     get_wallet_service,
-    get_wallet_currency_service,
     get_calculator_data_service,
     get_issuer_service,
 )
@@ -66,7 +64,6 @@ async def wallet_results(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     wallet_service: WalletService = Depends(get_wallet_service),
-    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
     calc_data_service: CalculatorDataService = Depends(get_calculator_data_service),
 ):
     """
@@ -141,7 +138,6 @@ async def wallet_results(
     wallet.calc_window_mode = _save_calc_window
 
     if not active_wallet_cards:
-        await currency_service.sync_balances_from_currency_pts(wallet_id, {})
         empty_response = WalletResultResponseSchema(
             wallet_id=wallet_id,
             wallet_name=wallet.name,
@@ -277,21 +273,16 @@ async def wallet_results(
     modified_cards = [
         dataclasses.replace(
             c,
-            sub_already_earned=(
-                False if c.id in in_wallet_now_card_ids else c.id in sub_already_earned_ids
-            ),
+            sub_already_earned=c.id in sub_already_earned_ids,
+            # In-wallet-now cards' SUBs are history, not projection value —
+            # they're either already in the user's balance or were missed.
+            # Only future cards with a feasible SUB window contribute to
+            # projected balance/EAF. Feasibility uses total wallet daily spend
+            # so this matches the roadmap's projected-earn-date view.
             sub_earnable=(
                 False
                 if c.id in in_wallet_now_card_ids
-                else (
-                    True
-                    if c.id in sub_already_earned_ids
-                    else (
-                        (c.id in plan_card_ids)
-                        if c.id in sub_priority_card_ids
-                        else is_sub_earnable(c.sub_min_spend, c.sub_months, card_daily_rates.get(c.id, 0.0))
-                    )
-                )
+                else is_sub_earnable(c.sub_min_spend, c.sub_months, total_daily_spend)
             ),
             sub_projected_earn_date=projected_dates.get(c.id, c.sub_projected_earn_date),
         )
@@ -312,14 +303,6 @@ async def wallet_results(
     )
 
     photo_slugs = {card_id: card.photo_slug for card_id, card in library_cards_by_id.items()}
-
-    # Merge secondary currency points into the balance sync map
-    merged_pts_by_id = dict(wallet_result.currency_pts_by_id)
-    for cid, pts in wallet_result.secondary_currency_pts_by_id.items():
-        merged_pts_by_id[cid] = merged_pts_by_id.get(cid, 0.0) + pts
-    await currency_service.sync_balances_from_currency_pts(
-        wallet_id, merged_pts_by_id
-    )
 
     response = WalletResultResponseSchema(
         wallet_id=wallet_id,

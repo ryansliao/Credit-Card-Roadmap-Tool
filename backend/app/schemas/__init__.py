@@ -75,12 +75,7 @@ from .wallet import (
     WalletCardRead,
     WalletCardUpdate,
     WalletRead,
-    WalletSettingsCurrencyIds,
     WalletUpdate,
-)
-from .wallet_currency import (
-    WalletCurrencyBalanceRead,
-    WalletCurrencyTrackCreate,
 )
 from .wallet_overrides import (
     WalletCardCategoryPriorityRead,
@@ -157,11 +152,7 @@ __all__ = [
     "WalletCardRead",
     "WalletCardUpdate",
     "WalletRead",
-    "WalletSettingsCurrencyIds",
     "WalletUpdate",
-    # Wallet currency
-    "WalletCurrencyBalanceRead",
-    "WalletCurrencyTrackCreate",
     # Wallet overrides
     "WalletCardCategoryPriorityRead",
     "WalletCardCategoryPrioritySet",

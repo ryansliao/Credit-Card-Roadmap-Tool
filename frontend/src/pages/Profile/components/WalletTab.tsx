@@ -38,7 +38,6 @@ export function WalletTab({ walletId, walletCards, isLoading }: WalletTabProps) 
         queryClient.invalidateQueries({ queryKey: queryKeys.walletCategoryPriorities(walletId) })
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
       setWalletCardModal(null)
     },
   })
@@ -46,9 +45,8 @@ export function WalletTab({ walletId, walletCards, isLoading }: WalletTabProps) 
   const removeCardMutation = useMutation({
     mutationFn: ({ walletId, cardId }: { walletId: number; cardId: number }) =>
       walletsApi.removeCard(walletId, cardId),
-    onSuccess: (_data, { walletId }) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
     },
   })
 
@@ -57,7 +55,6 @@ export function WalletTab({ walletId, walletCards, isLoading }: WalletTabProps) 
       walletsApi.updateCard(walletId, cardId, payload),
     onSuccess: (_data, { walletId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCardCredits(walletId, null) })
     },
   })

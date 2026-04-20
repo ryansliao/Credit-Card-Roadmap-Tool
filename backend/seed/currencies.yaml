@@ -23,8 +23,8 @@ currencies:
 - name: Bilt Cash
   photo_slug: bilt.png
   reward_kind: cash
-  cents_per_point: 1.0
-  cash_transfer_rate: 1.0
+  cents_per_point: 100.0
+  cash_transfer_rate: 100.0
 - name: Bilt Rewards
   photo_slug: bilt.png
   reward_kind: points

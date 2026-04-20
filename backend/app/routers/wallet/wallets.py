@@ -16,10 +16,8 @@ from ...schemas import (
 )
 from ...services import (
     WalletService,
-    WalletCurrencyService,
     WalletSpendService,
     get_wallet_service,
-    get_wallet_currency_service,
     get_wallet_spend_service,
 )
 
@@ -91,12 +89,9 @@ async def add_card_to_wallet(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     wallet_service: WalletService = Depends(get_wallet_service),
-    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
 ):
     await wallet_service.get_user_wallet(wallet_id, user)
     wc_obj = await wallet_service.add_card_to_wallet(wallet_id, payload)
-
-    await currency_service.ensure_earning_currency_rows(wallet_id)
 
     await db.commit()
     await db.refresh(wc_obj, attribute_names=["credit_overrides_rows"])
@@ -145,14 +140,9 @@ async def remove_card_from_wallet(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     wallet_service: WalletService = Depends(get_wallet_service),
-    currency_service: WalletCurrencyService = Depends(get_wallet_currency_service),
 ):
     await wallet_service.get_user_wallet(wallet_id, user)
     wc_obj = await wallet_service.get_wallet_card_or_404(wallet_id, card_id)
     await wallet_service.remove_card_from_wallet(wc_obj)
-
-    # Clean up orphaned currency balance rows
-    remaining_currency_ids = await currency_service.effective_earn_currency_ids(wallet_id)
-    await currency_service.delete_orphan_balances(wallet_id, remaining_currency_ids)
 
     await db.commit()

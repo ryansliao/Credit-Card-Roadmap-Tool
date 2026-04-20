@@ -197,8 +197,6 @@ export default function RoadmapToolPage() {
       }
 
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
       setWalletCardModal(null)
       setInSigDirty(true)
 
@@ -223,10 +221,8 @@ export default function RoadmapToolPage() {
   const removeCardMutation = useMutation({
     mutationFn: ({ walletId, cardId }: { walletId: number; cardId: number }) =>
       walletsApi.removeCard(walletId, cardId),
-    onSuccess: (_data, { walletId }) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
       setInSigDirty(true)
     },
   })
@@ -256,7 +252,6 @@ export default function RoadmapToolPage() {
       setOutOfSigDirty(false)
       queryClient.setQueryData(queryKeys.walletLatestResults(data.wallet_id), data)
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(data.wallet_id) })
     },
   })
 
@@ -279,8 +274,6 @@ export default function RoadmapToolPage() {
     onSuccess: (_data, { walletId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
       queryClient.invalidateQueries({ queryKey: queryKeys.roadmap(walletId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.walletCurrencyBalances(walletId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.walletSettingsCurrencyIds(walletId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.walletCardCredits(walletId, null) })
       setInSigDirty(true)
     },

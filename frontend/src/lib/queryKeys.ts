@@ -7,9 +7,6 @@ export const queryKeys = {
   appSpendCategories: () => ['app-spend-categories'] as const,
   userSpendCategories: () => ['user-spend-categories'] as const,
   walletCurrencies: (walletId: number | null) => ['wallet-currencies', walletId] as const,
-  walletCurrencyBalances: (walletId: number | null) => ['wallet-currency-balances', walletId] as const,
-  walletSettingsCurrencyIds: (walletId: number | null) =>
-    ['wallet-settings-currency-ids', walletId] as const,
   walletSpendItems: (walletId: number | null) =>
     ['wallet-spend-items', walletId] as const,
   roadmap: (walletId: number) => ['roadmap', walletId] as const,

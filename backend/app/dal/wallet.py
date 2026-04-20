@@ -28,7 +28,7 @@ if TYPE_CHECKING:
         WalletCardCategoryPriority,
         WalletCardMultiplier,
     )
-    from .wallet_currency import WalletCurrencyBalance, WalletCurrencyCpp
+    from .wallet_currency import WalletCurrencyCpp
     from .wallet_spend import WalletSpendItem
 
 
@@ -72,9 +72,6 @@ class Wallet(Base):
     user: Mapped["User"] = relationship(back_populates="wallets")
     wallet_cards: Mapped[list["WalletCard"]] = relationship(
         back_populates="wallet", cascade="all, delete-orphan"
-    )
-    currency_balances: Mapped[list["WalletCurrencyBalance"]] = relationship(
-        "WalletCurrencyBalance", back_populates="wallet", cascade="all, delete-orphan"
     )
     spend_items: Mapped[list["WalletSpendItem"]] = relationship(
         back_populates="wallet", cascade="all, delete-orphan"

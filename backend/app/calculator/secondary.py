@@ -41,10 +41,11 @@ def _calc_secondary_currency(
     if card.secondary_currency is None or card.secondary_currency_rate <= 0:
         return _SecondaryResult()
 
-    # Secondary currency earn: rate is a fraction of dollars (e.g. 0.04 for 4%).
-    # For cash-kind currencies, 1 point = 1 cent, so $1 at 4% = 4 cents = 4 pts.
-    annual_secondary_dollars = allocated_annual_spend * card.secondary_currency_rate
-    annual_secondary_pts = annual_secondary_dollars * 100  # dollars to cents (cash points)
+    # Secondary currency earn: rate is a fraction (e.g. 0.04 for 4%). One
+    # secondary-currency "unit" is valued at ``secondary_currency.cents_per_point``
+    # cents, so rate × spend gives the unit count directly (e.g. Bilt Cash at
+    # CPP=100 means 1 unit = $1, and $100 spend × 0.04 = 4 units = $4).
+    annual_secondary_pts = allocated_annual_spend * card.secondary_currency_rate
 
     # Conversion cap: only a portion of the secondary earn may be convertible.
     # When cap_rate > 0, convertible spend is capped at cap_rate × housing_spend.
@@ -57,7 +58,7 @@ def _calc_secondary_currency(
     else:
         # No cap
         convertible_spend = allocated_annual_spend
-    convertible_pts = convertible_spend * card.secondary_currency_rate * 100
+    convertible_pts = convertible_spend * card.secondary_currency_rate
 
     # Accelerator: spend secondary currency to earn bonus primary points.
     # Accelerator cost is deducted from convertible secondary pts.

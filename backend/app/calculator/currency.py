@@ -187,11 +187,11 @@ def _secondary_currency_comparison_bonus(
         if category.lower() in card.secondary_ineligible_categories:
             return 0.0
     sec = card.secondary_currency
-    # secondary_currency_rate is a fraction (e.g. 0.04 for 4%).
-    # Per dollar: earn rate * 100 secondary pts (cash cents).
-    # Value those pts via conversion or CPP.
+    # secondary_currency_rate is a fraction (e.g. 0.04 for 4%). One
+    # secondary-currency unit is valued at ``cents_per_point`` cents, so
+    # rate × cpp gives the bonus cents earned per dollar of spend.
     if sec.converts_to_currency:
         target_cpp = sec.converts_to_currency.comparison_cpp if for_balance else sec.converts_to_currency.cents_per_point
-        return card.secondary_currency_rate * 100 * sec.converts_at_rate * target_cpp * card.secondary_scoring_factor
+        return card.secondary_currency_rate * sec.converts_at_rate * target_cpp * card.secondary_scoring_factor
     cpp = sec.comparison_cpp if for_balance else sec.cents_per_point
-    return card.secondary_currency_rate * 100 * cpp * card.secondary_scoring_factor
+    return card.secondary_currency_rate * cpp * card.secondary_scoring_factor

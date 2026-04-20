@@ -460,20 +460,6 @@ export interface AddCardToWalletPayload {
   pc_from_card_id?: number
 }
 
-export interface WalletCurrencyBalance {
-  id: number
-  wallet_id: number
-  currency_id: number
-  currency_name: string
-  balance: number
-  user_tracked: boolean
-  updated_date: string | null
-}
-
-export interface TrackWalletCurrencyPayload {
-  currency_id: number
-}
-
 export interface UpdateWalletCardPayload {
   added_date?: string | null
   sub_points?: number | null
@@ -544,17 +530,6 @@ export const walletsApi = {
   },
   latestResults: (walletId: number) =>
     request<WalletResultResponse | null>(`/wallets/${walletId}/results/latest`),
-  listCurrencyBalances: (walletId: number) =>
-    request<WalletCurrencyBalance[]>(`/wallets/${walletId}/currency-balances`),
-  settingsCurrencyIds: (walletId: number) =>
-    request<{ currency_ids: number[] }>(`/wallets/${walletId}/settings-currency-ids`),
-  trackCurrencyBalance: (walletId: number, payload: TrackWalletCurrencyPayload) =>
-    request<WalletCurrencyBalance>(`/wallets/${walletId}/currency-balances`, {
-      method: 'POST',
-      body: JSON.stringify({ currency_id: payload.currency_id }),
-    }),
-  deleteCurrencyBalance: (walletId: number, currencyId: number) =>
-    request<void>(`/wallets/${walletId}/currencies/${currencyId}/balance`, { method: 'DELETE' }),
 }
 
 // ─── Roadmap types ────────────────────────────────────────────────────────────

@@ -229,6 +229,23 @@ export function SpendTabContent({
       card.annual_bonus_percent && !card.annual_bonus_first_year_only
         ? 1 + card.annual_bonus_percent / 100
         : 1
+
+    // Rotating mode: the card earns its rotating rate on whatever category
+    // rotates that quarter, so take the max rotating rate across the user
+    // category's mappings that fall in the rotating group — don't blend with
+    // baseline for non-rotating mappings. This makes uniform-rate rotating
+    // cards (e.g. original Chase Freedom at 5x on every rotating category)
+    // produce the same rotating ROS across all user categories that have
+    // any rotating coverage.
+    if (mode === 'rotating') {
+      let maxRotRate = 0
+      for (const mapping of userCategory.mappings) {
+        const rotMult = getRotatingMultForEarnCategory(card, mapping.earn_category.category)
+        if (rotMult !== null && rotMult > maxRotRate) maxRotRate = rotMult
+      }
+      return maxRotRate * card.cents_per_point * earnBonusFactor
+    }
+
     let weightedRos = 0
     for (const mapping of userCategory.mappings) {
       const baseline = getBaselineMultForEarnCategory(card, mapping.earn_category.category)
@@ -236,9 +253,6 @@ export function SpendTabContent({
       if (mode === 'portal') {
         const portalMult = getPortalMultForEarnCategory(card, mapping.earn_category.category)
         if (portalMult !== null && portalMult > mult) mult = portalMult
-      } else if (mode === 'rotating') {
-        const rotMult = getRotatingMultForEarnCategory(card, mapping.earn_category.category)
-        if (rotMult !== null && rotMult > mult) mult = rotMult
       }
       weightedRos += mapping.default_weight * mult * card.cents_per_point * earnBonusFactor
     }
