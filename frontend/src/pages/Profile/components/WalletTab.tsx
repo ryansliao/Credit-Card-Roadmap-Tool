@@ -73,9 +73,6 @@ export function WalletTab({ walletId, walletCards, isLoading }: WalletTabProps) 
       return db.localeCompare(da)
     })
 
-  const totalFees = inWalletCards.reduce((sum, wc) => sum + (wc.annual_fee ?? 0), 0)
-  const totalCredits = inWalletCards.reduce((sum, wc) => sum + wc.credit_total, 0)
-
   if (isLoading) {
     return <div className="text-slate-500 text-sm">Loading wallet...</div>
   }
@@ -100,28 +97,6 @@ export function WalletTab({ walletId, walletCards, isLoading }: WalletTabProps) 
         </button>
       </div>
 
-      {inWalletCards.length > 0 && (
-        <div className={`grid gap-3 mb-4 shrink-0 ${totalCredits > 0 ? 'grid-cols-3' : 'grid-cols-1'}`}>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider">Annual Fee</p>
-            <p className="text-xl font-bold text-red-400 mt-0.5 tabular-nums">{formatMoney(totalFees)}</p>
-          </div>
-          {totalCredits > 0 && (
-            <>
-              <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wider">Credit Value</p>
-                <p className="text-xl font-bold text-emerald-400 mt-0.5 tabular-nums">{formatMoney(totalCredits)}</p>
-              </div>
-              <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wider">Net Cost</p>
-                <p className={`text-xl font-bold mt-0.5 tabular-nums ${totalFees - totalCredits <= 0 ? 'text-emerald-400' : 'text-slate-200'}`}>
-                  {formatMoney(Math.abs(totalFees - totalCredits))}
-                </p>
-              </div>
-            </>
-          )}
-        </div>
-      )}
 
       <div className="min-h-0 overflow-y-auto flex-1">
         {inWalletCards.length === 0 ? (

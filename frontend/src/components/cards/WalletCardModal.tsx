@@ -33,8 +33,6 @@ export function WalletCardModal({
   onAdd,
   onSaveEdit,
   onRemove,
-  onCloseCard,
-  onReopenCard,
   isLoading,
 }: {
   mode: 'add' | 'edit'
@@ -48,10 +46,6 @@ export function WalletCardModal({
   onSaveEdit: (payload: UpdateWalletCardPayload) => void
   /** Edit mode only: triggers the wallet card removal flow. */
   onRemove?: (walletCard: WalletCard) => void
-  /** Edit mode only: opens the close-date picker for this card. */
-  onCloseCard?: (walletCard: WalletCard) => void
-  /** Edit mode only: clears closed_date on this card. */
-  onReopenCard?: (walletCard: WalletCard) => void
   isLoading: boolean
 }) {
   const { data: cards } = useCardLibrary()
@@ -80,6 +74,10 @@ export function WalletCardModal({
   const [acquisitionType, setAcquisitionType] = useState<WalletCardAcquisitionType>(
     mode === 'edit' && walletCard ? walletCard.acquisition_type : 'opened'
   )
+  // Empty string = card is active. A YYYY-MM-DD string = card is closed on that date.
+  const [closedDate, setClosedDate] = useState<string>(
+    () => (mode === 'edit' && walletCard ? walletCard.closed_date ?? '' : '')
+  )
   const [subPoints, setSubPoints] = useState('')
   const [subMinSpend, setSubMinSpend] = useState('')
   const [subMonths, setSubMonths] = useState('')
@@ -90,14 +88,15 @@ export function WalletCardModal({
   // Selected statement credits for this wallet card: library_credit_id -> value.
   // The presence of a key means the credit is attached to this wallet card.
   const [selectedCredits, setSelectedCredits] = useState<Record<number, number>>({})
-  const [creditsExpanded, setCreditsExpanded] = useState(false)
   const [creditSearch, setCreditSearch] = useState('')
   const [creditOptionsOpen, setCreditOptionsOpen] = useState<number | null>(null)
   const [showCreditPicker, setShowCreditPicker] = useState(false)
   // Set of spend_category_ids this wallet card claims as priority-pinned.
   const [priorityCategoryIds, setPriorityCategoryIds] = useState<Set<number>>(new Set())
-  const [priorityExpanded, setPriorityExpanded] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<
+    'lifecycle' | 'bonuses' | 'credits' | 'priority'
+  >('lifecycle')
 
   // Tracks the last key we hydrated form state from, preventing re-runs when the
   // card library re-fetches without the user changing their selection.
@@ -165,6 +164,17 @@ export function WalletCardModal({
     }
     return m
   }, [walletCategoryPriorities, walletCard?.id])
+
+  // Count of user-facing spend categories fully pinned to this card (for Priority tab badge).
+  const priorityUserCatCount = useMemo(() => {
+    if (!walletSpendItems || priorityCategoryIds.size === 0) return 0
+    return walletSpendItems.filter((item) => {
+      const userCat = item.user_spend_category
+      if (!userCat) return false
+      const earnCatIds = userCat.mappings.map((m) => m.earn_category_id)
+      return earnCatIds.length > 0 && earnCatIds.every((id) => priorityCategoryIds.has(id))
+    }).length
+  }, [walletSpendItems, priorityCategoryIds])
 
   // Cards already in the wallet — shown in the "changing from" picker
   const walletCards = useMemo(() => {
@@ -245,7 +255,6 @@ export function WalletCardModal({
         }
       }
       setSelectedCredits(defaults)
-      setCreditsExpanded(Object.keys(defaults).length > 0)
       setFormError(null)
     } else {
       if (!walletCard || !lib) return
@@ -257,6 +266,7 @@ export function WalletCardModal({
       hydratedKey.current = key
       setAddedDate(walletCard.added_date)
       setAcquisitionType(walletCard.acquisition_type)
+      setClosedDate(walletCard.closed_date ?? '')
       const effSub = walletCard.sub_points ?? lib.sub_points
       setSubPoints(effSub != null ? String(effSub) : '')
       const effMin = walletCard.sub_min_spend ?? lib.sub_min_spend
@@ -276,7 +286,6 @@ export function WalletCardModal({
         m[o.library_credit_id] = o.value
       }
       setSelectedCredits(m)
-      setCreditsExpanded(Object.keys(m).length > 0)
       setFormError(null)
     }
   }, [mode, cardId, lib, walletCard, creditLibrary, existingCreditOverrides])
@@ -326,6 +335,10 @@ export function WalletCardModal({
     )
     if (!built.ok) {
       setFormError(built.message)
+      return
+    }
+    if (closedDate && closedDate < addedDate) {
+      setFormError('Closed date must be on or after the opening date.')
       return
     }
 
@@ -401,7 +414,9 @@ export function WalletCardModal({
       queryKey: queryKeys.walletCategoryPriorities(walletCard.wallet_id),
     })
     const secRate = secondaryCurrencyRate.trim() ? Number(secondaryCurrencyRate) : null
-    onSaveEdit(walletFormToUpdatePayload(built, lib, addedDate, acquisitionType, secRate))
+    onSaveEdit(
+      walletFormToUpdatePayload(built, lib, addedDate, acquisitionType, secRate, closedDate || null),
+    )
   }
 
   const formDisabled = !lib
@@ -410,10 +425,15 @@ export function WalletCardModal({
       ? 'Add Card to Wallet'
       : `${walletCard?.card_name ?? `Card #${walletCard?.card_id ?? ''}`}`
 
-  const primaryLabel =
-    mode === 'add' ? (isLoading ? 'Adding…' : 'Add Card') : isLoading ? 'Saving…' : 'Save'
+  // Linear tab order: Next advances through these; the header Save icon submits.
+  const tabOrder: readonly typeof activeTab[] =
+    mode === 'add'
+      ? ['lifecycle', 'bonuses', 'credits']
+      : ['lifecycle', 'bonuses', 'credits', 'priority']
+  const currentTabIndex = tabOrder.indexOf(activeTab)
+  const hasNextTab = currentTabIndex !== -1 && currentTabIndex < tabOrder.length - 1
 
-  const primaryDisabled =
+  const saveDisabled =
     mode === 'add'
       ? (acquisitionType === 'product_change' ? (!pcFromCardId || !cardId || isLoading) : (!cardId || isLoading))
       : isLoading || !walletCard
@@ -422,7 +442,7 @@ export function WalletCardModal({
     <>
       <ModalBackdrop
         onClose={onClose}
-        className="bg-slate-800 border border-slate-600 rounded-xl w-full max-w-lg shadow-xl flex flex-col max-h-[90vh]"
+        className="bg-slate-800 border border-slate-600 rounded-xl w-full max-w-lg shadow-xl flex flex-col h-[640px] max-h-[90vh]"
       >
         {/* ── Fixed header ── */}
         <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-slate-700">
@@ -433,34 +453,122 @@ export function WalletCardModal({
                 {lib.network_tier.name}
               </span>
             )}
+            <div className="ml-auto flex items-center gap-2">
+              {mode === 'edit' && walletCard && onRemove && (
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => onRemove(walletCard)}
+                  className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-950/40 disabled:opacity-50 transition-colors"
+                  title="Delete card"
+                  aria-label="Delete card"
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={saveDisabled}
+                onClick={() => void handlePrimary()}
+                className="p-2 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-950/40 disabled:opacity-40 disabled:hover:text-slate-400 disabled:hover:bg-transparent transition-colors"
+                title={mode === 'add' ? 'Add card' : 'Save changes'}
+                aria-label={mode === 'add' ? 'Add card' : 'Save changes'}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                  <polyline points="17 21 17 13 7 13 7 21" />
+                  <polyline points="7 3 7 8 15 8" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
+        {/* ── Tab bar ── */}
+        {(mode === 'add' || lib) && (
+          <div className="flex-shrink-0 flex gap-1 px-6 border-b border-slate-700">
+            {([
+              { id: 'lifecycle' as const, label: 'Lifecycle', badge: 0 },
+              { id: 'bonuses' as const, label: 'Bonuses & Fees', badge: 0 },
+              {
+                id: 'credits' as const,
+                label: 'Credits',
+                badge: Object.keys(selectedCredits).length,
+              },
+              ...(mode === 'edit'
+                ? [{ id: 'priority' as const, label: 'Categories', badge: priorityUserCatCount }]
+                : []),
+            ]).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActiveTab(t.id)}
+                className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
+                  activeTab === t.id
+                    ? 'border-indigo-500 text-indigo-300'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {t.label}
+                {(t.id === 'credits' || t.id === 'priority') && t.badge > 0 && (
+                  <span className={`ml-1.5 ${activeTab === t.id ? 'text-indigo-400' : 'text-slate-500'}`}>
+                    ({t.badge})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* ── Body ── */}
-        <div className="px-6 pt-4 pb-0 overflow-y-auto flex-1 min-h-0">
+        <div
+          className={`px-6 pt-3 flex-1 min-h-0 flex flex-col ${
+            activeTab === 'credits' ? 'pb-0' : 'pb-4'
+          }`}
+        >
           {mode === 'edit' && !lib ? (
             <p className="text-sm text-slate-400 py-8 text-center">Loading card…</p>
           ) : (
-            <div>
+            <div className="flex-1 min-h-0 flex flex-col">
+              {activeTab === 'lifecycle' && (
               <div className="space-y-3">
+              <p className="text-[11px] text-slate-500 -mx-6 px-6 pb-2 border-b border-slate-700/60">
+                When and how this card entered the wallet, and whether it's still active.
+              </p>
               {/* Acquisition type (left) | Opening date (right) */}
               <div className="grid grid-cols-2 gap-3 items-start">
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">Acquisition Type</label>
-                  <div className="flex flex-col gap-1.5 pt-1">
-                    {(['opened', 'product_change'] as const).map((v) => (
-                      <label key={v} className="flex items-center gap-1.5 text-xs text-white cursor-pointer">
-                        <input
-                          type="radio"
-                          name="acquisitionType"
-                          value={v}
-                          checked={acquisitionType === v}
-                          onChange={() => setAcquisitionType(v)}
-                          className="accent-indigo-500"
-                        />
-                        {v === 'opened' ? 'Account Opening' : 'Product Change'}
-                      </label>
-                    ))}
+                  <div role="radiogroup" className="flex flex-col bg-slate-700/30 border border-slate-600 rounded-lg overflow-hidden">
+                    {(['opened', 'product_change'] as const).map((v, i) => {
+                      const selected = acquisitionType === v
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={() => setAcquisitionType(v)}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
+                            i > 0 ? 'border-t border-slate-600/60' : ''
+                          } ${
+                            selected
+                              ? 'bg-slate-700 text-white'
+                              : 'text-slate-300 hover:bg-slate-700/60'
+                          }`}
+                        >
+                          <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                            selected ? 'border-indigo-500' : 'border-slate-500'
+                          }`}>
+                            {selected && <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />}
+                          </span>
+                          {v === 'opened' ? 'Account Opening' : 'Product Change'}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
                 <div>
@@ -547,6 +655,69 @@ export function WalletCardModal({
                 </>
               )}
 
+              {/* Card Status toggle + Closed Date (edit mode only).
+                  Closed date empty = card is still active. */}
+              {mode === 'edit' && (
+                <div className="grid grid-cols-2 gap-3 items-start">
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block">Card Status</label>
+                    <div role="radiogroup" className="flex flex-col bg-slate-700/30 border border-slate-600 rounded-lg overflow-hidden">
+                      {([
+                        { v: 'active' as const, label: 'Active' },
+                        { v: 'closed' as const, label: 'Closed' },
+                      ]).map(({ v, label }, i) => {
+                        const isClosed = closedDate !== ''
+                        const selected = v === 'active' ? !isClosed : isClosed
+                        return (
+                          <button
+                            key={v}
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            onClick={() => {
+                              if (v === 'active') setClosedDate('')
+                              else if (!closedDate) setClosedDate(today())
+                            }}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
+                              i > 0 ? 'border-t border-slate-600/60' : ''
+                            } ${
+                              selected
+                                ? 'bg-slate-700 text-white'
+                                : 'text-slate-300 hover:bg-slate-700/60'
+                            }`}
+                          >
+                            <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                              selected ? 'border-indigo-500' : 'border-slate-500'
+                            }`}>
+                              {selected && <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />}
+                            </span>
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block">Closed Date</label>
+                    <input
+                      type="date"
+                      min={addedDate}
+                      disabled={!closedDate}
+                      className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 disabled:opacity-50"
+                      value={closedDate}
+                      onChange={(e) => setClosedDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+              </div>
+              )}
+
+              {activeTab === 'bonuses' && (
+              <div className="space-y-3">
+              <p className="text-[11px] text-slate-500 -mx-6 px-6 pb-2 border-b border-slate-700/60">
+                Sign-up / product-change bonus, annual bonus, and fees.
+              </p>
               {/* SUB Points | Annual Bonus */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -659,42 +830,16 @@ export function WalletCardModal({
                 </div>
               )}
 
-              </div>{/* end space-y-3 */}
-              <div className="h-3" />
+              </div>
+              )}
 
-              {/* Statement Credits inline collapsible */}
-              {lib && (
-                <div className="-mx-6 border-t border-slate-700">
-                  <button
-                    type="button"
-                    onClick={() => setCreditsExpanded((prev) => !prev)}
-                    className="w-full flex items-center justify-between px-6 py-3 text-sm text-slate-300 hover:bg-slate-700/40"
-                  >
-                    <span>
-                      Statement Credits
-                      {(creditLibraryLoading || creditOverridesLoading) ? (
-                        <span className="text-slate-500 ml-1 text-xs">loading…</span>
-                      ) : Object.keys(selectedCredits).length > 0 ? (
-                        <span className="text-indigo-300 ml-1">
-                          ({Object.keys(selectedCredits).length})
-                        </span>
-                      ) : null}
-                    </span>
-                    <svg
-                      className={`w-4 h-4 text-slate-400 transition-transform ${creditsExpanded ? 'rotate-180' : ''}`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {creditsExpanded && (
-                    <div className="border-t border-slate-700">
-                      <p className="text-[11px] text-slate-500 px-6 pt-3 pb-2 border-b border-slate-700/60">
-                        Input your valuation of each credit.
-                      </p>
+              {/* Statement Credits tab */}
+              {activeTab === 'credits' && lib && (
+                <div className="-mx-6 flex-1 min-h-0 flex flex-col">
+                  <div className="flex-1 min-h-0 flex flex-col">
+                    <p className="text-[11px] text-slate-500 px-6 pb-2 border-b border-slate-700/60">
+                      Input your valuation of each credit.
+                    </p>
                       {creditLibraryLoading || creditOverridesLoading ? (
                         <div className="flex items-center gap-2 px-6 py-3 text-xs text-slate-400">
                           <svg
@@ -723,7 +868,7 @@ export function WalletCardModal({
                           No credits selected. Add credits this card grants from the picker below.
                         </p>
                       ) : (
-                        <ul className="divide-y divide-slate-700/40 max-h-56 overflow-y-auto">
+                        <ul className="divide-y divide-slate-700/40 flex-1 min-h-0 overflow-y-auto">
                           {Object.entries(selectedCredits).map(([idStr, value]) => {
                             const libId = Number(idStr)
                             const lc = creditLibraryById.get(libId)
@@ -962,116 +1107,78 @@ export function WalletCardModal({
                         )}
                       </div>
                     </div>
-                  )}
                 </div>
               )}
 
-              {/* Spend Category Priority inline collapsible.
+              {/* Spend Category Priority tab.
                   Pins one or more wallet spend categories to this card so
                   the calculator always routes that spend here. A category
                   already claimed by another wallet card is disabled. */}
-              {lib && mode === 'edit' && (
-                <div className="-mx-6 border-t border-slate-700">
-                  <button
-                    type="button"
-                    onClick={() => setPriorityExpanded((prev) => !prev)}
-                    className="w-full flex items-center justify-between px-6 py-3 text-sm text-slate-300 hover:bg-slate-700/40"
-                  >
-                    <span>
-                      Spend Category Priority
-                      {(() => {
-                        if (!walletSpendItems || priorityCategoryIds.size === 0) return null
-                        const selectedUserCatCount = walletSpendItems.filter((item) => {
-                          const userCat = item.user_spend_category
-                          if (!userCat) return false
-                          const earnCatIds = userCat.mappings.map((m) => m.earn_category_id)
-                          return earnCatIds.length > 0 && earnCatIds.every((id) => priorityCategoryIds.has(id))
-                        }).length
-                        if (selectedUserCatCount === 0) return null
-                        return (
-                          <span className="text-indigo-300 ml-1">
-                            ({selectedUserCatCount})
-                          </span>
+              {activeTab === 'priority' && lib && mode === 'edit' && (
+                <div className="flex-1 min-h-0 flex flex-col">
+                  <p className="text-[11px] text-slate-500 -mx-6 px-6 pb-2 border-b border-slate-700/60 mb-3">
+                    Force category spend onto this card only. Does not affect SUB spend allocation.
+                  </p>
+                  {!walletSpendItems || walletSpendItems.length === 0 ? (
+                    <p className="text-xs text-slate-500 py-1">
+                      No wallet spend categories yet.
+                    </p>
+                  ) : (
+                    <ul className="grid grid-cols-2 gap-x-2 gap-y-1 auto-rows-min flex-1 min-h-0 overflow-y-auto border border-slate-600 rounded-lg p-2">
+                      {[...walletSpendItems]
+                        .filter((item) => item.user_spend_category != null)
+                        .sort((a, b) =>
+                          (a.user_spend_category?.name ?? '').localeCompare(
+                            b.user_spend_category?.name ?? '',
+                            undefined,
+                            { sensitivity: 'base' },
+                          ),
                         )
-                      })()}
-                    </span>
-                    <svg
-                      className={`w-4 h-4 text-slate-400 transition-transform ${priorityExpanded ? 'rotate-180' : ''}`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {priorityExpanded && (
-                    <div className="border-t border-slate-700 px-6 py-3">
-                      <p className="text-[11px] text-slate-500 mb-2">
-                        Force category spend onto this card only. Does not affect SUB spend allocation.
-                      </p>
-                      {!walletSpendItems || walletSpendItems.length === 0 ? (
-                        <p className="text-xs text-slate-500 py-1">
-                          No wallet spend categories yet.
-                        </p>
-                      ) : (
-                        <ul className="space-y-1 max-h-56 overflow-y-auto border border-slate-600 rounded-lg p-2">
-                          {[...walletSpendItems]
-                            .filter((item) => item.user_spend_category != null)
-                            .sort((a, b) =>
-                              (a.user_spend_category?.name ?? '').localeCompare(
-                                b.user_spend_category?.name ?? '',
-                                undefined,
-                                { sensitivity: 'base' },
-                              ),
-                            )
-                            .map((item) => {
-                              const userCat = item.user_spend_category!
-                              const earnCatIds = userCat.mappings.map((m) => m.earn_category_id)
-                              const claimedByOther = earnCatIds.some((id) => priorityClaimsByOther.has(id))
-                              const checked = earnCatIds.length > 0 && earnCatIds.every((id) => priorityCategoryIds.has(id))
-                              const disabled = claimedByOther && !checked
-                              return (
-                                <li key={item.id}>
-                                  <label
-                                    className={`flex items-center gap-2 text-xs px-1 py-1 rounded ${
-                                      disabled
-                                        ? 'text-slate-500 cursor-not-allowed'
-                                        : 'text-slate-200 cursor-pointer hover:bg-slate-700/40'
-                                    }`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      className="accent-indigo-500"
-                                      checked={checked}
-                                      disabled={disabled}
-                                      onChange={() => {
-                                        setPriorityCategoryIds((prev) => {
-                                          const next = new Set(prev)
-                                          if (checked) {
-                                            earnCatIds.forEach((id) => next.delete(id))
-                                          } else {
-                                            earnCatIds.forEach((id) => next.add(id))
-                                          }
-                                          return next
-                                        })
-                                      }}
-                                    />
-                                    <span className="flex-1 min-w-0 truncate">
-                                      {userCat.name}
-                                    </span>
-                                    {disabled && (
-                                      <span className="text-[10px] text-slate-600 shrink-0">
-                                        Claimed By Another Card
-                                      </span>
-                                    )}
-                                  </label>
-                                </li>
-                              )
-                            })}
-                        </ul>
-                      )}
-                    </div>
+                        .map((item) => {
+                          const userCat = item.user_spend_category!
+                          const earnCatIds = userCat.mappings.map((m) => m.earn_category_id)
+                          const claimedByOther = earnCatIds.some((id) => priorityClaimsByOther.has(id))
+                          const checked = earnCatIds.length > 0 && earnCatIds.every((id) => priorityCategoryIds.has(id))
+                          const disabled = claimedByOther && !checked
+                          return (
+                            <li key={item.id}>
+                              <label
+                                className={`flex items-center gap-2 text-xs px-1 py-1 rounded ${
+                                  disabled
+                                    ? 'text-slate-500 cursor-not-allowed'
+                                    : 'text-slate-200 cursor-pointer hover:bg-slate-700/40'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="accent-indigo-500"
+                                  checked={checked}
+                                  disabled={disabled}
+                                  onChange={() => {
+                                    setPriorityCategoryIds((prev) => {
+                                      const next = new Set(prev)
+                                      if (checked) {
+                                        earnCatIds.forEach((id) => next.delete(id))
+                                      } else {
+                                        earnCatIds.forEach((id) => next.add(id))
+                                      }
+                                      return next
+                                    })
+                                  }}
+                                />
+                                <span className="flex-1 min-w-0 truncate">
+                                  {userCat.name}
+                                </span>
+                                {disabled && (
+                                  <span className="text-[10px] text-slate-600 shrink-0">
+                                    Claimed By Another Card
+                                  </span>
+                                )}
+                              </label>
+                            </li>
+                          )
+                        })}
+                    </ul>
                   )}
                 </div>
               )}
@@ -1086,50 +1193,22 @@ export function WalletCardModal({
         </div>
 
         {/* ── Fixed footer ── */}
-        <div className="flex-shrink-0 flex items-center gap-2 px-6 py-4 border-t border-slate-700">
-          {mode === 'edit' && walletCard && (
-            <div className="flex items-center gap-2 mr-auto">
-              {onRemove && (
-                <button
-                  type="button"
-                  disabled={isLoading}
-                  onClick={() => onRemove(walletCard)}
-                  className="text-sm text-red-400 hover:text-red-300 hover:bg-red-950/50 disabled:opacity-50 px-3 py-2 rounded-lg border border-red-900/60"
-                >
-                  Delete
-                </button>
-              )}
-              {walletCard.closed_date == null && onCloseCard && (
-                <button
-                  type="button"
-                  disabled={isLoading}
-                  onClick={() => onCloseCard(walletCard)}
-                  className="text-sm text-slate-300 hover:text-white hover:bg-slate-700 disabled:opacity-50 px-3 py-2 rounded-lg border border-slate-600"
-                >
-                  Close Card
-                </button>
-              )}
-              {walletCard.closed_date != null && onReopenCard && (
-                <button
-                  type="button"
-                  disabled={isLoading}
-                  onClick={() => onReopenCard(walletCard)}
-                  className="text-sm text-emerald-300 hover:text-emerald-200 hover:bg-emerald-900/40 disabled:opacity-50 px-3 py-2 rounded-lg border border-emerald-700"
-                >
-                  Reopen Card
-                </button>
-              )}
-            </div>
-          )}
-          <button
-            type="button"
-            disabled={primaryDisabled}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm py-2 rounded-lg"
-            onClick={handlePrimary}
-          >
-            {primaryLabel}
-          </button>
-        </div>
+        {hasNextTab && (
+          <div className="flex-shrink-0 flex items-center gap-2 px-6 py-4 border-t border-slate-700">
+            <button
+              type="button"
+              disabled={isLoading}
+              className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm py-2 rounded-lg"
+              onClick={() => setActiveTab(tabOrder[currentTabIndex + 1])}
+            >
+              Next
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14" />
+                <path d="M13 6l6 6-6 6" />
+              </svg>
+            </button>
+          </div>
+        )}
       </ModalBackdrop>
 
     </>

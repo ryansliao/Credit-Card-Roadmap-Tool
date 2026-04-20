@@ -491,30 +491,38 @@ async def _sync_card_groups_and_multipliers(
 
     await db.flush()
 
-    # Match existing category-multiplier rows in place by (category_id,
-    # multiplier_group_id). Natural key per dal/card.py:233-236:
-    #   - standalone row (group_id NULL): unique per (card, category)
-    #   - grouped row: unique per (card, category, multiplier_group)
-    existing_mults_by_key: dict[tuple[int, int | None], CardCategoryMultiplier] = {
-        (m.category_id, m.multiplier_group_id): m for m in card.multipliers
-    }
-    desired_keys: set[tuple[int, int | None]] = set()
+    # Match existing category-multiplier rows in place by
+    # (category_id, multiplier_group_id, is_portal). Keying on `is_portal` is
+    # necessary because a card can legitimately have both a non-portal
+    # baseline row and a portal-elevated row on the same (card, category) —
+    # e.g. CSP with Travel 2x (base) and Travel 5x (portal). Keying only on
+    # (category_id, group_id) would collapse those and strand the second row
+    # as an orphan on re-load.
+    key_t = tuple[int, int | None, bool]
+    existing_mults_by_key: dict[key_t, list[CardCategoryMultiplier]] = {}
+    for m in card.multipliers:
+        existing_mults_by_key.setdefault(
+            (m.category_id, m.multiplier_group_id, bool(m.is_portal)), []
+        ).append(m)
+    desired_keys: set[key_t] = set()
 
     for md in desired_mults:
         gi = md.get("group_index")
         group_id = desired_by_index[gi].id if gi is not None else None
         category_id = categories[md["category"]]
-        key = (category_id, group_id)
+        is_portal = bool(md.get("is_portal", False))
+        key: key_t = (category_id, group_id, is_portal)
         desired_keys.add(key)
         fields = {
             "multiplier": md.get("multiplier", 1.0),
-            "is_portal": md.get("is_portal", False),
+            "is_portal": is_portal,
             "is_additive": md.get("is_additive", False),
             "cap_per_billing_cycle": md.get("cap_per_billing_cycle"),
             "cap_period_months": md.get("cap_period_months"),
         }
-        match = existing_mults_by_key.get(key)
-        if match is not None:
+        bucket = existing_mults_by_key.get(key) or []
+        if bucket:
+            match = bucket.pop(0)
             for k, v in fields.items():
                 setattr(match, k, v)
         else:
@@ -527,8 +535,10 @@ async def _sync_card_groups_and_multipliers(
                 )
             )
 
-    for key, m in existing_mults_by_key.items():
-        if key not in desired_keys:
+    # Anything left over in the buckets (either an unmatched key or extra
+    # duplicate rows under a matched key) is stale — delete it.
+    for bucket in existing_mults_by_key.values():
+        for m in bucket:
             await db.delete(m)
     await db.flush()
 

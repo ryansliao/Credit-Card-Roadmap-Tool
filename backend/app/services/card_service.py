@@ -17,6 +17,7 @@ from ..models import (
     Issuer,
     NetworkTier,
     RotatingCategory,
+    SpendCategory,
     WalletCard,
 )
 from .base import BaseService
@@ -50,7 +51,13 @@ class CardService(BaseService[Card]):
             selectinload(Card.secondary_currency_obj),
             selectinload(Card.secondary_currency_obj).selectinload(Currency.converts_to_currency),
             selectinload(Card.network_tier),
-            selectinload(Card.multipliers).selectinload(CardCategoryMultiplier.spend_category),
+            # Eager-load spend_category.children (two levels) so CardRead's
+            # portal_premiums validator can expand Travel → Hotels/Airlines/…
+            # without issuing per-row queries.
+            selectinload(Card.multipliers)
+            .selectinload(CardCategoryMultiplier.spend_category)
+            .selectinload(SpendCategory.children)
+            .selectinload(SpendCategory.children),
             selectinload(Card.multiplier_groups).selectinload(CardMultiplierGroup.categories).selectinload(CardCategoryMultiplier.spend_category),
             selectinload(Card.rotating_categories).selectinload(RotatingCategory.spend_category),
         ]

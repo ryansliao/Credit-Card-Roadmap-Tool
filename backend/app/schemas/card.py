@@ -38,6 +38,7 @@ class UpdateCardLibraryPayload(BaseModel):
 
 
 class CardMultiplierSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     category: str
     multiplier: float
     cap_per_billing_cycle: Optional[float] = None
@@ -63,12 +64,82 @@ class CardMultiplierGroupSchema(BaseModel):
     categories: list[GroupCategoryItem] = []
 
 
+class CardPortalPremiumRead(BaseModel):
+    """Portal multiplier entry expanded through the spend-category hierarchy.
+
+    A card with a portal row set on a parent (e.g. "Travel") produces one
+    entry per descendant (Hotels, Airlines, Flights, …) plus the root row
+    itself. Callers can key directly off `category` without having to walk
+    the hierarchy themselves. `source_category` identifies which explicit
+    portal row this entry was derived from; a child category with its own
+    portal row takes precedence and halts expansion from any ancestor.
+    """
+
+    category: str
+    multiplier: float
+    is_additive: bool = False
+    source_category: str
+
+
 class RotationCategoryWeight(BaseModel):
     """Per-category activation probability inferred from rotating_categories."""
 
     spend_category_id: int
     name: str
     weight: float  # 0..1; fraction of historical quarters this category was active
+
+
+def _build_portal_premiums(card: Any) -> list[dict[str, Any]]:
+    """Expand portal multipliers through the spend-category hierarchy.
+
+    Each explicit portal row on the card emits one entry for the row's own
+    category plus one for every descendant in the spend-category tree.
+    Expansion halts at a child that is itself an explicit portal row on the
+    same card, so a more specific portal rate takes precedence over an
+    ancestor's rate.
+
+    The card's `multipliers[*].spend_category.children` relationship must be
+    eager-loaded; unloaded children simply truncate the expansion from that
+    node.
+    """
+    if not hasattr(card, "multipliers"):
+        return []
+
+    portal_rows: list[tuple[Any, float, bool]] = []
+    for m in card.multipliers:
+        if getattr(m, "multiplier_group_id", None) is not None:
+            continue
+        if not getattr(m, "is_portal", False):
+            continue
+        sc = getattr(m, "spend_category", None)
+        if sc is None:
+            continue
+        portal_rows.append((sc, float(m.multiplier), bool(getattr(m, "is_additive", False))))
+
+    if not portal_rows:
+        return []
+
+    explicit_ids = {sc.id for sc, _m, _a in portal_rows}
+
+    out: list[dict[str, Any]] = []
+    for root_sc, mult, is_add in portal_rows:
+        root_label = root_sc.category
+        stack = [root_sc]
+        while stack:
+            sc = stack.pop()
+            out.append(
+                {
+                    "category": sc.category,
+                    "multiplier": mult,
+                    "is_additive": is_add,
+                    "source_category": root_label,
+                }
+            )
+            for child in getattr(sc, "children", None) or []:
+                if child.id in explicit_ids and child.id != root_sc.id:
+                    continue
+                stack.append(child)
+    return out
 
 
 def _build_rotation_weights(group: Any) -> list[dict[str, Any]]:
@@ -202,6 +273,10 @@ class CardRead(BaseModel):
 
     multipliers: list[CardMultiplierSchema] = []
     multiplier_groups: list[CardMultiplierGroupRead] = []
+    # Portal multipliers after hierarchy expansion. A portal row on a parent
+    # category (e.g. Travel) produces one entry per descendant so consumers
+    # can key by leaf-category name without walking the hierarchy.
+    portal_premiums: list[CardPortalPremiumRead] = []
 
     @model_validator(mode="wrap")
     @classmethod
@@ -241,7 +316,13 @@ class CardRead(BaseModel):
                 )
             validated = handler(data)
             mults = [CardMultiplierSchema.model_validate(m) for m in standalone]
-            return validated.model_copy(update={"multipliers": mults})
+            portal_prems = [
+                CardPortalPremiumRead.model_validate(p)
+                for p in _build_portal_premiums(data)
+            ]
+            return validated.model_copy(
+                update={"multipliers": mults, "portal_premiums": portal_prems}
+            )
         return handler(data)
 
 

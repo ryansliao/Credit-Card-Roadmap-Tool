@@ -101,10 +101,12 @@ export function walletFormToUpdatePayload(
   addedDate: string,
   acquisitionType: WalletCardAcquisitionType,
   secondaryCurrencyRate?: number | null,
+  closedDate?: string | null,
 ): UpdateWalletCardPayload {
   return {
     added_date: addedDate,
     acquisition_type: acquisitionType,
+    closed_date: closedDate ?? null,
     sub_points: intOverride(built.sub_points, lib.sub_points ?? undefined),
     sub_min_spend: intOverride(built.sub_min_spend, lib.sub_min_spend ?? undefined),
     sub_months: intOverride(built.sub_months, lib.sub_months ?? undefined),

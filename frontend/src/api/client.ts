@@ -85,6 +85,8 @@ export interface CardMultiplier {
   /** Length of one cap period in calendar months: 1=monthly, 3=quarterly, 6=semi-annual, 12=annual. */
   cap_period_months?: number | null
   is_portal?: boolean
+  /** When true, this multiplier stacks on the card's base rate for the category instead of replacing it. */
+  is_additive?: boolean
 }
 
 export interface GroupCategoryItem {
@@ -121,6 +123,18 @@ export interface CardRotatingHistoryRow {
   quarter: number
   spend_category_id: number
   category_name: string
+}
+
+/** A portal multiplier on a card, expanded through the spend-category hierarchy.
+ * A card with a portal row set on a parent (e.g. "Travel") emits one entry per
+ * descendant (Hotels, Airlines, Flights, ...) so callers can key by leaf name
+ * without walking the tree themselves. */
+export interface CardPortalPremium {
+  category: string
+  multiplier: number
+  is_additive: boolean
+  /** The explicit portal-row category this entry was expanded from. */
+  source_category: string
 }
 
 export interface WalletPortalShare {
@@ -224,6 +238,8 @@ export interface Card {
   sub_family: string | null
   multipliers: CardMultiplier[]
   multiplier_groups: CardMultiplierGroup[]
+  /** Portal multipliers pre-expanded through the spend-category hierarchy. */
+  portal_premiums: CardPortalPremium[]
 }
 
 export interface SpendCategory {
@@ -300,6 +316,8 @@ export interface CardResult {
   first_year_fee: number | null
   sub_points: number
   annual_bonus: number
+  annual_bonus_percent: number
+  annual_bonus_first_year_only: boolean
   sub_extra_spend: number
   sub_spend_earn: number
   sub_opp_cost_dollars: number

@@ -94,10 +94,10 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
           <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Annual Spend</p>
           <p className="text-xl font-bold text-white mt-0.5 tabular-nums">${totalSpend.toLocaleString()}</p>
         </div>
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 flex-1 min-w-0 flex flex-col justify-center">
-          <div className="flex items-center justify-between mb-1">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 flex-1 min-w-0 flex flex-col justify-center">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1">
-              <span className="text-xs text-slate-400">Foreign Spend</span>
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider">Foreign Spend</span>
               <InfoIconButton onClick={() => setShowForeignInfo(true)} label="How foreign spend affects calculation" />
             </div>
             <span className="text-xs font-medium text-slate-200 tabular-nums">
@@ -119,14 +119,18 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
               const pct = Number((e.target as HTMLInputElement).value)
               if (walletId != null) updateWalletMutation.mutate(pct)
             }}
-            className="w-full h-1.5 accent-indigo-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full h-1.5 accent-indigo-500 cursor-pointer block my-0 disabled:cursor-not-allowed disabled:opacity-50"
           />
-          <div className="flex justify-between text-[10px] text-slate-600 mt-1">
-            <span>0%</span>
-            <span>25%</span>
-            <span>50%</span>
-            <span>75%</span>
-            <span>100%</span>
+          <div className="relative h-4 mt-2">
+            {(['0%', '25%', '50%', '75%', '100%'] as const).map((label, i) => (
+              <span
+                key={label}
+                className={`absolute text-[10px] text-slate-500 tabular-nums ${i === 0 ? '' : i === 4 ? '-translate-x-full' : '-translate-x-1/2'}`}
+                style={{ left: `${i * 25}%` }}
+              >
+                {label}
+              </span>
+            ))}
           </div>
         </div>
       </div>

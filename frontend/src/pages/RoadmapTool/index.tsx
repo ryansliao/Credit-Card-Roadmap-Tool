@@ -17,7 +17,6 @@ import {
 import { today } from '../../utils/format'
 import { WalletCardModal } from '../../components/cards/WalletCardModal'
 import { DeleteCardWarningModal } from '../../components/cards/DeleteCardWarningModal'
-import { CloseCardModal } from './components/cards/CloseCardModal'
 import { WalletSummaryStats } from './components/summary/WalletSummaryStats'
 import { MethodologyInfoPopover } from './components/summary/MethodologyInfoPopover'
 import { CurrencyEditModal } from './components/summary/CurrencyEditModal'
@@ -128,9 +127,6 @@ export default function RoadmapToolPage() {
   const [pendingRemoval, setPendingRemoval] = useState<{ cardId: number; cardName: string } | null>(
     null
   )
-  const [pendingClose, setPendingClose] = useState<
-    { cardId: number; cardName: string; addedDate: string } | null
-  >(null)
 
   const { data: wallet, isLoading: walletLoading } = useQuery({
     queryKey: queryKeys.myWallet(),
@@ -405,6 +401,7 @@ export default function RoadmapToolPage() {
             <div className="mb-4 shrink-0">
               <WalletSummaryStats
                 result={result?.wallet ?? null}
+                roadmap={roadmap ?? null}
                 isCalculating={resultsMutation.isPending}
                 isStale={isStale}
                 durationYears={durationYears}
@@ -528,25 +525,6 @@ export default function RoadmapToolPage() {
         />
       )}
 
-      {pendingClose && wallet && (
-        <CloseCardModal
-          cardName={pendingClose.cardName}
-          minDate={pendingClose.addedDate}
-          isLoading={updateWalletCardMutation.isPending}
-          onClose={() => setPendingClose(null)}
-          onConfirm={(closedDate) => {
-            updateWalletCardMutation.mutate(
-              {
-                walletId: wallet.id,
-                cardId: pendingClose.cardId,
-                payload: { closed_date: closedDate },
-              },
-              { onSuccess: () => setPendingClose(null) },
-            )
-          }}
-        />
-      )}
-
       {showMethodology && (
         <MethodologyInfoPopover onClose={() => setShowMethodology(false)} />
       )}
@@ -568,22 +546,6 @@ export default function RoadmapToolPage() {
               cardId: wc.card_id,
               cardName: wc.card_name ?? `Card #${wc.card_id}`,
             })
-          }}
-          onCloseCard={(wc) => {
-            setWalletCardModal(null)
-            setPendingClose({
-              cardId: wc.card_id,
-              cardName: wc.card_name ?? `Card #${wc.card_id}`,
-              addedDate: wc.added_date,
-            })
-          }}
-          onReopenCard={(wc) => {
-            updateWalletCardMutation.mutate({
-              walletId: wallet.id,
-              cardId: wc.card_id,
-              payload: { closed_date: null },
-            })
-            setWalletCardModal(null)
           }}
           key={walletCardModal.mode === 'add' ? 'add' : walletCardModal.walletCard.id}
           mode={walletCardModal.mode}

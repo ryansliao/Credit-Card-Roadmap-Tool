@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { CardResult, UserSpendCategory, WalletCard } from '../../../../api/client'
+import type { Card, CardResult, UserSpendCategory, WalletCard } from '../../../../api/client'
 import { walletSpendItemsApi } from '../../../../api/client'
 import { ModalBackdrop } from '../../../../components/ModalBackdrop'
 import { formatMoneyExact, formatPointsExact } from '../../../../utils/format'
 import { queryKeys } from '../../../../lib/queryKeys'
+import { useCardLibrary } from '../../hooks/useCardLibrary'
 
 interface Props {
   walletId: number | null
@@ -52,7 +53,61 @@ export function SpendTabContent({
     enabled: walletId != null,
   })
 
+  const { data: cardLibrary = [] } = useCardLibrary()
+
   const [infoCategory, setInfoCategory] = useState<UserSpendCategory | null>(null)
+
+  const cardLibById = useMemo(() => {
+    const m = new Map<number, Card>()
+    for (const c of cardLibrary) m.set(c.id, c)
+    return m
+  }, [cardLibrary])
+
+  // Set of earn-category names (lowercase) covered by any rotating group
+  // on the card's library definition. Categories in this set must not be
+  // credited with their rotating rate in the baseline ROS calculation —
+  // fall back to the card's non-rotating rate (standalone or All Other).
+  function getRotatingCategoriesForCardId(cardId: number): Set<string> {
+    const lib = cardLibById.get(cardId)
+    const out = new Set<string>()
+    if (!lib) return out
+    for (const g of lib.multiplier_groups ?? []) {
+      if (!g.is_rotating) continue
+      for (const c of g.categories ?? []) out.add(c.name.trim().toLowerCase())
+    }
+    return out
+  }
+
+  // Standalone non-portal, non-group multipliers keyed by lowercase category
+  // name. Used as the fallback rate for categories that only earn a bonus
+  // via a rotating group.
+  function getStandaloneMultsForCardId(cardId: number): Map<string, number> {
+    const lib = cardLibById.get(cardId)
+    const out = new Map<string, number>()
+    if (!lib) return out
+    for (const m of lib.multipliers ?? []) {
+      if (m.is_portal) continue
+      out.set(m.category.trim().toLowerCase(), m.multiplier)
+    }
+    return out
+  }
+
+  // Portal-elevated multipliers for the card. The backend pre-expands portal
+  // rows through the spend-category hierarchy (a portal row on "Travel"
+  // produces entries for Hotels, Airlines, Flights, …), so this is just a
+  // direct keying of `card.portal_premiums` by lowercase category name.
+  function getPortalMultsForCardId(cardId: number): Map<string, { mult: number; isAdditive: boolean }> {
+    const out = new Map<string, { mult: number; isAdditive: boolean }>()
+    const lib = cardLibById.get(cardId)
+    if (!lib) return out
+    for (const p of lib.portal_premiums ?? []) {
+      out.set(p.category.trim().toLowerCase(), {
+        mult: p.multiplier,
+        isAdditive: !!p.is_additive,
+      })
+    }
+    return out
+  }
 
   // Closed / product-changed-away-from cards; matches CardsListPanel dimming.
   const excludedCardIds = useMemo(() => {
@@ -93,38 +148,162 @@ export function SpendTabContent({
     setCardCursor((c) => (c + delta + cardCount) % cardCount)
   }
 
-  function getMultForCard(card: CardResult, catName: string): number {
+  // Baseline multiplier for a card's earn category, excluding both rotating
+  // group boosts and travel-portal elevated rates. Rotating-only categories
+  // fall back to the card's standalone rate, or to All Other when none.
+  function getBaselineMultForEarnCategory(card: CardResult, earnCatName: string): number {
+    const lower = earnCatName.trim().toLowerCase()
     const mults = card.category_multipliers ?? {}
-    const lower = catName.trim().toLowerCase()
     let allOther = 1.0
+    let directMatch: number | null = null
     for (const [k, v] of Object.entries(mults)) {
       const kl = k.trim().toLowerCase()
-      if (kl === lower) return v
+      if (kl === lower) directMatch = v
       if (kl === 'all other') allOther = v
     }
+    const rotating = getRotatingCategoriesForCardId(card.card_id)
+    if (rotating.has(lower)) {
+      const standalone = getStandaloneMultsForCardId(card.card_id).get(lower)
+      if (standalone !== undefined) return standalone
+      return allOther
+    }
+    if (directMatch !== null) return directMatch
     return allOther
   }
 
-  function getRosForCard(card: CardResult, catName: string): number {
-    // Return on spend, expressed as a percentage: multiplier × effective CPP.
-    // e.g. 3x at 2¢/pt → 6 (i.e. 6% back).
-    return getMultForCard(card, catName) * card.cents_per_point
+  // Portal-adjusted multiplier assuming all eligible spend on this card
+  // flows through its travel portal. Returns null when the card has no
+  // portal premium covering this earn category.
+  function getPortalMultForEarnCategory(card: CardResult, earnCatName: string): number | null {
+    const portal = getPortalMultsForCardId(card.card_id).get(earnCatName.trim().toLowerCase())
+    if (!portal) return null
+    const base = getBaselineMultForEarnCategory(card, earnCatName)
+    return portal.isAdditive ? base + portal.mult : portal.mult
   }
 
-  function topCardsForCategory(catName: string): { cards: CardResult[]; ros: number } {
-    if (topRosCards.length === 0) return { cards: [], ros: 0 }
-    let best = -Infinity
-    let bestCards: CardResult[] = []
+  function userCategoryHasPortalCoverage(card: CardResult, userCategory: UserSpendCategory): boolean {
+    const portals = getPortalMultsForCardId(card.card_id)
+    if (portals.size === 0) return false
+    for (const m of userCategory.mappings) {
+      if (portals.has(m.earn_category.category.trim().toLowerCase())) return true
+    }
+    return false
+  }
+
+  // Full rotating rate for a card's earn category. For categories covered by
+  // a rotating group, the backend's `category_multipliers` already reports the
+  // active-quarter rate (base + additive premium, or the replacement rate for
+  // non-additive groups). Categories outside any rotating group return null so
+  // the caller falls back to baseline.
+  function getRotatingMultForEarnCategory(card: CardResult, earnCatName: string): number | null {
+    const lower = earnCatName.trim().toLowerCase()
+    if (!getRotatingCategoriesForCardId(card.card_id).has(lower)) return null
+    const mults = card.category_multipliers ?? {}
+    for (const [k, v] of Object.entries(mults)) {
+      if (k.trim().toLowerCase() === lower) return v
+    }
+    return null
+  }
+
+  function userCategoryHasRotatingCoverage(card: CardResult, userCategory: UserSpendCategory): boolean {
+    const rotating = getRotatingCategoriesForCardId(card.card_id)
+    if (rotating.size === 0) return false
+    for (const m of userCategory.mappings) {
+      if (rotating.has(m.earn_category.category.trim().toLowerCase())) return true
+    }
+    return false
+  }
+
+  type RosMode = 'baseline' | 'rotating' | 'portal'
+
+  function getWeightedRosForCard(
+    card: CardResult,
+    userCategory: UserSpendCategory | null,
+    mode: RosMode,
+  ): number {
+    if (!userCategory || userCategory.mappings.length === 0) {
+      return 0
+    }
+    // Recurring percentage bonus factor (e.g., CSP 10% → 1.1)
+    const earnBonusFactor =
+      card.annual_bonus_percent && !card.annual_bonus_first_year_only
+        ? 1 + card.annual_bonus_percent / 100
+        : 1
+    let weightedRos = 0
+    for (const mapping of userCategory.mappings) {
+      const baseline = getBaselineMultForEarnCategory(card, mapping.earn_category.category)
+      let mult = baseline
+      if (mode === 'portal') {
+        const portalMult = getPortalMultForEarnCategory(card, mapping.earn_category.category)
+        if (portalMult !== null && portalMult > mult) mult = portalMult
+      } else if (mode === 'rotating') {
+        const rotMult = getRotatingMultForEarnCategory(card, mapping.earn_category.category)
+        if (rotMult !== null && rotMult > mult) mult = rotMult
+      }
+      weightedRos += mapping.default_weight * mult * card.cents_per_point * earnBonusFactor
+    }
+    return weightedRos
+  }
+
+  interface TopCardEntry {
+    card: CardResult
+    ros: number
+    tag: 'baseline' | 'rotating' | 'portal'
+  }
+
+  function topCardsForCategory(userCategory: UserSpendCategory | null): TopCardEntry[] {
+    if (topRosCards.length === 0 || !userCategory) return []
+    // Baseline top (excludes rotating bonuses and portal elevation).
+    let baselineBest = -Infinity
+    let baselineCards: CardResult[] = []
     for (const card of topRosCards) {
-      const r = getRosForCard(card, catName)
-      if (r > best + 1e-9) {
-        best = r
-        bestCards = [card]
-      } else if (Math.abs(r - best) <= 1e-9) {
-        bestCards.push(card)
+      const r = getWeightedRosForCard(card, userCategory, 'baseline')
+      if (r > baselineBest + 1e-9) {
+        baselineBest = r
+        baselineCards = [card]
+      } else if (Math.abs(r - baselineBest) <= 1e-9) {
+        baselineCards.push(card)
       }
     }
-    return { cards: bestCards, ros: best }
+    if (!(baselineBest > 0)) return []
+
+    const entries: TopCardEntry[] = baselineCards.map((card) => ({
+      card,
+      ros: baselineBest,
+      tag: 'baseline',
+    }))
+
+    // Rotating / portal candidates: any card whose boosted ROS strictly
+    // exceeds both its own baseline (so the boost actually helps the card)
+    // and the baseline top. Both tags can appear for the same card when
+    // the user category draws from overlapping earn categories (e.g. Chase
+    // Freedom Flex has rotating Dining and a Travel portal row).
+    const rotatingEntries: TopCardEntry[] = []
+    const portalEntries: TopCardEntry[] = []
+    for (const card of topRosCards) {
+      const ownBaseline = getWeightedRosForCard(card, userCategory, 'baseline')
+
+      if (userCategoryHasRotatingCoverage(card, userCategory)) {
+        const rotRos = getWeightedRosForCard(card, userCategory, 'rotating')
+        if (rotRos > ownBaseline + 1e-9 && rotRos > baselineBest + 1e-9) {
+          rotatingEntries.push({ card, ros: rotRos, tag: 'rotating' })
+        }
+      }
+
+      if (userCategoryHasPortalCoverage(card, userCategory)) {
+        const portalRos = getWeightedRosForCard(card, userCategory, 'portal')
+        if (portalRos > ownBaseline + 1e-9 && portalRos > baselineBest + 1e-9) {
+          portalEntries.push({ card, ros: portalRos, tag: 'portal' })
+        }
+      }
+    }
+    rotatingEntries.sort((a, b) => b.ros - a.ros)
+    portalEntries.sort((a, b) => b.ros - a.ros)
+    // Cap portal to a single entry per category — showing every card whose
+    // portal beats baseline top gets noisy on Travel-heavy buckets where
+    // several cards qualify, and only the highest one is actionable.
+    const topPortal = portalEntries.length > 0 ? [portalEntries[0]] : []
+    return [...entries, ...rotatingEntries, ...topPortal]
   }
 
   function formatRos(ros: number): string {
@@ -192,32 +371,8 @@ export function SpendTabContent({
                 <th className="text-center text-sm font-semibold text-slate-300 px-3 py-2.5 border-b border-r border-slate-800 whitespace-nowrap">
                   Annual Spend
                 </th>
-                <th className="text-center text-sm font-semibold text-slate-300 px-3 py-2.5 border-b border-r border-slate-800">
-                  <div className="flex items-center justify-between gap-2 w-full">
-                    <button
-                      type="button"
-                      onClick={() => cycleCard(-1)}
-                      disabled={cardCount < 2}
-                      className="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 disabled:hover:text-slate-500 disabled:hover:bg-transparent"
-                      aria-label="Previous card"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="15 18 9 12 15 6" />
-                      </svg>
-                    </button>
-                    <span className="flex-1 min-w-0 truncate">Annual Point Income</span>
-                    <button
-                      type="button"
-                      onClick={() => cycleCard(1)}
-                      disabled={cardCount < 2}
-                      className="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 disabled:hover:text-slate-500 disabled:hover:bg-transparent"
-                      aria-label="Next card"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
-                    </button>
-                  </div>
+                <th className="text-center text-sm font-semibold text-slate-300 px-3 py-2.5 border-b border-r border-slate-800 whitespace-nowrap">
+                  Annual Point Income
                 </th>
                 <th
                   rowSpan={2}
@@ -240,16 +395,42 @@ export function SpendTabContent({
                     ${spendItems.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
                   </div>
                 </td>
-                <td className="text-center px-3 py-2 text-slate-300 border-r border-slate-800/60 truncate" title={currentCard?.card_name ?? ''}>
-                  {currentCard?.card_name ?? '—'}
+                <td className="px-2 py-2 text-slate-300 border-r border-slate-800/60">
+                  <div className="flex items-center justify-between gap-2 w-full">
+                    <button
+                      type="button"
+                      onClick={() => cycleCard(-1)}
+                      disabled={cardCount < 2}
+                      className="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 disabled:hover:text-slate-500 disabled:hover:bg-transparent"
+                      aria-label="Previous card"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                    </button>
+                    <span className="flex-1 min-w-0 truncate text-center" title={currentCard?.card_name ?? ''}>
+                      {currentCard?.card_name ?? '—'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => cycleCard(1)}
+                      disabled={cardCount < 2}
+                      className="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 disabled:hover:text-slate-500 disabled:hover:bg-transparent"
+                      aria-label="Next card"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </thead>
             <tbody>
               {spendItems.map((item) => {
                 const catName = item.user_spend_category?.name ?? 'Unknown'
-                const top = topCardsForCategory(catName)
-                const noTop = top.cards.length === 0 || top.ros <= 0
+                const topEntries = topCardsForCategory(item.user_spend_category)
+                const noTop = topEntries.length === 0
                 return (
                   <tr key={item.id} className="border-b border-slate-800/60">
                     <td className="text-left px-3 py-2 text-slate-200 border-r border-slate-800/60">
@@ -303,17 +484,38 @@ export function SpendTabContent({
                         <div className="text-center text-slate-700">—</div>
                       ) : (
                         <div className="flex flex-col gap-1.5">
-                          {top.cards.map((c) => (
-                            <div key={c.card_id} className="flex items-center gap-2 min-w-0">
+                          {topEntries.map((entry) => (
+                            <div
+                              key={`${entry.card.card_id}-${entry.tag}`}
+                              className="flex items-center gap-2 min-w-0"
+                            >
                               <div className="w-[60px] h-9 shrink-0 rounded overflow-hidden bg-slate-700/50">
-                                <CardPhoto slug={c.photo_slug} name={c.card_name} />
+                                <CardPhoto slug={entry.card.photo_slug} name={entry.card.card_name} />
                               </div>
                               <div className="min-w-0 flex-1 text-left">
-                                <div className="text-xs text-slate-200 truncate mb-0.5" title={c.card_name}>
-                                  {c.card_name}
+                                <div className="text-xs text-slate-200 truncate mb-0.5" title={entry.card.card_name}>
+                                  {entry.card.card_name}
                                 </div>
-                                <div className="text-xs font-semibold text-indigo-300 tabular-nums">
-                                  {formatRos(top.ros)}
+                                <div className="flex items-center gap-1.5">
+                                  <div className="text-xs font-semibold text-indigo-300 tabular-nums">
+                                    {formatRos(entry.ros)}
+                                  </div>
+                                  {entry.tag === 'portal' && (
+                                    <span
+                                      className="text-[10px] uppercase tracking-wide text-amber-300/90 bg-amber-500/10 border border-amber-500/30 rounded px-1 py-[1px]"
+                                      title="Requires booking through this card's travel portal"
+                                    >
+                                      Portal
+                                    </span>
+                                  )}
+                                  {entry.tag === 'rotating' && (
+                                    <span
+                                      className="text-[10px] uppercase tracking-wide text-violet-300/90 bg-violet-500/10 border border-violet-500/30 rounded px-1 py-[1px]"
+                                      title="Only applies when this category is in the card's active rotating bonus"
+                                    >
+                                      Rotating
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>

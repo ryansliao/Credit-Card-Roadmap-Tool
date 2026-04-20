@@ -1,19 +1,16 @@
 import { useMemo, useState } from 'react'
-import type { CardResult, WalletResult } from '../../../../api/client'
+import type { CardResult, RoadmapResponse, WalletResult } from '../../../../api/client'
 import { formatMoney, formatPointsExact } from '../../../../utils/format'
 import { InfoIconButton, InfoPopover } from '../../../../components/InfoPopover'
 
 type StatTopic = 'eaf' | 'income' | 'fees' | 'duration' | null
 
-/** Annual point income for a card (excludes SUB and first-year bonuses).
+/** Annual recurring point income for a card.
  *
  * `annual_point_earn` is already per-year on both the simple and segmented
- * calculator paths. The older `(total_points - sub_points - sub_spend_earn)
- * / years` formulation double-subtracted `sub_spend_earn` on the segmented
- * path (it's baked into the segment earn so never added to total_points),
- * which pushed the figure negative for cards whose SUB spend exceeded the
- * recurring annual earn × window. */
-function cardAnnualPointIncome(c: CardResult, _totalYears: number): number {
+ * calculator paths and excludes one-time SUB bonuses / first-year matches,
+ * so it's the recurring category earn rate. */
+function cardAnnualPointIncome(c: CardResult): number {
   return c.annual_point_earn
 }
 
@@ -28,6 +25,7 @@ function formatDuration(years: number, months: number): string {
 
 interface Props {
   result: WalletResult | null
+  roadmap?: RoadmapResponse | null
   isCalculating: boolean
   isStale: boolean
   durationYears: number
@@ -38,6 +36,7 @@ interface Props {
 
 export function WalletSummaryStats({
   result,
+  roadmap,
   isCalculating,
   isStale,
   durationYears,
@@ -47,120 +46,186 @@ export function WalletSummaryStats({
 }: Props) {
   const [statTopic, setStatTopic] = useState<StatTopic>(null)
 
-  const totalYears = Math.max(durationYears + durationMonths / 12, 1 / 12)
-
   const { totalEffectiveAF, totalAnnualPoints, totalAnnualFees } = useMemo(() => {
     const selected = result?.card_results.filter((c) => c.selected) ?? []
     return {
       totalAnnualFees: selected.reduce((s, c) => s + c.annual_fee, 0),
       totalEffectiveAF: selected.reduce((s, c) => s + c.effective_annual_fee, 0),
-      totalAnnualPoints: selected.reduce((s, c) => s + cardAnnualPointIncome(c, totalYears), 0),
+      totalAnnualPoints: selected.reduce((s, c) => s + cardAnnualPointIncome(c), 0),
     }
-  }, [result, totalYears])
+  }, [result])
 
   const hasStats = !!result || isCalculating
 
   const showStaleHint = isStale && hasStats && !resultsError
 
+  const durationTicks = [
+    { months: 1, label: '1M' },
+    { months: 12, label: '1Y' },
+    { months: 24, label: '2Y' },
+    { months: 36, label: '3Y' },
+    { months: 48, label: '4Y' },
+    { months: 60, label: '5Y' },
+  ]
+
+  const panelBorder = showStaleHint ? 'border-amber-700/60' : 'border-slate-700'
+
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 flex gap-4 items-stretch">
+      {/* Left: summary stats panel */}
       <div
-        className={`bg-slate-900 border rounded-xl px-4 py-3 flex gap-4 items-stretch transition-colors ${
-          showStaleHint ? 'border-amber-700/60' : 'border-slate-700'
-        }`}
+        className={`flex-1 min-w-0 bg-slate-900 border rounded-xl px-5 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
-        {/* Left: 3 squished summary stats */}
-        <div className="flex-1 min-w-0 flex flex-col justify-center">
-          {resultsError ? (
-            <div className="text-red-400 text-sm bg-red-950 border border-red-700 rounded-lg p-3">
-              {resultsError.message}
-            </div>
-          ) : !hasStats ? (
-            <div className="text-slate-500 text-xs text-center py-2">
-              Add cards to see effective annual fee (credits, SUB and fees amortised over your projection).
-            </div>
-          ) : (
-            <div className={`grid grid-cols-3 gap-2 transition-opacity ${showStaleHint ? 'opacity-60' : ''}`}>
-              <div className="bg-indigo-900/40 border border-indigo-700 rounded-xl px-2 py-2 text-center min-w-0">
-                <div className="flex items-center justify-center gap-1">
-                  <p className="text-[10px] text-indigo-300 uppercase tracking-wider truncate">Effective Annual Fee</p>
-                  <InfoIconButton onClick={() => setStatTopic('eaf')} label="How Effective Annual Fee is calculated" />
+        {resultsError ? (
+          <div className="text-red-400 text-sm bg-red-950 border border-red-700 rounded-lg p-3">
+            {resultsError.message}
+          </div>
+        ) : !hasStats ? (
+          <div className="text-slate-500 text-xs text-center py-2">
+            Add cards to see effective annual fee (credits, SUB and fees amortised over your projection).
+          </div>
+        ) : (
+          <div
+            className={`grid grid-cols-[1fr_1px_1fr_1px_1fr] gap-3 items-stretch w-full transition-opacity ${
+              showStaleHint ? 'opacity-60' : ''
+            }`}
+          >
+            <div className="px-1 py-0.5 text-center min-w-0 flex flex-col justify-center gap-1">
+              <div className="flex items-center justify-center gap-1 h-5">
+                <p className="text-[10px] text-indigo-300 uppercase tracking-wider whitespace-nowrap">Effective Annual Fee</p>
+                <InfoIconButton onClick={() => setStatTopic('eaf')} label="How Effective Annual Fee is calculated" />
+              </div>
+              {result ? (
+                <p className={`text-xl font-bold tabular-nums truncate ${totalEffectiveAF < 0 ? 'text-emerald-400' : 'text-indigo-100'}`}>{formatMoney(totalEffectiveAF)}</p>
+              ) : (
+                <div className="h-7 flex items-center justify-center">
+                  <div className="h-4 w-20 bg-indigo-800/50 rounded animate-pulse" />
                 </div>
-                {result ? (
-                  <p className={`text-lg font-bold mt-0.5 truncate ${totalEffectiveAF < 0 ? 'text-emerald-400' : 'text-indigo-100'}`}>{formatMoney(totalEffectiveAF)}</p>
-                ) : (
-                  <div className="h-6 mt-0.5 flex items-center justify-center">
-                    <div className="h-4 w-16 bg-indigo-800/50 rounded animate-pulse" />
-                  </div>
-                )}
-              </div>
-              <div className="bg-slate-800 border border-slate-700 rounded-xl px-2 py-2 text-center min-w-0">
-                <div className="flex items-center justify-center gap-1">
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider truncate">Annual Point Income</p>
-                  <InfoIconButton onClick={() => setStatTopic('income')} label="How Annual Point Income is calculated" />
-                </div>
-                {result ? (
-                  <p className="text-lg font-bold text-white mt-0.5 truncate">{formatPointsExact(Math.round(totalAnnualPoints))}</p>
-                ) : (
-                  <div className="h-6 mt-0.5 flex items-center justify-center">
-                    <div className="h-4 w-16 bg-slate-700/50 rounded animate-pulse" />
-                  </div>
-                )}
-              </div>
-              <div className="bg-slate-800 border border-slate-700 rounded-xl px-2 py-2 text-center min-w-0">
-                <div className="flex items-center justify-center gap-1">
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider truncate">Total Annual Fees</p>
-                  <InfoIconButton onClick={() => setStatTopic('fees')} label="How Total Annual Fees is calculated" />
-                </div>
-                {result ? (
-                  <p className="text-lg font-bold text-red-400 mt-0.5 truncate">{formatMoney(totalAnnualFees)}</p>
-                ) : (
-                  <div className="h-6 mt-0.5 flex items-center justify-center">
-                    <div className="h-4 w-16 bg-slate-700/50 rounded animate-pulse" />
-                  </div>
-                )}
-              </div>
+              )}
             </div>
-          )}
-        </div>
-
-        {/* Vertical divider */}
-        <div className="w-px bg-slate-700 shrink-0" />
-
-        {/* Right: duration slider */}
-        <div className="w-64 lg:w-72 shrink-0 flex flex-col justify-center gap-3">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-slate-400">Duration</span>
-                <InfoIconButton onClick={() => setStatTopic('duration')} label="How duration affects calculation" />
+            <div className="bg-slate-700/60 self-stretch my-1" />
+            <div className="px-1 py-0.5 text-center min-w-0 flex flex-col justify-center gap-1">
+              <div className="flex items-center justify-center gap-1 h-5">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider whitespace-nowrap">Annual Fees</p>
+                <InfoIconButton onClick={() => setStatTopic('fees')} label="How Annual Fees is calculated" />
               </div>
-              <span className="text-xs font-medium text-slate-200 tabular-nums">
-                {formatDuration(durationYears, durationMonths)}
-              </span>
+              {result ? (
+                <p className="text-xl font-bold text-white tabular-nums truncate">{formatMoney(totalAnnualFees)}</p>
+              ) : (
+                <div className="h-7 flex items-center justify-center">
+                  <div className="h-4 w-20 bg-slate-700/50 rounded animate-pulse" />
+                </div>
+              )}
             </div>
-            <input
-              type="range"
-              min={1}
-              max={60}
-              value={durationYears * 12 + durationMonths}
-              onChange={(e) => {
-                const total = Number(e.target.value)
-                onDurationChange(Math.floor(total / 12), total % 12)
-              }}
-              className="w-full h-1.5 accent-indigo-500 cursor-pointer"
-            />
-            <div className="flex justify-between text-[10px] text-slate-600 mt-0.5">
-              <span>1M</span>
-              <span>1Y</span>
-              <span>2Y</span>
-              <span>3Y</span>
-              <span>4Y</span>
-              <span>5Y</span>
+            <div className="bg-slate-700/60 self-stretch my-1" />
+            <div className="px-1 py-0.5 text-center min-w-0 flex flex-col justify-center gap-1">
+              <div className="flex items-center justify-center gap-1 h-5">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider whitespace-nowrap">Recurring Point Income</p>
+                <InfoIconButton onClick={() => setStatTopic('income')} label="How Recurring Point Income is calculated" />
+              </div>
+              {result ? (
+                <p className="text-xl font-bold text-white tabular-nums truncate">
+                  {formatPointsExact(Math.round(totalAnnualPoints))}
+                  <span className="ml-1 text-sm font-medium text-slate-400">Pts/Year</span>
+                </p>
+              ) : (
+                <div className="h-7 flex items-center justify-center">
+                  <div className="h-4 w-20 bg-slate-700/50 rounded animate-pulse" />
+                </div>
+              )}
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Middle: duration slider */}
+      <div
+        className={`shrink-0 w-64 lg:w-72 bg-slate-900 border rounded-xl px-4 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider">Time Horizon</span>
+            <InfoIconButton onClick={() => setStatTopic('duration')} label="How time horizon affects calculation" />
+          </div>
+          <span className="text-xs font-medium text-slate-200 tabular-nums">
+            {formatDuration(durationYears, durationMonths)}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={1}
+          max={60}
+          value={durationYears * 12 + durationMonths}
+          onChange={(e) => {
+            const total = Number(e.target.value)
+            onDurationChange(Math.floor(total / 12), total % 12)
+          }}
+          className="w-full h-1.5 accent-indigo-500 cursor-pointer block my-0"
+        />
+        <div className="relative h-4 mt-2">
+          {durationTicks.map((t) => {
+            const pct = ((t.months - 1) / 59) * 100
+            return (
+              <span
+                key={t.label}
+                className="absolute text-[10px] text-slate-500 -translate-x-1/2 tabular-nums"
+                style={{ left: `${pct}%` }}
+              >
+                {t.label}
+              </span>
+            )
+          })}
         </div>
       </div>
+
+      {/* Right: 5/24 status + legend */}
+      {roadmap && (
+        <div
+          className={`shrink-0 w-52 bg-slate-900 border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
+        >
+          <div
+            className="flex items-center justify-between gap-2"
+            title={`${roadmap.five_twenty_four_count} personal cards opened in last 24 months`}
+          >
+            <div className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className={`inline-block w-1.5 h-1.5 rounded-full ${
+                  roadmap.five_twenty_four_eligible ? 'bg-emerald-400' : 'bg-red-400'
+                }`}
+              />
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider whitespace-nowrap">5/24 Status</p>
+            </div>
+            <p
+              className={`text-sm font-semibold tabular-nums ${
+                roadmap.five_twenty_four_eligible ? 'text-emerald-400' : 'text-red-400'
+              }`}
+            >
+              {roadmap.five_twenty_four_count}/5
+            </p>
+          </div>
+          <div className="mt-1.5 pt-1.5 border-t border-slate-700/40 grid grid-cols-[14px_1fr] gap-x-2 gap-y-0.5 items-center text-[10px] text-slate-500">
+            <span
+              aria-hidden
+              className="justify-self-center inline-block"
+              style={{ width: 2, height: 9, backgroundColor: '#f59e0b' }}
+              title="Amber line in the timeline marks the SUB earned date (dashed when projected)"
+            />
+            <span className="whitespace-nowrap">SUB Earned Date</span>
+            <span
+              aria-hidden
+              className="justify-self-center relative inline-block w-4 h-2 rounded-full bg-indigo-500"
+              title="Per-card toggle in the timeline includes the card in calculation"
+            >
+              <span
+                className="absolute top-0.5 w-1 h-1 rounded-full bg-white"
+                style={{ left: 9 }}
+              />
+            </span>
+            <span className="whitespace-nowrap">Add Card to Calculation</span>
+          </div>
+        </div>
+      )}
 
         {statTopic === 'eaf' && (
           <InfoPopover title="Effective Annual Fee" onClose={() => setStatTopic(null)}>
@@ -193,10 +258,12 @@ export function WalletSummaryStats({
         )}
 
         {statTopic === 'income' && (
-          <InfoPopover title="Annual Point Income" onClose={() => setStatTopic(null)}>
+          <InfoPopover title="Recurring Point Income" onClose={() => setStatTopic(null)}>
             <p>
-              Points and miles earned per year from category spend across all
-              selected cards (excludes one-time SUB bonuses).
+              Recurring points and miles earned per year from category spend
+              across all selected cards. Excludes one-time sign-up bonuses
+              and first-year matches — those roll into the EAF calculation
+              and currency balance totals separately.
             </p>
             <div>
               <p className="text-slate-300 font-medium mb-1">How it's allocated</p>
@@ -216,19 +283,11 @@ export function WalletSummaryStats({
                 target's CPP.
               </p>
             </div>
-            <div>
-              <p className="text-slate-300 font-medium mb-1">SUB exclusion</p>
-              <p>
-                Sign-up bonuses are not counted here — they show up in the
-                currency balance totals and contribute to EAF as one-time
-                amortised benefits.
-              </p>
-            </div>
           </InfoPopover>
         )}
 
         {statTopic === 'fees' && (
-          <InfoPopover title="Total Annual Fees" onClose={() => setStatTopic(null)}>
+          <InfoPopover title="Annual Fees" onClose={() => setStatTopic(null)}>
             <p>
               Sum of the listed annual fee for every active card in the wallet,
               before any credits, sign-up bonuses, or category earn are netted
@@ -255,7 +314,7 @@ export function WalletSummaryStats({
         )}
 
         {statTopic === 'duration' && (
-          <InfoPopover title="Duration" onClose={() => setStatTopic(null)}>
+          <InfoPopover title="Time Horizon" onClose={() => setStatTopic(null)}>
             <p>
               How long to project the wallet's value. The calculator amortizes
               one-time benefits (sign-up bonuses, first-year bonuses, first-year
@@ -265,7 +324,7 @@ export function WalletSummaryStats({
             <div>
               <p className="text-slate-300 font-medium mb-1">Effect on EAF</p>
               <p>
-                Longer durations spread one-time benefits thinner, so cards with
+                Longer horizons spread one-time benefits thinner, so cards with
                 big SUBs look less valuable per year. Recurring benefits (annual
                 fees, statement credits, category earn) are unaffected.
               </p>

@@ -771,18 +771,12 @@ cards:
   transfer_enabler: true
   photo_slug: chase_sapphire_preferred
   multipliers:
-  - category: Airlines
-    multiplier: 5.0
   - category: Dining
     multiplier: 3.0
   - category: Groceries
     multiplier: 3.0
-  - category: Hotels
-    multiplier: 5.0
   - category: Streaming
     multiplier: 3.0
-  - category: Transit
-    multiplier: 2.0
   - category: Travel
     multiplier: 2.0
   - category: Travel
@@ -937,20 +931,17 @@ cards:
   transfer_enabler: true
   photo_slug: citi_strata_elite
   multipliers:
-  - category: Airlines
-    multiplier: 6.0
   - category: All Other
     multiplier: 1.5
+  - category: Airlines
+    multiplier: 6.0
+    is_portal: true
   - category: Attractions
     multiplier: 12.0
     is_portal: true
   - category: Car Rentals
     multiplier: 12.0
     is_portal: true
-  - category: Dining
-    multiplier: 3.0
-  - category: Hotels
-    multiplier: 12.0
   - category: Hotels
     multiplier: 12.0
     is_portal: true

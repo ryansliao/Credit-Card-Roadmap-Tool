@@ -462,6 +462,39 @@ class CalculatorDataService:
             if cat not in non_add_overrides:
                 multipliers[cat] = all_other_rate + premium
 
+        # Cascade standalone non-portal multipliers down the spend-category
+        # tree. A card's rate on a parent (e.g. CSP's "Travel 2x") applies to
+        # every descendant that doesn't have its own standalone non-portal
+        # override, modelling issuer semantics without requiring each child
+        # category to be listed redundantly in the DB. Descendants that are
+        # explicit standalone non-portal overrides halt descent through that
+        # subtree; group membership or portal-only entries do not.
+        explicit_standalone_ids: set[int] = set()
+        standalone_rate_by_id: dict[int, float] = {}
+        for m in card.multipliers:
+            if getattr(m, "multiplier_group_id", None) is not None:
+                continue
+            if getattr(m, "is_portal", False):
+                continue
+            if not m.category or (m.category or "").strip().lower() == "all other":
+                continue
+            rate = multipliers.get(m.category)
+            if rate is None:
+                continue
+            explicit_standalone_ids.add(m.category_id)
+            standalone_rate_by_id[m.category_id] = rate
+
+        for cid, rate in standalone_rate_by_id.items():
+            stack = list(children_by_parent.get(cid, []))
+            while stack:
+                desc = stack.pop()
+                if desc.id in explicit_standalone_ids:
+                    continue
+                if desc.category not in multipliers:
+                    multipliers[desc.category] = rate
+                for child in children_by_parent.get(desc.id, []):
+                    stack.append(child)
+
         portal_categories: set[str] = {
             m.category
             for m in card.multipliers

@@ -54,26 +54,19 @@ function pctOf(range: Range, ms: number): number {
   return clamp01((ms - range.startMs) / range.spanMs) * 100
 }
 
-function annualIncomePoints(c: CardResult | null, _years: number): number | null {
+function annualIncomePoints(c: CardResult | null): number | null {
   if (!c) return null
   // `annual_point_earn` is already per-year on both the simple path and the
   // segmented path (which time-weights across segments). It excludes SUB and
   // first-year bonuses, giving the recurring annual category earn we want for
   // the currency-group header and per-card income label.
-  //
-  // Computing this via `(total_points - sub_points - sub_spend_earn) / years`
-  // was wrong on the segmented path: `sub_spend_earn` is baked into the
-  // segment-weighted earn there, so `total_points` never included it — but
-  // `cr.sub_spend_earn` still reports the raw card value, so subtracting it
-  // pushed the figure negative whenever the SUB bonus spend exceeded the
-  // card's recurring annual earn × window.
   return c.annual_point_earn
 }
 
 /** Format a card's annual income using the same "Pts/Year" / "/Year" suffix
  * as the currency group header so the two read consistently. */
-function formatCardIncome(c: CardResult | null, years: number): string | null {
-  const pts = annualIncomePoints(c, years)
+function formatCardIncome(c: CardResult | null): string | null {
+  const pts = annualIncomePoints(c)
   if (pts == null || c == null) return null
   if (c.effective_reward_kind === 'cash') {
     const dollars = (pts * c.cents_per_point) / 100
@@ -90,7 +83,7 @@ function formatCardIncome(c: CardResult | null, years: number): string | null {
 function groupAnnualDollars(group: GroupData): number {
   return group.cards.reduce((s, { cr }) => {
     if (!cr) return s
-    const pts = cr.annual_point_earn
+    const pts = annualIncomePoints(cr) ?? 0
     return s + (pts * cr.cents_per_point) / 100
   }, 0)
 }
@@ -116,12 +109,15 @@ function formatGroupIncome(group: GroupData): string | null {
   if (included.length === 0) return null
   if (rewardKind === 'cash') {
     const dollars = included.reduce((s, { cr }) => {
-      const pts = cr?.annual_point_earn ?? 0
+      const pts = annualIncomePoints(cr ?? null) ?? 0
       return s + (pts * (cr?.cents_per_point ?? 1)) / 100
     }, 0)
     return `${formatMoney(dollars)} /Year`
   }
-  const pts = included.reduce((s, { cr }) => s + (cr?.annual_point_earn ?? 0), 0)
+  const pts = included.reduce(
+    (s, { cr }) => s + (annualIncomePoints(cr ?? null) ?? 0),
+    0,
+  )
   const rounded = Math.round(pts)
   return `${formatPoints(rounded)} Pts/Year`
 }
@@ -438,29 +434,6 @@ export function WalletTimelineChart({
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
               </button>
-              {roadmap && (
-                <span
-                  className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
-                    roadmap.five_twenty_four_eligible
-                      ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700'
-                      : 'bg-red-900/60 text-red-300 border border-red-700'
-                  }`}
-                  title={`${roadmap.five_twenty_four_count} personal cards opened in last 24 months`}
-                >
-                  5/24: {roadmap.five_twenty_four_count}/5
-                </span>
-              )}
-              <span
-                className="ml-10 flex items-center gap-1.5 text-[11px] text-slate-400"
-                title="Amber line marks the SUB earned date (dashed when projected)"
-              >
-                <span
-                  aria-hidden
-                  className="inline-block"
-                  style={{ width: 2, height: 12, backgroundColor: '#f59e0b' }}
-                />
-                SUB Earned Date
-              </span>
             </div>
             <div
               className={`sticky top-0 z-40 bg-slate-900 ${DIVIDER_CLASS} relative`}
@@ -521,7 +494,6 @@ export function WalletTimelineChart({
                 key={g.name}
                 group={g}
                 range={range}
-                totalYears={totalYears}
                 roadmapById={roadmapById}
                 isUpdating={isUpdating}
                 isStale={isStale}
@@ -582,7 +554,6 @@ interface GroupData {
 interface GroupSectionProps {
   group: GroupData
   range: Range
-  totalYears: number
   roadmapById: Map<number, RoadmapResponse['cards'][number]>
   isUpdating: boolean
   isStale: boolean
@@ -595,7 +566,6 @@ interface GroupSectionProps {
 function GroupSection({
   group,
   range,
-  totalYears,
   roadmapById,
   isUpdating,
   isStale,
@@ -673,7 +643,6 @@ function GroupSection({
           secondary={secondary}
           color={group.color}
           range={range}
-          totalYears={totalYears}
           roadmapStatus={roadmapById.get(wc.card_id)}
           isUpdating={isUpdating}
           isStale={isStale}
@@ -692,7 +661,6 @@ interface CardRowProps {
   secondary: SecondaryAnnual | null
   color: string
   range: Range
-  totalYears: number
   roadmapStatus: RoadmapResponse['cards'][number] | undefined
   isUpdating: boolean
   isStale: boolean
@@ -707,7 +675,6 @@ function CardRow({
   secondary,
   color,
   range,
-  totalYears,
   roadmapStatus,
   isUpdating,
   isStale,
@@ -747,7 +714,7 @@ function CardRow({
   // For disabled cards we want to suppress real numbers (including "0") and
   // show an em-dash placeholder so the row clearly reads as "not
   // contributing right now" instead of implying $0 EAF / 0 pts.
-  const incomeLabel = enabled ? formatCardIncome(cr, totalYears) : '—'
+  const incomeLabel = enabled ? formatCardIncome(cr) : '—'
   const eafValue = enabled ? cr?.card_effective_annual_fee ?? null : null
   const eafLabelText = enabled
     ? eafValue != null

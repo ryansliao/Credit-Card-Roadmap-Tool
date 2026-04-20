@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import type {
-  RoadmapResponse,
   UpdateWalletCardPayload,
   Wallet,
   WalletCard,
@@ -60,7 +59,6 @@ function compareWalletCardsByOpeningNewestFirst(a: WalletCard, b: WalletCard): n
 
 interface Props {
   wallet: Wallet
-  roadmap: RoadmapResponse | undefined
   /** When true, the In Wallet panel is read-only (no edit/remove/drag/close).
    *  Future Cards and Considering remain fully interactive. */
   inWalletLocked?: boolean
@@ -274,7 +272,6 @@ function CardItem({
 
 export function CardsListPanel({
   wallet,
-  roadmap,
   inWalletLocked,
   closeCardId,
   closeDateInput,
@@ -359,18 +356,6 @@ export function CardsListPanel({
       <div className="h-7 flex items-center justify-between mb-3 shrink-0">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-slate-200">Cards</h2>
-          {roadmap && (
-            <span
-              className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                roadmap.five_twenty_four_eligible
-                  ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700'
-                  : 'bg-red-900/60 text-red-300 border border-red-700'
-              }`}
-              title={`${roadmap.five_twenty_four_count} personal cards opened in last 24 months`}
-            >
-              5/24: {roadmap.five_twenty_four_count}/5
-            </span>
-          )}
         </div>
         <button
           type="button"
