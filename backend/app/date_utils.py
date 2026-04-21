@@ -58,13 +58,18 @@ def projected_sub_earn_date(
 
 
 def months_in_half_open_interval(start: date, end: date) -> int:
-    """Number of calendar months spanned by [start, end)."""
+    """Number of full calendar months spanned by [start, end).
+
+    Returns 0 for intervals shorter than one month. Callers that need a
+    minimum of one year should funnel the result through
+    ``years_counted_from_total_months``, which already floors at 1.
+    """
     if end <= start:
         raise ValueError("end must be after start")
     total = (end.year - start.year) * 12 + (end.month - start.month)
     if end.day < start.day:
         total -= 1
-    return max(1, total)
+    return max(0, total)
 
 
 def years_counted_from_total_months(total_months: int) -> int:

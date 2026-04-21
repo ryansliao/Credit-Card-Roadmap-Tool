@@ -67,13 +67,6 @@ class UpdateCreditPayload(BaseModel):
 
     @model_validator(mode="after")
     def at_least_one_field(self):
-        has_any = len(self.model_fields_set) > 0 or any(
-            v is not None for v in (
-                self.value, self.credit_name, self.excludes_first_year,
-                self.is_one_time, self.credit_currency_id,
-                self.card_ids, self.card_values,
-            )
-        )
-        if not has_any:
+        if not self.model_fields_set:
             raise ValueError("At least one field must be set")
         return self

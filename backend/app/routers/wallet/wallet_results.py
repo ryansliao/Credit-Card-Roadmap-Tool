@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -131,11 +131,14 @@ async def wallet_results(
     ]
 
     _save_calc_window = "end" if end_date is not None else "duration"
-    wallet.calc_start_date = ref_date
-    wallet.calc_end_date = resp_end
-    wallet.calc_duration_years = resp_dur_y
-    wallet.calc_duration_months = resp_dur_m
-    wallet.calc_window_mode = _save_calc_window
+    await wallet_service.save_calc_window(
+        wallet,
+        start=ref_date,
+        end=resp_end,
+        duration_years=resp_dur_y,
+        duration_months=resp_dur_m,
+        window_mode=_save_calc_window,
+    )
 
     if not active_wallet_cards:
         empty_response = WalletResultResponseSchema(
@@ -159,8 +162,9 @@ async def wallet_results(
                 total_reward_value_usd=0,
             ),
         )
-        wallet.last_calc_snapshot = empty_response.model_dump_json()
-        wallet.last_calc_timestamp = datetime.now(timezone.utc)
+        await wallet_service.save_last_calc_snapshot(
+            wallet, empty_response.model_dump_json()
+        )
         await db.commit()
         return empty_response
 
@@ -266,8 +270,7 @@ async def wallet_results(
                 daily_rate = card_daily_rates.get(wc.card_id, 0.0)
                 proj = projected_sub_earn_date(wc.added_date, eff_min, eff_months, daily_rate)
         projected_dates[wc.card_id] = proj
-        if wc.sub_projected_earn_date != proj:
-            wc.sub_projected_earn_date = proj
+        await wallet_service.set_projected_sub_earn_date(wc, proj)
 
     plan_card_ids = {s.card_id for s in sub_plan.schedules}
     modified_cards = [
@@ -318,8 +321,7 @@ async def wallet_results(
         years_counted=wallet_result.years_counted,
         wallet=wallet_to_schema(wallet_result, photo_slugs=photo_slugs),
     )
-    wallet.last_calc_snapshot = response.model_dump_json()
-    wallet.last_calc_timestamp = datetime.now(timezone.utc)
+    await wallet_service.save_last_calc_snapshot(wallet, response.model_dump_json())
     await db.commit()
 
     return response

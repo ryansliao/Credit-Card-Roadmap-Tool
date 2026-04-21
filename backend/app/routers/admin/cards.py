@@ -1,6 +1,6 @@
 """Admin endpoints for Card CRUD and card multipliers."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database import get_db
@@ -32,7 +32,8 @@ async def admin_create_card(
     card = await card_service.create(payload)
     await db.commit()
     reloaded = await card_service.get_with_opts(card.id)
-    assert reloaded is not None
+    if reloaded is None:
+        raise HTTPException(status_code=500, detail="Failed to reload created card")
     return reloaded
 
 
@@ -76,7 +77,8 @@ async def admin_add_card_multiplier(
     )
     await db.commit()
     reloaded = await card_service.get_with_opts(card_id)
-    assert reloaded is not None
+    if reloaded is None:
+        raise HTTPException(status_code=500, detail="Failed to reload card after multiplier change")
     return reloaded
 
 

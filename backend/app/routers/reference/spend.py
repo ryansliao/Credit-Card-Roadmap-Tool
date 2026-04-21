@@ -13,14 +13,6 @@ from ...services import (
 router = APIRouter(tags=["spend"])
 
 
-@router.get("/spend", response_model=list[SpendCategoryRead])
-async def list_spend(
-    spend_service: SpendCategoryService = Depends(get_spend_category_service),
-):
-    """List all granular earn categories (used by card multipliers)."""
-    return await spend_service.list_all()
-
-
 @router.get("/app-spend-categories", response_model=list[SpendCategoryRead])
 async def list_app_spend_categories(
     spend_service: SpendCategoryService = Depends(get_spend_category_service),

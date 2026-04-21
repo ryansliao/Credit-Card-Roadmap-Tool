@@ -136,13 +136,14 @@ export function WalletTab({ walletId, walletCards, isLoading }: WalletTabProps) 
                   </div>
                   <div className="text-right shrink-0 mr-1">
                     <p className="text-xs tabular-nums text-white">
+                      {wc.credit_total > 0 && (
+                        <>
+                          Credits: <span className="text-emerald-400">{formatMoney(wc.credit_total)}</span>
+                          <span className="text-slate-600 mx-1.5">·</span>
+                        </>
+                      )}
                       Annual Fee: {(wc.annual_fee ?? 0) > 0 ? <span className="text-red-400">{formatMoney(wc.annual_fee ?? 0)}</span> : <span className="text-emerald-400">$0</span>}
                     </p>
-                    {wc.credit_total > 0 && (
-                      <p className="text-xs tabular-nums text-white mt-0.5">
-                        Credit Value: <span className="text-emerald-400">{formatMoney(wc.credit_total)}</span>
-                      </p>
-                    )}
                   </div>
                   <button
                     type="button"
@@ -196,6 +197,7 @@ export function WalletTab({ walletId, walletCards, isLoading }: WalletTabProps) 
             )
           }}
           isLoading={addCardMutation.isPending || updateWalletCardMutation.isPending}
+          showCategoryPriorityTab={false}
         />
       )}
     </div>

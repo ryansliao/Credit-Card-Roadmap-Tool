@@ -30,7 +30,7 @@ async def list_wallet_card_credits(
 ):
     """List credit overrides for a card in this wallet."""
     await wallet_service.get_user_wallet(wallet_id, user)
-    wc = await override_service.get_wallet_card_or_404(wallet_id, card_id)
+    wc = await wallet_service.get_wallet_card_or_404(wallet_id, card_id)
     return await override_service.list_credits(wc.id)
 
 
@@ -50,7 +50,7 @@ async def upsert_wallet_card_credit(
 ):
     """Attach a standardized credit to this wallet card with a user-set value."""
     await wallet_service.get_user_wallet(wallet_id, user)
-    wc = await override_service.get_wallet_card_or_404(wallet_id, card_id)
+    wc = await wallet_service.get_wallet_card_or_404(wallet_id, card_id)
     row = await override_service.upsert_credit(wc.id, library_credit_id, payload.value)
     await db.commit()
     await db.refresh(row)
@@ -72,6 +72,6 @@ async def delete_wallet_card_credit(
 ):
     """Detach a standardized credit from this wallet card."""
     await wallet_service.get_user_wallet(wallet_id, user)
-    wc = await override_service.get_wallet_card_or_404(wallet_id, card_id)
+    wc = await wallet_service.get_wallet_card_or_404(wallet_id, card_id)
     await override_service.delete_credit(wc.id, library_credit_id)
     await db.commit()

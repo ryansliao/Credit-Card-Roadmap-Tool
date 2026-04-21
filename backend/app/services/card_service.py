@@ -3,7 +3,7 @@
 from typing import Optional
 
 from fastapi import Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -220,16 +220,28 @@ class CardService(BaseService[Card]):
         return card
 
     async def delete_card_if_unused(self, card: Card) -> None:
-        """Delete a card after ensuring it isn't referenced by any WalletCard."""
+        """Delete a card after ensuring it isn't referenced by any WalletCard.
+
+        Checks both ``card_id`` (the card a wallet holds) and
+        ``pc_from_card_id`` (the source card of a product change). The latter
+        has a NO ACTION FK, so the database would also reject the delete; we
+        check up front to return a clean 409 instead of a raw SQL error.
+        """
         used = await self.db.execute(
-            select(WalletCard.id).where(WalletCard.card_id == card.id)
+            select(WalletCard.id).where(
+                or_(
+                    WalletCard.card_id == card.id,
+                    WalletCard.pc_from_card_id == card.id,
+                )
+            )
         )
         if used.scalars().first() is not None:
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    "Cannot delete card — it is used in one or more wallets. "
-                    "Remove it from all wallets first."
+                    "Cannot delete card — it is used in one or more wallets "
+                    "(directly or as a product-change source). Remove all "
+                    "references first."
                 ),
             )
         await self.delete(card)

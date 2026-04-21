@@ -39,8 +39,8 @@ class WalletPortalShare(Base):
     )
     share: Mapped[float] = mapped_column(Float, nullable=False)
 
-    wallet: Mapped["Wallet"] = relationship()
-    travel_portal: Mapped["TravelPortal"] = relationship()
+    wallet: Mapped["Wallet"] = relationship(back_populates="portal_shares")
+    travel_portal: Mapped["TravelPortal"] = relationship(back_populates="wallet_shares")
 
     def __repr__(self) -> str:
         return f"<WalletPortalShare w={self.wallet_id} portal={self.travel_portal_id} share={self.share}>"

@@ -20,6 +20,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from ..database import Base
 
 if TYPE_CHECKING:
+    from .credit import CardCredit
     from .currency import Currency
     from .reference import CoBrand, Issuer, NetworkTier, SpendCategory
     from .travel_portal import TravelPortal
@@ -176,9 +177,14 @@ class Card(Base):
         back_populates="card", cascade="all, delete-orphan"
     )
     wallet_cards: Mapped[list["WalletCard"]] = relationship(
-        back_populates="card", cascade="all, delete-orphan"
+        back_populates="card",
+        cascade="all, delete-orphan",
+        foreign_keys="WalletCard.card_id",
     )
     wallet_multipliers: Mapped[list["WalletCardMultiplier"]] = relationship(
+        back_populates="card", cascade="all, delete-orphan"
+    )
+    card_credit_links: Mapped[list["CardCredit"]] = relationship(
         back_populates="card", cascade="all, delete-orphan"
     )
 

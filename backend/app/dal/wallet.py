@@ -29,6 +29,7 @@ if TYPE_CHECKING:
         WalletCardMultiplier,
     )
     from .wallet_currency import WalletCurrencyCpp
+    from .wallet_portal import WalletPortalShare
     from .wallet_spend import WalletSpendItem
 
 
@@ -80,6 +81,9 @@ class Wallet(Base):
         back_populates="wallet", cascade="all, delete-orphan"
     )
     card_multipliers: Mapped[list["WalletCardMultiplier"]] = relationship(
+        back_populates="wallet", cascade="all, delete-orphan"
+    )
+    portal_shares: Mapped[list["WalletPortalShare"]] = relationship(
         back_populates="wallet", cascade="all, delete-orphan"
     )
 
@@ -135,7 +139,14 @@ class WalletCard(Base):
     # Acquisition tracking: "opened" = new application, "product_change" = PC from same issuer
     acquisition_type: Mapped[str] = mapped_column(String(20), nullable=False, default="opened")
     # For product_change cards: the library card_id of the card that was changed FROM.
-    pc_from_card_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    # NO ACTION (not CASCADE / SET NULL) because wallet_cards.card_id already
+    # cascades from cards, and SQL Server forbids two cascading paths between
+    # the same pair of tables. Deletion of a referenced source card is blocked
+    # at the FK level; CardService.delete_card_if_unused enforces the same
+    # check up front so admins get a clean 409.
+    pc_from_card_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cards.id", ondelete="NO ACTION"), nullable=True
+    )
 
     # Panel placement:
     #   "in_wallet"    = currently held; included in calculations
@@ -155,7 +166,10 @@ class WalletCard(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     wallet: Mapped["Wallet"] = relationship(back_populates="wallet_cards")
-    card: Mapped["Card"] = relationship(back_populates="wallet_cards")
+    card: Mapped["Card"] = relationship(
+        back_populates="wallet_cards",
+        foreign_keys=[card_id],
+    )
     credit_overrides_rows: Mapped[list["WalletCardCredit"]] = relationship(
         back_populates="wallet_card", cascade="all, delete-orphan"
     )

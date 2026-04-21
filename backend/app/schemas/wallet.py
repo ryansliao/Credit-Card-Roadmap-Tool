@@ -68,15 +68,20 @@ class WalletCardUpdate(BaseModel):
 
 
 class WalletCardRead(WalletCardBase):
+    """Wallet card read model. Always built via ``schemas.builders.wc_read`` —
+    the enriched fields below are derived from the joined library Card and
+    cannot be populated from the WalletCard ORM row alone, so they are
+    required (no defaults) to surface missing builder calls loudly.
+    """
     model_config = ConfigDict(from_attributes=True)
     id: int
     wallet_id: int
-    card_name: Optional[str] = None  # populated by the API layer
-    transfer_enabler: bool = False  # from library Card, populated by the API layer
-    photo_slug: Optional[str] = None  # from library Card
-    issuer_name: Optional[str] = None  # from library Card → Issuer
-    network_tier_name: Optional[str] = None  # from library Card → NetworkTier
-    credit_total: float = 0  # sum of wallet card credit override values
+    card_name: str  # from library Card.name
+    transfer_enabler: bool  # from library Card.transfer_enabler
+    photo_slug: Optional[str]  # from library Card.photo_slug (may be None)
+    issuer_name: Optional[str]  # from library Card → Issuer.name (may be None)
+    network_tier_name: Optional[str]  # from library Card → NetworkTier.name (may be None)
+    credit_total: float  # sum of wallet card credit override values
 
 
 class WalletBase(BaseModel):

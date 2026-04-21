@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...auth import get_current_user
 from ...database import get_db
-from ...schemas import wc_read
 from ...models import User
 from ...schemas import (
     WalletCardCreate,
@@ -13,6 +12,8 @@ from ...schemas import (
     WalletCardUpdate,
     WalletRead,
     WalletUpdate,
+    wallet_read,
+    wc_read,
 )
 from ...services import (
     WalletService,
@@ -42,9 +43,7 @@ async def get_my_wallet(
         await spend_service.ensure_all_user_categories(wallet.id)
         await db.commit()
         wallet = await wallet_service.get_with_cards(wallet.id)
-    read = WalletRead.model_validate(wallet)
-    read.wallet_cards = [wc_read(wc_item, wc_item.card) for wc_item in wallet.wallet_cards]
-    return read
+    return wallet_read(wallet)
 
 
 @router.get("/wallets/{wallet_id}", response_model=WalletRead)
@@ -55,9 +54,7 @@ async def get_wallet(
 ):
     await wallet_service.get_user_wallet(wallet_id, user)
     wallet = await wallet_service.get_with_cards(wallet_id)
-    read = WalletRead.model_validate(wallet)
-    read.wallet_cards = [wc_read(wc_item, wc_item.card) for wc_item in wallet.wallet_cards]
-    return read
+    return wallet_read(wallet)
 
 
 @router.patch("/wallets/{wallet_id}", response_model=WalletRead)
@@ -73,9 +70,8 @@ async def update_wallet(
     await wallet_service.update(wallet, **payload.model_dump(exclude_none=True))
     await db.commit()
     await db.refresh(wallet)
-    read = WalletRead.model_validate(wallet)
-    read.wallet_cards = [wc_read(wc_item, wc_item.card) for wc_item in wallet.wallet_cards]
-    return read
+    wallet = await wallet_service.get_with_cards(wallet_id)
+    return wallet_read(wallet)
 
 
 @router.post(

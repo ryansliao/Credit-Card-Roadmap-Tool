@@ -11,9 +11,9 @@ from __future__ import annotations
 
 from typing import Literal, cast
 
-from ..models import Card, WalletCard
+from ..models import Card, Wallet, WalletCard
 from .results import CardResultSchema, CategoryEarnItem, WalletResultSchema
-from .wallet import WalletCardRead
+from .wallet import WalletCardRead, WalletRead
 
 
 def wc_read(wc: WalletCard, card: Card) -> WalletCardRead:
@@ -56,6 +56,28 @@ def wc_read(wc: WalletCard, card: Card) -> WalletCardRead:
         panel=cast(Literal["in_wallet", "future_cards", "considering"], wc.panel),
         is_enabled=bool(wc.is_enabled),
         credit_total=sum(c.value for c in wc.credit_overrides_rows) if wc.credit_overrides_rows else 0,
+    )
+
+
+def wallet_read(wallet: Wallet) -> WalletRead:
+    """Build a WalletRead with fully populated wallet_cards.
+
+    The ORM ``wallet`` must have ``wallet_cards`` and each card's library
+    ``card`` (with issuer / network_tier / credit_overrides_rows) eager-loaded.
+    """
+    return WalletRead(
+        id=wallet.id,
+        user_id=wallet.user_id,
+        name=wallet.name,
+        description=wallet.description,
+        as_of_date=wallet.as_of_date,
+        calc_start_date=wallet.calc_start_date,
+        calc_end_date=wallet.calc_end_date,
+        calc_duration_years=wallet.calc_duration_years,
+        calc_duration_months=wallet.calc_duration_months,
+        calc_window_mode=wallet.calc_window_mode,
+        foreign_spend_percent=wallet.foreign_spend_percent,
+        wallet_cards=[wc_read(wc, wc.card) for wc in wallet.wallet_cards],
     )
 
 

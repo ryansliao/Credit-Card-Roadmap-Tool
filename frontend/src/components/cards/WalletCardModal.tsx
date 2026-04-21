@@ -34,6 +34,7 @@ export function WalletCardModal({
   onSaveEdit,
   onRemove,
   isLoading,
+  showCategoryPriorityTab = true,
 }: {
   mode: 'add' | 'edit'
   walletId: number
@@ -47,6 +48,8 @@ export function WalletCardModal({
   /** Edit mode only: triggers the wallet card removal flow. */
   onRemove?: (walletCard: WalletCard) => void
   isLoading: boolean
+  /** When false, hides the Categories (priority) tab. Defaults to true. */
+  showCategoryPriorityTab?: boolean
 }) {
   const { data: cards } = useCardLibrary()
   const queryClient = useQueryClient()
@@ -426,8 +429,22 @@ export function WalletCardModal({
       ? 'Add Card to Wallet'
       : `${walletCard?.card_name ?? `Card #${walletCard?.card_id ?? ''}`}`
 
+  // Credits and Categories tabs are only meaningful once a card is picked.
+  const cardSelected = mode === 'edit' || cardId !== ''
+
+  // If the user deselects a card while on a card-dependent tab, snap back to Lifecycle.
+  useEffect(() => {
+    if (!cardSelected && activeTab !== 'lifecycle') {
+      setActiveTab('lifecycle')
+    }
+  }, [cardSelected, activeTab])
+
   // Linear tab order: Next advances through these; the header Save icon submits.
-  const tabOrder: readonly typeof activeTab[] = ['lifecycle', 'bonuses', 'credits', 'priority']
+  const tabOrder: readonly typeof activeTab[] = [
+    'lifecycle',
+    ...(cardSelected ? (['bonuses', 'credits'] as const) : []),
+    ...(cardSelected && showCategoryPriorityTab ? (['priority'] as const) : []),
+  ]
   const currentTabIndex = tabOrder.indexOf(activeTab)
   const hasNextTab = currentTabIndex !== -1 && currentTabIndex < tabOrder.length - 1
 
@@ -490,13 +507,19 @@ export function WalletCardModal({
           <div className="flex-shrink-0 flex gap-1 px-6 border-b border-slate-700">
             {([
               { id: 'lifecycle' as const, label: 'Lifecycle', badge: 0 },
-              { id: 'bonuses' as const, label: 'Bonuses & Fees', badge: 0 },
-              {
-                id: 'credits' as const,
-                label: 'Credits',
-                badge: Object.keys(selectedCredits).length,
-              },
-              { id: 'priority' as const, label: 'Categories', badge: priorityUserCatCount },
+              ...(cardSelected
+                ? [
+                    { id: 'bonuses' as const, label: 'Bonuses & Fees', badge: 0 },
+                    {
+                      id: 'credits' as const,
+                      label: 'Credits',
+                      badge: Object.keys(selectedCredits).length,
+                    },
+                  ]
+                : []),
+              ...(cardSelected && showCategoryPriorityTab
+                ? [{ id: 'priority' as const, label: 'Categories', badge: priorityUserCatCount }]
+                : []),
             ]).map((t) => (
               <button
                 key={t.id}

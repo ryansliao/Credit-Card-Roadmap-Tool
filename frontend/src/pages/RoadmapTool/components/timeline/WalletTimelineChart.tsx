@@ -848,6 +848,12 @@ function CardRow({
                     {formatSecondaryAnnual(secondary)}
                   </>
                 )}
+                {wc.credit_total > 0 && (
+                  <>
+                    <span className="mx-1 text-slate-700">·</span>
+                    {formatMoney(wc.credit_total)} Credits
+                  </>
+                )}
               </div>
             )}
           </div>

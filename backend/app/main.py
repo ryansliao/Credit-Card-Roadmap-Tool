@@ -32,8 +32,6 @@ from .routers.wallet import (
     wallet_category_priorities,
     wallet_credits,
     wallet_currencies,
-    wallet_groups,
-    wallet_multipliers,
     wallet_portals,
     wallet_results,
     wallet_spend,
@@ -100,8 +98,6 @@ app.include_router(wallets.router, prefix="/api")
 app.include_router(wallet_spend.router, prefix="/api")
 app.include_router(wallet_currencies.router, prefix="/api")
 app.include_router(wallet_credits.router, prefix="/api")
-app.include_router(wallet_multipliers.router, prefix="/api")
-app.include_router(wallet_groups.router, prefix="/api")
 app.include_router(wallet_category_priorities.router, prefix="/api")
 app.include_router(wallet_portals.router, prefix="/api")
 app.include_router(wallet_results.router, prefix="/api")

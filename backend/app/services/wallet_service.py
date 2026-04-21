@@ -1,6 +1,6 @@
 """Wallet and WalletCard data access service."""
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import Depends, HTTPException
@@ -401,6 +401,40 @@ class WalletService(BaseService[Wallet]):
         """
         await self.db.delete(wc)
         await self.db.flush()
+
+    async def save_calc_window(
+        self,
+        wallet: Wallet,
+        start: date,
+        end: Optional[date],
+        duration_years: int,
+        duration_months: int,
+        window_mode: str,
+    ) -> None:
+        """Persist the calc-window config used for a results call."""
+        wallet.calc_start_date = start
+        wallet.calc_end_date = end
+        wallet.calc_duration_years = duration_years
+        wallet.calc_duration_months = duration_months
+        wallet.calc_window_mode = window_mode
+
+    async def save_last_calc_snapshot(
+        self,
+        wallet: Wallet,
+        snapshot_json: str,
+    ) -> None:
+        """Cache the last results-payload JSON and stamp the time."""
+        wallet.last_calc_snapshot = snapshot_json
+        wallet.last_calc_timestamp = datetime.now(timezone.utc)
+
+    async def set_projected_sub_earn_date(
+        self,
+        wc: WalletCard,
+        projected: Optional[date],
+    ) -> None:
+        """Update a WalletCard's projected SUB earn date if it changed."""
+        if wc.sub_projected_earn_date != projected:
+            wc.sub_projected_earn_date = projected
 
 
 def get_wallet_service(db: AsyncSession = Depends(get_db)) -> WalletService:

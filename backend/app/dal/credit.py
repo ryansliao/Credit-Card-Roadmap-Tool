@@ -17,6 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from ..database import Base
 
 if TYPE_CHECKING:
+    from .card import Card
     from .wallet_card_override import WalletCardCredit
 
 
@@ -82,3 +83,4 @@ class CardCredit(Base):
     value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     credit: Mapped["Credit"] = relationship(back_populates="card_links")
+    card: Mapped["Card"] = relationship(back_populates="card_credit_links")

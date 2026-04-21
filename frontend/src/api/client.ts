@@ -578,26 +578,6 @@ export interface RoadmapResponse {
   cards: RoadmapCardStatus[]
 }
 
-// ─── Issuer application rules ─────────────────────────────────────────────────
-
-export interface IssuerApplicationRule {
-  id: number
-  issuer_id: number | null
-  issuer_name: string | null
-  rule_name: string
-  description: string | null
-  max_count: number
-  period_days: number
-  personal_only: boolean
-  scope_all_issuers: boolean
-}
-
-export const issuersApi = {
-  listApplicationRules: () =>
-    request<IssuerApplicationRule[]>('/issuers/application-rules'),
-}
-
-
 // ─── Currencies ───────────────────────────────────────────────────────────────
 
 export const currenciesApi = {
@@ -646,16 +626,6 @@ export const creditsApi = {
     request<void>(`/admin/credits/${creditId}`, { method: 'DELETE' }),
 }
 
-// ─── Spend categories ─────────────────────────────────────────────────────────
-
-export const appSpendCategoriesApi = {
-  list: () => request<SpendCategory[]>('/app-spend-categories'),
-}
-
-export const userSpendCategoriesApi = {
-  list: () => request<UserSpendCategory[]>('/user-spend-categories'),
-  listForInput: () => request<UserSpendCategory[]>('/user-spend-categories/input'),
-}
 
 export const walletSpendItemsApi = {
   list: (walletId: number) =>
@@ -778,80 +748,6 @@ export const travelPortalApi = {
 // ─── Admin: Reference data CRUD ──────────────────────────────────────────────
 
 export const adminApi = {
-  createIssuer: (name: string) =>
-    request<IssuerRead>('/admin/issuers', {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    }),
-  createCurrency: (payload: {
-    name: string
-    reward_kind?: 'points' | 'cash'
-    cents_per_point?: number
-    partner_transfer_rate?: number | null
-    cash_transfer_rate?: number | null
-    converts_to_currency_id?: number | null
-    converts_at_rate?: number | null
-    no_transfer_cpp?: number | null
-    no_transfer_rate?: number | null
-  }) =>
-    request<CurrencyRead>('/admin/currencies', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  createSpendCategory: (category: string) =>
-    request<SpendCategory>('/admin/spend-categories', {
-      method: 'POST',
-      body: JSON.stringify({ category }),
-    }),
-  createCard: (payload: {
-    name: string
-    issuer_id: number
-    currency_id: number
-    co_brand_id?: number | null
-    annual_fee?: number
-    first_year_fee?: number | null
-    business?: boolean
-    network_tier_id?: number | null
-    sub?: number | null
-    sub_min_spend?: number | null
-    sub_months?: number | null
-    sub_spend_earn?: number | null
-    annual_bonus?: number | null
-    transfer_enabler?: boolean
-    sub_recurrence_months?: number | null
-    sub_family?: string | null
-  }) =>
-    request<Card>('/admin/cards', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  deleteCard: (cardId: number) =>
-    request<void>(`/admin/cards/${cardId}`, { method: 'DELETE' }),
-  addCardMultiplier: (cardId: number, payload: {
-    category_id: number
-    multiplier: number
-    is_portal?: boolean
-    cap_per_billing_cycle?: number | null
-    cap_period_months?: number | null
-    multiplier_group_id?: number | null
-  }) =>
-    request<Card>(`/admin/cards/${cardId}/multipliers`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  deleteCardMultiplier: (cardId: number, categoryId: number) =>
-    request<void>(`/admin/cards/${cardId}/multipliers/${categoryId}`, { method: 'DELETE' }),
   listCardRotatingHistory: (cardId: number) =>
     request<CardRotatingHistoryRow[]>(`/admin/cards/${cardId}/rotating-history`),
-  addCardRotatingHistory: (cardId: number, payload: {
-    year: number
-    quarter: number
-    spend_category_id: number
-  }) =>
-    request<CardRotatingHistoryRow>(`/admin/cards/${cardId}/rotating-history`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  deleteCardRotatingHistory: (cardId: number, historyId: number) =>
-    request<void>(`/admin/cards/${cardId}/rotating-history/${historyId}`, { method: 'DELETE' }),
 }

@@ -109,7 +109,7 @@ export function SpendTabContent({
     return out
   }
 
-  // Closed / product-changed-away-from cards; matches CardsListPanel dimming.
+  // Closed / product-changed-away-from cards are excluded from earn allocation.
   const excludedCardIds = useMemo(() => {
     const ids = new Set<number>()
     for (const wc of walletCards) {
