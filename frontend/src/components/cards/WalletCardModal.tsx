@@ -359,6 +359,7 @@ export function WalletCardModal({
           library_credit_id: Number(id),
           value,
         })),
+        priority_category_ids: Array.from(priorityCategoryIds),
         pc_from_card_id: acquisitionType === 'product_change' && typeof pcFromCardId === 'number' ? pcFromCardId : undefined,
       })
       return
@@ -426,10 +427,7 @@ export function WalletCardModal({
       : `${walletCard?.card_name ?? `Card #${walletCard?.card_id ?? ''}`}`
 
   // Linear tab order: Next advances through these; the header Save icon submits.
-  const tabOrder: readonly typeof activeTab[] =
-    mode === 'add'
-      ? ['lifecycle', 'bonuses', 'credits']
-      : ['lifecycle', 'bonuses', 'credits', 'priority']
+  const tabOrder: readonly typeof activeTab[] = ['lifecycle', 'bonuses', 'credits', 'priority']
   const currentTabIndex = tabOrder.indexOf(activeTab)
   const hasNextTab = currentTabIndex !== -1 && currentTabIndex < tabOrder.length - 1
 
@@ -498,9 +496,7 @@ export function WalletCardModal({
                 label: 'Credits',
                 badge: Object.keys(selectedCredits).length,
               },
-              ...(mode === 'edit'
-                ? [{ id: 'priority' as const, label: 'Categories', badge: priorityUserCatCount }]
-                : []),
+              { id: 'priority' as const, label: 'Categories', badge: priorityUserCatCount },
             ]).map((t) => (
               <button
                 key={t.id}
@@ -1114,7 +1110,7 @@ export function WalletCardModal({
                   Pins one or more wallet spend categories to this card so
                   the calculator always routes that spend here. A category
                   already claimed by another wallet card is disabled. */}
-              {activeTab === 'priority' && lib && mode === 'edit' && (
+              {activeTab === 'priority' && lib && (
                 <div className="flex-1 min-h-0 flex flex-col">
                   <p className="text-[11px] text-slate-500 -mx-6 px-6 pb-2 border-b border-slate-700/60 mb-3">
                     Force category spend onto this card only. Does not affect SUB spend allocation.
