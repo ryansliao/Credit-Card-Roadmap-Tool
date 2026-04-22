@@ -303,6 +303,7 @@ async def wallet_results(
         housing_category_names=housing_names,
         foreign_spend_pct=wallet.foreign_spend_percent or 0.0,
         foreign_eligible_categories=foreign_eligible_names,
+        include_subs=bool(wallet.include_subs),
     )
 
     photo_slugs = {card_id: card.photo_slug for card_id, card in library_cards_by_id.items()}

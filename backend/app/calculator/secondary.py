@@ -127,6 +127,7 @@ def _average_annual_net_dollars(
     selected_cards: list[CardData],
     precomputed_earn: Optional[float] = None,
     housing_spend: float = 0.0,
+    include_subs: bool = True,
 ) -> float:
     """
     Average annual net dollar benefit over `years`, amortising SUB and first-year fee.
@@ -160,15 +161,19 @@ def _average_annual_net_dollars(
     annual_credits, annual_credits_skip, one_time_credits = _credit_annual_and_one_time_totals(card)
 
     rate = _conversion_rate(card, wallet_currency_ids)
-    # When the SUB is not earnable, exclude the SUB bonus and its earn contribution
-    effective_sub = (card.sub_spend_earn * rate) if card.sub_earnable else 0.0
-    effective_sub_pts = card.sub_points if card.sub_earnable else 0
-    effective_sub_cash = card.sub_cash if card.sub_earnable else 0.0
+    # When the SUB is not earnable (or the wallet-level include_subs toggle is
+    # off), exclude the SUB bonus and its earn contribution from the EAF
+    # formula. Allocation and balance code paths still see the card's real
+    # SUB fields; only the EV dollar value is stripped here.
+    sub_counts = card.sub_earnable and include_subs
+    effective_sub = (card.sub_spend_earn * rate) if sub_counts else 0.0
+    effective_sub_pts = card.sub_points if sub_counts else 0
+    effective_sub_cash = card.sub_cash if sub_counts else 0.0
     # Secondary-currency SUB (e.g. Bilt Cash): valued at the secondary currency's
     # cents_per_point. Honors the housing-spend cap — if the card has a positive
     # cap_rate and the wallet has no housing spend, the SUB is not redeemable.
     effective_sub_secondary_dollars = 0.0
-    if card.sub_earnable and card.sub_secondary_points > 0 and card.secondary_currency is not None:
+    if sub_counts and card.sub_secondary_points > 0 and card.secondary_currency is not None:
         cap_blocks = card.secondary_currency_cap_rate > 0 and housing_spend <= 0
         if not cap_blocks:
             effective_sub_secondary_dollars = card.sub_secondary_points * card.secondary_currency.cents_per_point / 100.0

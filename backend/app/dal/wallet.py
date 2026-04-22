@@ -59,6 +59,15 @@ class Wallet(Base):
     # Percentage of total spend that occurs as foreign transactions (0–100).
     foreign_spend_percent: Mapped[float] = mapped_column(Float, default=0, server_default="0")
 
+    # Roadmap-tool-wide toggle for including Sign Up Bonuses in the EV
+    # calculation (EAF, recurring income, per-card earn). When False, SUB
+    # bonuses, sub_spend_earn, sub_cash, sub_secondary_points, and SUB-window
+    # allocation priority are all disabled for calculation purposes. Manually
+    # tracked WalletCurrencyBalance rows are unaffected.
+    include_subs: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="1"
+    )
+
     # Cached last /wallets/{id}/results payload (JSON-serialised
     # WalletResultResponseSchema) + timestamp, so returning to the Roadmap Tool
     # restores the prior calculation without forcing another Calculate click.

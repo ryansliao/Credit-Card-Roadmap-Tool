@@ -95,6 +95,7 @@ class WalletUpdate(BaseModel):
     description: Optional[str] = None
     as_of_date: Optional[date] = None
     foreign_spend_percent: Optional[float] = None
+    include_subs: Optional[bool] = None
 
 
 class WalletRead(WalletBase):
@@ -108,3 +109,4 @@ class WalletRead(WalletBase):
     calc_duration_months: int = 0
     calc_window_mode: str = "duration"
     foreign_spend_percent: float = 0
+    include_subs: bool = True

@@ -3,7 +3,7 @@ import type { CardResult, RoadmapResponse, WalletResult } from '../../../../api/
 import { formatMoney, formatPointsExact } from '../../../../utils/format'
 import { InfoIconButton, InfoPopover } from '../../../../components/InfoPopover'
 
-type StatTopic = 'eaf' | 'income' | 'fees' | 'duration' | null
+type StatTopic = 'eaf' | 'income' | 'fees' | 'duration' | 'subs' | null
 
 /** Annual recurring point income for a card.
  *
@@ -31,6 +31,8 @@ interface Props {
   durationYears: number
   durationMonths: number
   onDurationChange: (years: number, months: number) => void
+  includeSubs: boolean
+  onIncludeSubsChange: (value: boolean) => void
   resultsError?: Error | null
 }
 
@@ -42,6 +44,8 @@ export function WalletSummaryStats({
   durationYears,
   durationMonths,
   onDurationChange,
+  includeSubs,
+  onIncludeSubsChange,
   resultsError,
 }: Props) {
   const [statTopic, setStatTopic] = useState<StatTopic>(null)
@@ -178,6 +182,49 @@ export function WalletSummaryStats({
         </div>
       </div>
 
+      {/* Include SUBs toggle — segmented control, distinct from the per-card
+          enable/disable pill toggle in the timeline. */}
+      <div
+        className={`shrink-0 w-44 bg-slate-900 border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
+      >
+        <div className="flex items-center gap-1 mb-2.5">
+          <span className="text-[10px] text-slate-400 uppercase tracking-wider whitespace-nowrap">Sign Up Bonuses</span>
+          <InfoIconButton onClick={() => setStatTopic('subs')} label="How the Sign Up Bonus toggle affects calculation" />
+        </div>
+        <div
+          role="radiogroup"
+          aria-label="Include Sign Up Bonuses in calculation"
+          className="flex rounded-md border border-slate-700 overflow-hidden text-xs font-medium"
+        >
+          <button
+            type="button"
+            role="radio"
+            aria-checked={includeSubs}
+            onClick={() => onIncludeSubsChange(true)}
+            className={`flex-1 px-2 py-1 transition-colors ${
+              includeSubs
+                ? 'bg-indigo-500/90 text-white'
+                : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Include
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={!includeSubs}
+            onClick={() => onIncludeSubsChange(false)}
+            className={`flex-1 px-2 py-1 transition-colors border-l border-slate-700 ${
+              !includeSubs
+                ? 'bg-indigo-500/90 text-white'
+                : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Exclude
+          </button>
+        </div>
+      </div>
+
       {/* Right: 5/24 status + legend */}
       {roadmap && (
         <div
@@ -308,6 +355,44 @@ export function WalletSummaryStats({
                 Cards toggled off in the timeline are excluded from all wallet
                 totals. Re-enable them to include their fees and earn in the
                 summary.
+              </p>
+            </div>
+          </InfoPopover>
+        )}
+
+        {statTopic === 'subs' && (
+          <InfoPopover title="Sign Up Bonuses" onClose={() => setStatTopic(null)}>
+            <p>
+              Controls whether Sign Up Bonuses count toward the wallet's
+              effective annual fee and recurring income across the roadmap.
+              Toggle off to see the wallet's steady-state value — how it earns
+              once all SUBs have been claimed and the welcome period is over.
+            </p>
+            <div>
+              <p className="text-slate-300 font-medium mb-1">When included</p>
+              <p>
+                SUB bonuses (points and cash) are amortised into EAF, the SUB
+                spend requirement pulls allocation priority during its window
+                (inflating recurring income for the card with an active SUB),
+                and SUB opportunity cost is deducted from the best alternative
+                card.
+              </p>
+            </div>
+            <div>
+              <p className="text-slate-300 font-medium mb-1">When excluded</p>
+              <p>
+                Every card is evaluated as if it had no welcome offer: no SUB
+                amortisation in EAF, no SUB-window allocation boost, and no
+                opportunity cost. Useful for comparing cards on their long-term
+                merits.
+              </p>
+            </div>
+            <div>
+              <p className="text-slate-300 font-medium mb-1">What stays the same</p>
+              <p>
+                Currency balances you track manually are unaffected. The
+                roadmap's SUB earned-date markers and 5/24 status also ignore
+                this toggle.
               </p>
             </div>
           </InfoPopover>

@@ -96,6 +96,7 @@ function walletCalcSignature(
     durationYears,
     durationMonths,
     foreign_spend_percent: wallet.foreign_spend_percent,
+    include_subs: wallet.include_subs,
     cards,
     spend,
   })
@@ -224,6 +225,14 @@ export default function RoadmapToolPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
       setInSigDirty(true)
+    },
+  })
+
+  const updateWalletSettingMutation = useMutation({
+    mutationFn: ({ walletId, include_subs }: { walletId: number; include_subs: boolean }) =>
+      walletsApi.update(walletId, { include_subs }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
     },
   })
 
@@ -402,6 +411,11 @@ export default function RoadmapToolPage() {
                 onDurationChange={(y, m) => {
                   setDurationYears(y)
                   setDurationMonths(m)
+                  setInSigDirty(true)
+                }}
+                includeSubs={wallet.include_subs ?? true}
+                onIncludeSubsChange={(v) => {
+                  updateWalletSettingMutation.mutate({ walletId: wallet.id, include_subs: v })
                   setInSigDirty(true)
                 }}
                 resultsError={

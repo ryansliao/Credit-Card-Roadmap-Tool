@@ -42,6 +42,7 @@ def _segmented_card_net_per_year(
     precomputed_seg_alloc: list[dict[int, dict[str, float]]] | None = None,
     precomputed_seg_alloc_balance: list[dict[int, dict[str, float]]] | None = None,
     housing_spend: float = 0.0,
+    include_subs: bool = True,
 ) -> tuple[float, float, float]:
     """
     Returns (average_annual_net_dollars, annualized_point_earn, annualized_point_earn_for_balance)
@@ -166,16 +167,21 @@ def _segmented_card_net_per_year(
     # sub_spend_earn would double-count those points, and subtracting net_opp
     # would double-count the cost already reflected in other cards' reduced
     # segment earn.
-    if card.sub_earnable and card.sub_points:
+    #
+    # ``include_subs`` gates the EAF contribution only; allocation and segment
+    # routing above still honor the card's real SUB state, so recurring income
+    # and balances don't shift when the user toggles SUBs off.
+    sub_counts = card.sub_earnable and include_subs
+    if sub_counts and card.sub_points:
         earned = card.sub_projected_earn_date
         if earned is None or window_start <= earned <= window_end:
             eff_currency = _effective_currency(card, active_wallet_currency_ids)
             total_earn_dollars += card.sub_points * eff_currency.cents_per_point / 100.0
-    if card.sub_earnable and card.sub_cash:
+    if sub_counts and card.sub_cash:
         total_credits += card.sub_cash
     # Secondary-currency SUB (e.g. Bilt Cash): value at face via the secondary
     # currency's CPP, subject to the same housing-spend cap as earned secondary.
-    if card.sub_earnable and card.sub_secondary_points > 0 and card.secondary_currency is not None:
+    if sub_counts and card.sub_secondary_points > 0 and card.secondary_currency is not None:
         cap_blocks = card.secondary_currency_cap_rate > 0 and housing_spend <= 0
         if not cap_blocks:
             total_credits += card.sub_secondary_points * card.secondary_currency.cents_per_point / 100.0

@@ -192,6 +192,7 @@ def compute_wallet(
     housing_category_names: set[str] | None = None,
     foreign_spend_pct: float = 0.0,
     foreign_eligible_categories: set[str] | None = None,
+    include_subs: bool = True,
 ) -> WalletResult:
     """
     Compute results for every card in `all_cards`.
@@ -205,6 +206,17 @@ def compute_wallet(
     that can plausibly have foreign spend. Only these are split into a foreign
     bucket by the wallet-level ``foreign_spend_pct``; everything else stays
     100% domestic. Pass ``None`` to split every category (legacy behaviour).
+
+    include_subs: wallet-wide toggle for whether Sign Up Bonuses contribute to
+    effective annual fee. When False, the SUB bonus, sub_spend_earn,
+    sub_cash, sub_secondary_points, and SUB opportunity cost are stripped
+    from the EAF dollar formula on both the simple and segmented paths. The
+    toggle intentionally leaves allocation, SUB-window priority routing, and
+    per-card recurring income (``annual_point_earn``) untouched — those
+    reflect the wallet's earning behaviour, which does not change just
+    because the user wants to exclude welcome offers from EAF. Balances
+    (``total_points`` / ``currency_pts``) and manually tracked
+    WalletCurrencyBalance rows are also unaffected.
     """
     selected_cards = [c for c in all_cards if c.id in selected_ids]
 
@@ -452,6 +464,7 @@ def compute_wallet(
                 precomputed_seg_alloc=seg_alloc_cache,
                 precomputed_seg_alloc_balance=seg_alloc_cache_balance,
                 housing_spend=housing_spend_total,
+                include_subs=include_subs,
             )
             effective_annual_fee = round(-net_annual, 4)
             # Per-card EAF: re-annualize using the card's own active years.
@@ -485,6 +498,7 @@ def compute_wallet(
                 card, spend, years, active_wallet_currency_ids, selected_cards,
                 precomputed_earn=annual_point_earn,
                 housing_spend=housing_spend_total,
+                include_subs=include_subs,
             )
             effective_annual_fee = round(-net_annual, 4)
             card_effective_annual_fee = effective_annual_fee
@@ -494,7 +508,10 @@ def compute_wallet(
             )
         credit_val = calc_credit_valuation(card)
         sub_extra = calc_sub_extra_spend(card, spend, selected_cards, active_wallet_currency_ids)
-        gross_opp, net_opp = calc_sub_opportunity_cost(card, selected_cards, spend, active_wallet_currency_ids)
+        if include_subs:
+            gross_opp, net_opp = calc_sub_opportunity_cost(card, selected_cards, spend, active_wallet_currency_ids)
+        else:
+            gross_opp, net_opp = 0.0, 0.0
         avg_mult = calc_avg_spend_multiplier(card, spend)
         if use_segmentation:
             # Time-weighted breakdown: reads from the same per-segment LP cache

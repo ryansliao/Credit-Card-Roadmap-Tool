@@ -77,6 +77,7 @@ def wallet_read(wallet: Wallet) -> WalletRead:
         calc_duration_months=wallet.calc_duration_months,
         calc_window_mode=wallet.calc_window_mode,
         foreign_spend_percent=wallet.foreign_spend_percent,
+        include_subs=wallet.include_subs,
         wallet_cards=[wc_read(wc, wc.card) for wc in wallet.wallet_cards],
     )
 

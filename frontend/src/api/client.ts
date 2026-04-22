@@ -409,6 +409,7 @@ export interface Wallet {
   calc_duration_months: number
   calc_window_mode: 'duration' | 'end'
   foreign_spend_percent: number
+  include_subs: boolean
 }
 
 export interface WalletResultResponse {
@@ -431,6 +432,7 @@ export interface UpdateWalletPayload {
   description?: string | null
   as_of_date?: string | null
   foreign_spend_percent?: number
+  include_subs?: boolean
 }
 
 export interface InitialWalletCardCredit {
