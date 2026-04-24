@@ -1,9 +1,8 @@
 """Regression snapshot for `compute_wallet`.
 
-This test builds a deterministic, DB-free fixture that exercises both the
-simple-path and segmented-path code in `app.calculator.compute_wallet`,
-then compares the serialized `WalletResult` against a JSON snapshot
-committed under `tests/fixtures/`.
+Each scenario is a hand-built, DB-free `CardData` fixture that exercises
+one concept documented in CLAUDE.md's Core Concepts section. Outputs are
+serialized to committed JSON under `tests/fixtures/`.
 
 Intentional calculator changes should rerun with `--snapshot-update` and
 commit the fixture diff as its own commit so reviewers see exactly what
@@ -20,7 +19,7 @@ import math
 from dataclasses import asdict, is_dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
@@ -30,7 +29,7 @@ FIXTURE_DIR = Path(__file__).parent / "fixtures"
 
 
 # ---------------------------------------------------------------------------
-# Fixture builders
+# Shared currency builders
 # ---------------------------------------------------------------------------
 
 
@@ -64,6 +63,11 @@ def _cash_currency() -> CurrencyData:
     )
 
 
+# ---------------------------------------------------------------------------
+# Shared card builders
+# ---------------------------------------------------------------------------
+
+
 def _csp_card() -> CardData:
     """Chase Sapphire Preferred — SUB-bearing transfer-enabler."""
     return CardData(
@@ -77,7 +81,7 @@ def _csp_card() -> CardData:
         sub_secondary_points=0,
         sub_min_spend=4000,
         sub_months=3,
-        sub_spend_earn=4000,  # 1x base on the $4k SUB minimum
+        sub_spend_earn=4000,
         annual_bonus=0,
         multipliers={"All Other": 1.0, "Dining": 3.0, "Travel": 2.0},
         transfer_enabler=True,
@@ -151,8 +155,6 @@ def _simple_path_result() -> WalletResult:
 
 
 def _segmented_path_result() -> WalletResult:
-    # Window with explicit dates + at least one card with wallet_added_date
-    # triggers the segmented path.
     csp = _csp_card()
     csp.wallet_added_date = date(2026, 1, 1)
     csp.sub_projected_earn_date = date(2026, 3, 15)
@@ -162,7 +164,7 @@ def _segmented_path_result() -> WalletResult:
     gold.sub_projected_earn_date = date(2026, 8, 1)
 
     cash = _cash_flat_card()
-    cash.wallet_added_date = date(2025, 1, 1)  # already held before window
+    cash.wallet_added_date = date(2025, 1, 1)
 
     cards = [csp, gold, cash]
     return compute_wallet(
@@ -178,12 +180,22 @@ def _segmented_path_result() -> WalletResult:
 
 
 # ---------------------------------------------------------------------------
+# Scenario registry
+# ---------------------------------------------------------------------------
+
+
+SCENARIOS: dict[str, Callable[[], WalletResult]] = {
+    "simple_path": _simple_path_result,
+    "segmented_path": _segmented_path_result,
+}
+
+
+# ---------------------------------------------------------------------------
 # Serialization + snapshot plumbing
 # ---------------------------------------------------------------------------
 
 
 def _round_floats(obj: Any, ndigits: int = 4) -> Any:
-    """Round floats recursively so tiny FP noise doesn't flap the snapshot."""
     if isinstance(obj, float):
         if math.isnan(obj) or math.isinf(obj):
             return str(obj)
@@ -196,12 +208,10 @@ def _round_floats(obj: Any, ndigits: int = 4) -> Any:
 
 
 def _serialize(result: WalletResult) -> dict[str, Any]:
-    # Convert dataclass graph → JSON-safe primitives.
     def convert(obj: Any) -> Any:
         if is_dataclass(obj) and not isinstance(obj, type):
             return {k: convert(v) for k, v in asdict(obj).items()}
         if isinstance(obj, dict):
-            # stringify non-str keys for JSON stability
             return {str(k): convert(v) for k, v in obj.items()}
         if isinstance(obj, (list, tuple)):
             return [convert(v) for v in obj]
@@ -227,7 +237,6 @@ def _assert_snapshot(name: str, result: WalletResult, update: bool) -> None:
 
     committed = json.loads(path.read_text())
     if committed != current:
-        # Build a terse diff hint so the failure message is useful.
         diff_hint = _first_diff(committed, current)
         pytest.fail(
             f"Snapshot {path.name} drifted. First diff: {diff_hint}\n"
@@ -258,15 +267,11 @@ def _first_diff(a: Any, b: Any, path: str = "") -> str:
 
 
 # ---------------------------------------------------------------------------
-# Tests
+# Parametrized test
 # ---------------------------------------------------------------------------
 
 
-def test_simple_path_snapshot(snapshot_update: bool) -> None:
-    result = _simple_path_result()
-    _assert_snapshot("simple_path", result, snapshot_update)
-
-
-def test_segmented_path_snapshot(snapshot_update: bool) -> None:
-    result = _segmented_path_result()
-    _assert_snapshot("segmented_path", result, snapshot_update)
+@pytest.mark.parametrize("scenario", sorted(SCENARIOS))
+def test_scenario_snapshot(scenario: str, snapshot_update: bool) -> None:
+    result = SCENARIOS[scenario]()
+    _assert_snapshot(scenario, result, snapshot_update)
