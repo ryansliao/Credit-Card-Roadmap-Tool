@@ -1,0 +1,140 @@
+{
+  "card_results": [
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 95.0,
+      "annual_point_earn": 20192.04,
+      "annual_point_earn_window": 20192.04,
+      "avg_spend_multiplier": 1.5333,
+      "card_active_years": 1.9959,
+      "card_effective_annual_fee": -856.9702,
+      "card_id": 101,
+      "card_name": "Chase Sapphire Preferred",
+      "card_sub_eaf_contribution": 541.1111,
+      "category_earn": [
+        [
+          "All Other",
+          13168.72
+        ],
+        [
+          "Travel",
+          7023.32
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 1.0,
+        "Dining": 3.0,
+        "Travel": 2.0
+      },
+      "cents_per_point": 1.8,
+      "credit_valuation": 0,
+      "effective_annual_fee": -856.9702,
+      "effective_currency_id": 1,
+      "effective_currency_name": "Chase Ultimate Rewards",
+      "effective_currency_photo_slug": null,
+      "effective_reward_kind": "points",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_eaf_contribution": 541.1111,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 60000,
+      "sub_spend_earn": 4000,
+      "total_points": 100301.16
+    },
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 325.0,
+      "annual_point_earn": 46319.62,
+      "annual_point_earn_window": 46319.62,
+      "avg_spend_multiplier": 2.1,
+      "card_active_years": 1.9959,
+      "card_effective_annual_fee": -1135.6485,
+      "card_id": 102,
+      "card_name": "Amex Gold",
+      "card_sub_eaf_contribution": 511.0494,
+      "category_earn": [
+        [
+          "Dining",
+          24000.0
+        ],
+        [
+          "Groceries",
+          20000.0
+        ],
+        [
+          "All Other",
+          1831.28
+        ],
+        [
+          "Travel",
+          488.34
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 1.0,
+        "Dining": 4.0,
+        "Groceries": 4.0
+      },
+      "cents_per_point": 1.7,
+      "credit_valuation": 0,
+      "effective_annual_fee": -1135.6485,
+      "effective_currency_id": 2,
+      "effective_currency_name": "Amex Membership Rewards",
+      "effective_currency_photo_slug": null,
+      "effective_reward_kind": "points",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_eaf_contribution": 511.0494,
+      "sub_extra_spend": 1000.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 27.6,
+      "sub_points": 60000,
+      "sub_spend_earn": 6000,
+      "total_points": 152449.01
+    }
+  ],
+  "currency_pts": {
+    "Amex Membership Rewards": 152449.01,
+    "Chase Ultimate Rewards": 100301.16
+  },
+  "currency_pts_by_id": {
+    "1": 100301.16,
+    "2": 152449.01
+  },
+  "currency_window_years": {
+    "1": 1.9959,
+    "2": 1.9959
+  },
+  "point_income": 66511.66,
+  "secondary_currency_pts": {},
+  "secondary_currency_pts_by_id": {},
+  "total_cash_reward_dollars": 0,
+  "total_effective_annual_fee": -1992.6187,
+  "total_points_earned": 252750.17,
+  "total_reward_value_usd": 4397.0541,
+  "total_sub_eaf_contribution": 1052.1605,
+  "wallet_window_years": 1.9959,
+  "years_counted": 2
+}

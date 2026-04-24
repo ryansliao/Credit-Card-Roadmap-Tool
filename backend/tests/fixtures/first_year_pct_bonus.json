@@ -1,0 +1,153 @@
+{
+  "card_results": [
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": true,
+      "annual_bonus_percent": 100.0,
+      "annual_fee": 0.0,
+      "annual_point_earn": 7250.0,
+      "annual_point_earn_window": 7250.0,
+      "avg_spend_multiplier": 2.6812,
+      "card_active_years": 2.0,
+      "card_effective_annual_fee": -108.75,
+      "card_id": 701,
+      "card_name": "Discover IT",
+      "card_sub_eaf_contribution": 0.0,
+      "category_earn": [
+        [
+          "First Year Match (100%)",
+          7250.0
+        ],
+        [
+          "Dining",
+          2500.0
+        ],
+        [
+          "Groceries",
+          2500.0
+        ],
+        [
+          "Gas",
+          1500.0
+        ],
+        [
+          "Streaming",
+          750.0
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 1.0,
+        "Dining": 5.0,
+        "Gas": 5.0,
+        "Groceries": 5.0,
+        "Streaming": 5.0
+      },
+      "cents_per_point": 1.0,
+      "credit_valuation": 0,
+      "effective_annual_fee": -108.75,
+      "effective_currency_id": 3,
+      "effective_currency_name": "Cash",
+      "effective_currency_photo_slug": null,
+      "effective_reward_kind": "cash",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_eaf_contribution": 0.0,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 0,
+      "sub_spend_earn": 0,
+      "total_points": 21750.0
+    },
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 0.0,
+      "annual_point_earn": 24700.0,
+      "annual_point_earn_window": 24700.0,
+      "avg_spend_multiplier": 2.0,
+      "card_active_years": 2.0,
+      "card_effective_annual_fee": -247.0,
+      "card_id": 103,
+      "card_name": "Citi Double Cash",
+      "card_sub_eaf_contribution": 0.0,
+      "category_earn": [
+        [
+          "All Other",
+          16000.0
+        ],
+        [
+          "Dining",
+          3000.0
+        ],
+        [
+          "Groceries",
+          3000.0
+        ],
+        [
+          "Gas",
+          1800.0
+        ],
+        [
+          "Streaming",
+          900.0
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 2.0
+      },
+      "cents_per_point": 1.0,
+      "credit_valuation": 0,
+      "effective_annual_fee": -247.0,
+      "effective_currency_id": 3,
+      "effective_currency_name": "Cash",
+      "effective_currency_photo_slug": null,
+      "effective_reward_kind": "cash",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_eaf_contribution": 0.0,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 0,
+      "sub_spend_earn": 0,
+      "total_points": 49400.0
+    }
+  ],
+  "currency_pts": {
+    "Cash": 71150.0
+  },
+  "currency_pts_by_id": {
+    "3": 71150.0
+  },
+  "currency_window_years": {
+    "3": 2.0
+  },
+  "point_income": 0.0,
+  "secondary_currency_pts": {},
+  "secondary_currency_pts_by_id": {},
+  "total_cash_reward_dollars": 711.5,
+  "total_effective_annual_fee": -355.75,
+  "total_points_earned": 0,
+  "total_reward_value_usd": 711.5,
+  "total_sub_eaf_contribution": 0.0,
+  "wallet_window_years": 2.0,
+  "years_counted": 2
+}

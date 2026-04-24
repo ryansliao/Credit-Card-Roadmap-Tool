@@ -1,0 +1,141 @@
+{
+  "card_results": [
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 695.0,
+      "annual_point_earn": 42000.0,
+      "annual_point_earn_window": 42000.0,
+      "avg_spend_multiplier": 2.9207,
+      "card_active_years": 2.0,
+      "card_effective_annual_fee": -366.5,
+      "card_id": 401,
+      "card_name": "Top-3 of 5",
+      "card_sub_eaf_contribution": 0.0,
+      "category_earn": [
+        [
+          "Dining",
+          16000.0
+        ],
+        [
+          "Groceries",
+          14000.0
+        ],
+        [
+          "Gas",
+          12000.0
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 1.0,
+        "Dining": 4.0,
+        "Gas": 4.0,
+        "Groceries": 4.0,
+        "Streaming": 1.0,
+        "Transit": 1.0
+      },
+      "cents_per_point": 1.7,
+      "credit_valuation": 0,
+      "effective_annual_fee": -366.5,
+      "effective_currency_id": 2,
+      "effective_currency_name": "Amex Membership Rewards",
+      "effective_currency_photo_slug": null,
+      "effective_reward_kind": "points",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_eaf_contribution": 0.0,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 0,
+      "sub_spend_earn": 0,
+      "total_points": 84000.0
+    },
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 0.0,
+      "annual_point_earn": 11800.0,
+      "annual_point_earn_window": 11800.0,
+      "avg_spend_multiplier": 2.0,
+      "card_active_years": 2.0,
+      "card_effective_annual_fee": -118.0,
+      "card_id": 103,
+      "card_name": "Citi Double Cash",
+      "card_sub_eaf_contribution": 0.0,
+      "category_earn": [
+        [
+          "All Other",
+          10000.0
+        ],
+        [
+          "Streaming",
+          1000.0
+        ],
+        [
+          "Transit",
+          800.0
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 2.0
+      },
+      "cents_per_point": 1.0,
+      "credit_valuation": 0,
+      "effective_annual_fee": -118.0,
+      "effective_currency_id": 3,
+      "effective_currency_name": "Cash",
+      "effective_currency_photo_slug": null,
+      "effective_reward_kind": "cash",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_eaf_contribution": 0.0,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 0,
+      "sub_spend_earn": 0,
+      "total_points": 23600.0
+    }
+  ],
+  "currency_pts": {
+    "Amex Membership Rewards": 84000.0,
+    "Cash": 23600.0
+  },
+  "currency_pts_by_id": {
+    "2": 84000.0,
+    "3": 23600.0
+  },
+  "currency_window_years": {
+    "2": 2.0,
+    "3": 2.0
+  },
+  "point_income": 42000.0,
+  "secondary_currency_pts": {},
+  "secondary_currency_pts_by_id": {},
+  "total_cash_reward_dollars": 236.0,
+  "total_effective_annual_fee": -484.5,
+  "total_points_earned": 84000.0,
+  "total_reward_value_usd": 1664.0,
+  "total_sub_eaf_contribution": 0.0,
+  "wallet_window_years": 2.0,
+  "years_counted": 2
+}

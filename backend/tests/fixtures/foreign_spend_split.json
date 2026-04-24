@@ -1,0 +1,189 @@
+{
+  "card_results": [
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 0.0,
+      "annual_point_earn": 7500.0,
+      "annual_point_earn_window": 7500.0,
+      "avg_spend_multiplier": 1.5,
+      "card_active_years": 2.0,
+      "card_effective_annual_fee": -75.0,
+      "card_id": 501,
+      "card_name": "Chase Freedom Unlimited (no FTF)",
+      "card_sub_eaf_contribution": 0.0,
+      "category_earn": [
+        [
+          "All Other",
+          4500.0
+        ],
+        [
+          "Dining",
+          1800.0
+        ],
+        [
+          "Travel",
+          1200.0
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 1.5
+      },
+      "cents_per_point": 1.0,
+      "credit_valuation": 0,
+      "effective_annual_fee": -75.0,
+      "effective_currency_id": 3,
+      "effective_currency_name": "Cash",
+      "effective_currency_photo_slug": null,
+      "effective_reward_kind": "cash",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_eaf_contribution": 0.0,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 0,
+      "sub_spend_earn": 0,
+      "total_points": 15000.0
+    },
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 325.0,
+      "annual_point_earn": 39200.0,
+      "annual_point_earn_window": 39200.0,
+      "avg_spend_multiplier": 1.98,
+      "card_active_years": 2.0,
+      "card_effective_annual_fee": -1064.9,
+      "card_id": 102,
+      "card_name": "Amex Gold",
+      "card_sub_eaf_contribution": 561.0,
+      "category_earn": [
+        [
+          "Groceries",
+          20000.0
+        ],
+        [
+          "Dining",
+          19200.0
+        ],
+        [
+          "SUB Spend",
+          6000.0
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 1.0,
+        "Dining": 4.0,
+        "Groceries": 4.0
+      },
+      "cents_per_point": 1.7,
+      "credit_valuation": 0,
+      "effective_annual_fee": -1064.9,
+      "effective_currency_id": 2,
+      "effective_currency_name": "Amex Membership Rewards",
+      "effective_currency_photo_slug": null,
+      "effective_reward_kind": "points",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_eaf_contribution": 561.0,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 60000,
+      "sub_spend_earn": 6000,
+      "total_points": 144400.0
+    },
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 0.0,
+      "annual_point_earn": 30400.0,
+      "annual_point_earn_window": 30400.0,
+      "avg_spend_multiplier": 2.0,
+      "card_active_years": 2.0,
+      "card_effective_annual_fee": -304.0,
+      "card_id": 103,
+      "card_name": "Citi Double Cash",
+      "card_sub_eaf_contribution": 0.0,
+      "category_earn": [
+        [
+          "All Other",
+          24000.0
+        ],
+        [
+          "Travel",
+          6400.0
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 2.0
+      },
+      "cents_per_point": 1.0,
+      "credit_valuation": 0,
+      "effective_annual_fee": -304.0,
+      "effective_currency_id": 3,
+      "effective_currency_name": "Cash",
+      "effective_currency_photo_slug": null,
+      "effective_reward_kind": "cash",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_eaf_contribution": 0.0,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 0,
+      "sub_spend_earn": 0,
+      "total_points": 60800.0
+    }
+  ],
+  "currency_pts": {
+    "Amex Membership Rewards": 144400.0,
+    "Cash": 75800.0
+  },
+  "currency_pts_by_id": {
+    "2": 144400.0,
+    "3": 75800.0
+  },
+  "currency_window_years": {
+    "2": 2.0,
+    "3": 2.0
+  },
+  "point_income": 39200.0,
+  "secondary_currency_pts": {},
+  "secondary_currency_pts_by_id": {},
+  "total_cash_reward_dollars": 758.0,
+  "total_effective_annual_fee": -1443.9,
+  "total_points_earned": 144400.0,
+  "total_reward_value_usd": 3212.8,
+  "total_sub_eaf_contribution": 561.0,
+  "wallet_window_years": 2.0,
+  "years_counted": 2
+}

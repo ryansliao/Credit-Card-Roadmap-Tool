@@ -1,0 +1,149 @@
+{
+  "card_results": [
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 0.0,
+      "annual_point_earn": 20250.0,
+      "annual_point_earn_window": 20250.0,
+      "avg_spend_multiplier": 4.0566,
+      "card_active_years": 2.0,
+      "card_effective_annual_fee": -202.5,
+      "card_id": 202,
+      "card_name": "Chase Freedom Flex (heavy)",
+      "card_sub_eaf_contribution": 0.0,
+      "category_earn": [
+        [
+          "Dining",
+          7500.0
+        ],
+        [
+          "Groceries",
+          7500.0
+        ],
+        [
+          "Gas",
+          3750.0
+        ],
+        [
+          "Streaming",
+          1500.0
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 1.0,
+        "Dining": 5.0,
+        "Gas": 5.0,
+        "Groceries": 5.0,
+        "Streaming": 5.0
+      },
+      "cents_per_point": 1.0,
+      "credit_valuation": 0,
+      "effective_annual_fee": -202.5,
+      "effective_currency_id": 3,
+      "effective_currency_name": "Cash",
+      "effective_currency_photo_slug": null,
+      "effective_reward_kind": "cash",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_eaf_contribution": 0.0,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 0,
+      "sub_spend_earn": 0,
+      "total_points": 40500.0
+    },
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 0.0,
+      "annual_point_earn": 34300.0,
+      "annual_point_earn_window": 34300.0,
+      "avg_spend_multiplier": 2.0,
+      "card_active_years": 2.0,
+      "card_effective_annual_fee": -343.0,
+      "card_id": 103,
+      "card_name": "Citi Double Cash",
+      "card_sub_eaf_contribution": 0.0,
+      "category_earn": [
+        [
+          "All Other",
+          10000.0
+        ],
+        [
+          "Dining",
+          9000.0
+        ],
+        [
+          "Groceries",
+          9000.0
+        ],
+        [
+          "Gas",
+          4500.0
+        ],
+        [
+          "Streaming",
+          1800.0
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 2.0
+      },
+      "cents_per_point": 1.0,
+      "credit_valuation": 0,
+      "effective_annual_fee": -343.0,
+      "effective_currency_id": 3,
+      "effective_currency_name": "Cash",
+      "effective_currency_photo_slug": null,
+      "effective_reward_kind": "cash",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_eaf_contribution": 0.0,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 0,
+      "sub_spend_earn": 0,
+      "total_points": 68600.0
+    }
+  ],
+  "currency_pts": {
+    "Cash": 109100.0
+  },
+  "currency_pts_by_id": {
+    "3": 109100.0
+  },
+  "currency_window_years": {
+    "3": 2.0
+  },
+  "point_income": 0.0,
+  "secondary_currency_pts": {},
+  "secondary_currency_pts_by_id": {},
+  "total_cash_reward_dollars": 1091.0,
+  "total_effective_annual_fee": -545.5,
+  "total_points_earned": 0,
+  "total_reward_value_usd": 1091.0,
+  "total_sub_eaf_contribution": 0.0,
+  "wallet_window_years": 2.0,
+  "years_counted": 2
+}
