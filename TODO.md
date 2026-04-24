@@ -3,7 +3,6 @@
 ## Calculation
 
 ## Database
-- Product Change bonus should be 0's by default.
 
 ## Backend
 

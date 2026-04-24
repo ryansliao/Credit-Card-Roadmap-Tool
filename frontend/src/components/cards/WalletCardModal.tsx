@@ -241,10 +241,12 @@ export function WalletCardModal({
       if (hydratedKey.current === key) return
       hydratedKey.current = key
       // One-shot hydration gated by hydratedKey.current — not a render loop.
+      // Product-change acquisitions default SUB fields to 0 (no library SUB carries over).
+      const isPc = acquisitionType === 'product_change'
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSubPoints(lib.sub_points != null ? String(lib.sub_points) : '')
-      setSubMinSpend(lib.sub_min_spend != null ? String(lib.sub_min_spend) : '')
-      setSubMonths(lib.sub_months != null ? String(lib.sub_months) : '')
+      setSubPoints(isPc ? '0' : (lib.sub_points != null ? String(lib.sub_points) : ''))
+      setSubMinSpend(isPc ? '0' : (lib.sub_min_spend != null ? String(lib.sub_min_spend) : ''))
+      setSubMonths(isPc ? '0' : (lib.sub_months != null ? String(lib.sub_months) : ''))
       setAnnualBonus(lib.annual_bonus != null ? String(lib.annual_bonus) : '')
       setAnnualFee(String(lib.annual_fee))
       setFirstYearFee(lib.first_year_fee != null ? String(lib.first_year_fee) : '')
@@ -312,6 +314,22 @@ export function WalletCardModal({
     // Reset "to" selection whenever "from" changes
     setCardId('')
     setCardSearch('')
+  }
+
+  function handleAcquisitionTypeChange(v: WalletCardAcquisitionType) {
+    if (v === acquisitionType) return
+    setAcquisitionType(v)
+    // User-initiated toggle: reset SUB fields to the appropriate defaults.
+    // Product change → 0s. Opened → library SUB values (when a card is resolved).
+    if (v === 'product_change') {
+      setSubPoints('0')
+      setSubMinSpend('0')
+      setSubMonths('0')
+    } else if (lib) {
+      setSubPoints(lib.sub_points != null ? String(lib.sub_points) : '')
+      setSubMinSpend(lib.sub_min_spend != null ? String(lib.sub_min_spend) : '')
+      setSubMonths(lib.sub_months != null ? String(lib.sub_months) : '')
+    }
   }
 
   function selectCard(id: number, name: string) {
@@ -570,7 +588,7 @@ export function WalletCardModal({
                           type="button"
                           role="radio"
                           aria-checked={selected}
-                          onClick={() => setAcquisitionType(v)}
+                          onClick={() => handleAcquisitionTypeChange(v)}
                           className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
                             i > 0 ? 'border-t border-slate-600/60' : ''
                           } ${
