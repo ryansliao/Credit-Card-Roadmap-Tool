@@ -897,8 +897,9 @@ cards:
   sub_min_spend: 1000
   sub_months: 3
   photo_slug: citi_strata
+  foreign_transaction_fee: true
   multiplier_groups:
-  - multiplier: 5.0
+  - multiplier: 3.0
     top_n_categories: 1
   multipliers:
   - category: Attractions
@@ -911,13 +912,30 @@ cards:
     multiplier: 2.0
   - category: EV Charging
     multiplier: 3.0
+  - category: Fitness
+    multiplier: 3.0
+    group_index: 0
   - category: Gas
     multiplier: 3.0
   - category: Groceries
-    multiplier: 2.0
+    multiplier: 3.0
   - category: Hotels
     multiplier: 5.0
     is_portal: true
+  - category: Live Entertainment
+    multiplier: 3.0
+    group_index: 0
+  - category: Personal Care
+    multiplier: 3.0
+    group_index: 0
+  - category: Pet Supply Stores
+    multiplier: 3.0
+    group_index: 0
+  - category: Streaming
+    multiplier: 3.0
+    group_index: 0
+  - category: Transit
+    multiplier: 3.0
   travel_portals:
   - Citi Travel
 - name: Citi Strata Elite
