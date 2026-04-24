@@ -279,12 +279,21 @@ def _segment_card_earn_pts_per_cat(
             continue
 
         # Effective bonus and overflow rates per dollar:
-        #   - Additive: bonus = cat_mult + g_mult (stack premium on top of always-on),
-        #               overflow = cat_mult (still earns the always-on portion above the cap)
-        #   - Non-additive: bonus = g_mult (replaces base), overflow = all_other (legacy)
+        #   - Additive non-rotating: bonus = cat_mult + g_mult (stack premium on top of
+        #                            always-on), overflow = cat_mult.
+        #   - Additive rotating:     bonus = cat_mult (already includes the premium
+        #                            from _build_effective_multipliers; adding g_mult
+        #                            would double-count), overflow = all_other (the
+        #                            category only gets the premium during its active
+        #                            rotating quarter).
+        #   - Non-additive:          bonus = g_mult (replaces base), overflow = all_other.
         if is_additive:
-            bonus_rate = cat_mult + g_mult
-            overflow_rate = cat_mult
+            if is_rotating:
+                bonus_rate = cat_mult
+                overflow_rate = all_other
+            else:
+                bonus_rate = cat_mult + g_mult
+                overflow_rate = cat_mult
         else:
             bonus_rate = g_mult
             overflow_rate = all_other
@@ -317,13 +326,20 @@ def _segment_card_earn_pts_per_cat(
             (cat, seg_alloc_dollars, g_mult, cat_mult, is_additive)
         )
 
-    # Per-category effective rates: additive groups stack the premium on
-    # top of cat_mult, non-additive groups use g_mult / all_other.
-    def _bonus_rate(group_m: float, cat_m: float, item_is_add: bool) -> float:
-        return cat_m + group_m if item_is_add else group_m
+    # Per-category effective rates. Rotating additive groups have the premium
+    # baked into cat_m by _build_effective_multipliers (so cat_m IS the bonus
+    # rate); their overflow is base (all_other) because the bonus only applies
+    # during the active rotating quarter. Non-rotating additive groups stack
+    # the premium on top of cat_m. Non-additive groups replace with g_mult.
+    def _bonus_rate(group_m: float, cat_m: float, item_is_add: bool, item_is_rot: bool) -> float:
+        if not item_is_add:
+            return group_m
+        return cat_m if item_is_rot else (cat_m + group_m)
 
-    def _overflow_rate(cat_m: float, item_is_add: bool) -> float:
-        return cat_m if item_is_add else all_other
+    def _overflow_rate(cat_m: float, item_is_add: bool, item_is_rot: bool) -> float:
+        if not item_is_add:
+            return all_other
+        return all_other if item_is_rot else cat_m
 
     def _finalize_pool(
         pending: dict[int, list[tuple[str, float, float, float, bool]]],
@@ -332,7 +348,7 @@ def _segment_card_earn_pts_per_cat(
         """Pass 2: split the remaining per-period cap proportionally across
         the categories that received seg-allocated spend in this group."""
         for gid, items in pending.items():
-            _g_mult, g_cap_amt, g_cap_months, _is_rot, _rot, _g_is_add = capped_groups[gid]
+            _g_mult, g_cap_amt, g_cap_months, grp_is_rot, _rot, _g_is_add = capped_groups[gid]
             period_start, _ = _cap_period_bounds(seg_start, g_cap_months)
             key = (key_prefix, gid, period_start)
             if key not in cap_state:
@@ -346,7 +362,7 @@ def _segment_card_earn_pts_per_cat(
             if remaining <= 0:
                 # Cap fully consumed by an earlier segment in this period.
                 for cat_name, alloc_d, _gm, cat_m, item_is_add in items:
-                    pts = alloc_d * _overflow_rate(cat_m, item_is_add)
+                    pts = alloc_d * _overflow_rate(cat_m, item_is_add, grp_is_rot)
                     if pts > 0:
                         out[cat_name] = out.get(cat_name, 0.0) + pts
                 continue
@@ -354,7 +370,7 @@ def _segment_card_earn_pts_per_cat(
             if total_alloc <= remaining:
                 # Whole group fits under the cap; everything earns at bonus rate.
                 for cat_name, alloc_d, gm, cat_m, item_is_add in items:
-                    pts = alloc_d * _bonus_rate(gm, cat_m, item_is_add)
+                    pts = alloc_d * _bonus_rate(gm, cat_m, item_is_add, grp_is_rot)
                     if pts > 0:
                         out[cat_name] = out.get(cat_name, 0.0) + pts
                 cap_state[key] = remaining - total_alloc
@@ -364,8 +380,8 @@ def _segment_card_earn_pts_per_cat(
                     bonus_share = alloc_d / total_alloc * remaining
                     overflow = alloc_d - bonus_share
                     pts = (
-                        bonus_share * _bonus_rate(gm, cat_m, item_is_add)
-                        + overflow * _overflow_rate(cat_m, item_is_add)
+                        bonus_share * _bonus_rate(gm, cat_m, item_is_add, grp_is_rot)
+                        + overflow * _overflow_rate(cat_m, item_is_add, grp_is_rot)
                     )
                     if pts > 0:
                         out[cat_name] = out.get(cat_name, 0.0) + pts

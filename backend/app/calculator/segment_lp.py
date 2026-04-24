@@ -111,12 +111,20 @@ def _solve_segment_allocation_lp(
     # Used to constrain each card's allocation to its frequency share.
     rotating_freq: dict[tuple[int, str], float] = {}
 
-    def _bonus_rate_for_pair(k_idx: int, cl: str, g_mult: float, g_is_add: bool) -> float:
+    def _bonus_rate_for_pair(
+        k_idx: int, cl: str, g_mult: float, g_is_add: bool, is_rotating: bool = False
+    ) -> float:
         """Effective bonus rate when this group's cap applies. For additive
         groups the premium stacks onto the always-on rate; for non-additive
-        groups the group multiplier replaces the base entirely."""
+        groups the group multiplier replaces the base entirely.
+
+        For *rotating* additive groups ``card_mult`` already includes the
+        premium (baked in by ``_build_effective_multipliers``), so returning
+        ``card_mult`` IS the full bonus rate — adding ``g_mult`` again would
+        double-count."""
         if g_is_add:
-            return card_mult[k_idx].get(cl, card_all_other[k_idx]) + g_mult
+            cm = card_mult[k_idx].get(cl, card_all_other[k_idx])
+            return cm if is_rotating else (cm + g_mult)
         return g_mult
 
     # ---- Portal premiums. ----
@@ -177,7 +185,7 @@ def _solve_segment_allocation_lp(
                     # Use the FULL bonus rate since frequency is enforced via
                     # upper bounds on allocation, not via EV-blended rates.
                     active_bonus_rate = _bonus_rate_for_pair(
-                        k_idx, cl, float(g_mult), g_is_add
+                        k_idx, cl, float(g_mult), g_is_add, is_rotating=True
                     )
                     bonus_mult[(k_idx, cl)] = active_bonus_rate
                     pair_is_additive[(k_idx, cl)] = g_is_add
@@ -310,7 +318,17 @@ def _solve_segment_allocation_lp(
             # rate somewhere between all_other and bonus_mult in the output.
             # Using all_other creates a clear gradient: LP fills b (high rate)
             # before e (low rate), which is what the cap is supposed to enforce.
-            if not pair_is_additive.get((k_idx, cat_lower), True) and (k_idx, cat_lower) in capped_pairs:
+            #
+            # Rotating additive categories also overflow to all_other — the
+            # bonus only applies when the category is the active rotating
+            # quarter; the rest of the year the card earns its base rate.
+            # ``card_mult`` already includes the rotating premium (baked in
+            # by ``_build_effective_multipliers``), so using it here would
+            # pretend the bonus is always-on.
+            is_rotating_pair = (k_idx, cat_lower) in rotating_freq
+            in_capped = (k_idx, cat_lower) in capped_pairs
+            is_additive_pair = pair_is_additive.get((k_idx, cat_lower), True)
+            if in_capped and (not is_additive_pair or is_rotating_pair):
                 mult = card_all_other[k_idx]
             else:
                 mult = card_mult[k_idx].get(cat_lower, card_all_other[k_idx])

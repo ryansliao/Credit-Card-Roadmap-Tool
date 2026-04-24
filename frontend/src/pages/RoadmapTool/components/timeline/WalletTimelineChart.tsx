@@ -264,10 +264,6 @@ export function WalletTimelineChart({
 
   const visibleCards = useMemo(() => {
     return (wallet.wallet_cards ?? []).filter((wc) => {
-      if (wc.closed_date) {
-        const closedMs = parseDate(wc.closed_date).getTime()
-        if (closedMs < range.startMs) return false
-      }
       const addedMs = parseDate(wc.added_date).getTime()
       if (addedMs >= range.endMs) return false
       return true

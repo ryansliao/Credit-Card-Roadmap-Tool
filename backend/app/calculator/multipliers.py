@@ -325,21 +325,31 @@ def _pct_bonus(card: CardData, cat_pts: float) -> float:
 
 
 def _first_year_pct_bonus(card: CardData, cat_pts: float) -> float:
-    """First-year-only percentage bonus points (0 when recurring or no percent set)."""
-    if card.annual_bonus_percent and card.annual_bonus_first_year_only:
-        return cat_pts * card.annual_bonus_percent / 100
-    return 0.0
+    """First-year-only percentage bonus points.
+
+    Returns 0 when the card has no first-year-only percent bonus, or when
+    the card's 12-month match window has already ended (the bonus was
+    earned historically and shouldn't keep accruing).
+    """
+    if not (card.annual_bonus_percent and card.annual_bonus_first_year_only):
+        return 0.0
+    if card.wallet_added_date and date.today() >= add_months(card.wallet_added_date, 12):
+        return 0.0
+    return cat_pts * card.annual_bonus_percent / 100
 
 
 def _calc_earn_bonus_factor(card: CardData, years: int = 1) -> float:
     """Allocation scoring factor for the percentage bonus.
 
     Recurring: ``1 + pct/100`` (full every year).
-    First-year-only: ``1 + pct/100/years`` (amortised over projection window).
+    First-year-only: ``1 + pct/100/years`` (amortised over projection window),
+    or 1.0 when the card's 12-month match window has already ended.
     """
     if not card.annual_bonus_percent:
         return 1.0
     if card.annual_bonus_first_year_only:
+        if card.wallet_added_date and date.today() >= add_months(card.wallet_added_date, 12):
+            return 1.0
         return 1 + card.annual_bonus_percent / 100 / max(years, 1)
     return 1 + card.annual_bonus_percent / 100
 
