@@ -26,7 +26,6 @@ import { WalletCardModal } from '../../components/cards/WalletCardModal'
 import { DeleteCardWarningModal } from '../../components/cards/DeleteCardWarningModal'
 import { WalletSummaryStats } from './components/summary/WalletSummaryStats'
 import { MethodologyInfoPopover } from './components/summary/MethodologyInfoPopover'
-import { CurrencyEditModal } from './components/summary/CurrencyEditModal'
 import { WalletTimelineChart } from './components/timeline/WalletTimelineChart'
 import { SpendPanel } from './components/spend/SpendPanel'
 import { ApplicationRuleWarningModal } from './components/ApplicationRuleWarningModal'
@@ -177,7 +176,6 @@ export default function RoadmapToolPage() {
   const [durationYears, setDurationYears] = useState(2)
   const [durationMonths, setDurationMonths] = useState(0)
   const [showMethodology, setShowMethodology] = useState(false)
-  const [editingCurrencyId, setEditingCurrencyId] = useState<number | null>(null)
   const [result, setResult] = useState<WalletResultResponse | null>(null)
   // Signature of wallet + duration at the last successful calc.
   const [snapshotSignature, setSnapshotSignature] = useState<string | null>(null)
@@ -664,7 +662,6 @@ export default function RoadmapToolPage() {
                     }
                     onEditCard={(wc) => setWalletCardModal({ mode: 'edit', walletCard: wc })}
                     onAddCard={() => setWalletCardModal({ mode: 'add' })}
-                    onEditCurrency={(cid) => setEditingCurrencyId(cid)}
                   />
                 ) : (
                   <SpendPanel
@@ -705,19 +702,6 @@ export default function RoadmapToolPage() {
 
       {showMethodology && (
         <MethodologyInfoPopover onClose={() => setShowMethodology(false)} />
-      )}
-
-      {editingCurrencyId != null && wallet && (
-        <CurrencyEditModal
-          walletId={wallet.id}
-          currencyId={editingCurrencyId}
-          onClose={() => setEditingCurrencyId(null)}
-          // CPP and portal-share edits flow into the wallet signature now,
-          // so the button turns amber via signature mismatch and clears when
-          // the user reverts back to the calculated value — no extra dirty
-          // flag needed here.
-          onCppChange={() => {}}
-        />
       )}
 
       {walletCardModal && wallet && (

@@ -1,4 +1,5 @@
 import { useEffect, useId, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 interface Props {
   onClose: () => void
@@ -12,6 +13,10 @@ interface Props {
 /**
  * Shared modal backdrop with consistent styling, backdrop-click dismiss,
  * and Escape key handling. Wrap dialog content as children.
+ *
+ * Rendered via a portal to `document.body` so the backdrop/dialog escape
+ * any ancestor stacking context or overflow clipping (e.g. when the
+ * trigger lives inside a z-indexed panel or a scrollable container).
  */
 export function ModalBackdrop({ onClose, children, label, className, zIndex = 'z-50' }: Props) {
   const titleId = useId()
@@ -24,7 +29,9 @@ export function ModalBackdrop({ onClose, children, label, className, zIndex = 'z
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div
       className={`fixed inset-0 ${zIndex} flex items-center justify-center bg-black/60 p-4`}
       role="dialog"
@@ -38,6 +45,7 @@ export function ModalBackdrop({ onClose, children, label, className, zIndex = 'z
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

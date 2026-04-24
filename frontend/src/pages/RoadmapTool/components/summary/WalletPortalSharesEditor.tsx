@@ -6,6 +6,7 @@ import {
   walletPortalShareApi,
   walletsApi,
 } from '../../../../api/client'
+import { InfoIconButton, InfoPopover } from '../../../../components/InfoPopover'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
 import { queryKeys } from '../../../../lib/queryKeys'
 
@@ -101,34 +102,34 @@ export function WalletPortalSharesEditor({
 
   // Local edit buffer so the slider doesn't fire requests on every drag.
   const [pendingByPortal, setPendingByPortal] = useState<Record<number, number>>({})
+  const [showInfo, setShowInfo] = useState(false)
 
   if (walletId == null || visiblePortals.length === 0) return null
 
   return (
-    <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-3 mt-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
-        Travel Portal Shares
-      </p>
-      <p className="text-[11px] text-slate-400 mb-3">
-        What fraction of your travel-coverable spend in this currency do you book through each
-        travel portal? Cards earn elevated rates only on the portal portion.
-      </p>
-      <ul className="space-y-3">
+    <div>
+      <ul className="space-y-2">
         {visiblePortals.map((portal) => {
           const existing = sharesByPortal.get(portal.id)
           const value = pendingByPortal[portal.id] ?? existing?.share ?? 0
           const pct = Math.round(value * 100)
           return (
             <li key={portal.id}>
-              <div className="flex items-center justify-between text-xs text-slate-300 mb-1">
-                <span>
-                  {portal.name}
-                  <span className="text-slate-500 ml-1">
-                    ({portal.cardNames.length} card
-                    {portal.cardNames.length === 1 ? '' : 's'})
+              <div className="flex items-center justify-between text-[11px] text-slate-300 mb-1.5">
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-400 uppercase tracking-wider">
+                    Travel Portal Spend
                   </span>
+                  <InfoIconButton
+                    onClick={() => setShowInfo(true)}
+                    label="About travel portal shares"
+                    size={11}
+                  />
+                </div>
+                <span>
+                  {portal.name}:{' '}
+                  <span className="text-indigo-300 tabular-nums">{pct}%</span>
                 </span>
-                <span className="text-indigo-300 tabular-nums">{pct}%</span>
               </div>
               <input
                 type="range"
@@ -160,12 +161,25 @@ export function WalletPortalSharesEditor({
                     })
                   }
                 }}
-                className="w-full"
+                className="w-full h-1.5 accent-indigo-500 cursor-pointer block my-0"
               />
             </li>
           )
         })}
       </ul>
+
+      {showInfo && (
+        <InfoPopover
+          title="Travel Portal Spend"
+          onClose={() => setShowInfo(false)}
+        >
+          <p>
+            What fraction of your travel-coverable spend in this currency do
+            you book through each travel portal? Cards earn elevated rates
+            only on the portal portion.
+          </p>
+        </InfoPopover>
+      )}
     </div>
   )
 }

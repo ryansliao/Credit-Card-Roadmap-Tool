@@ -1,7 +1,16 @@
 # To-Do List
 
-## Home
+## Calculation
 
-## Roadmap Tool
+## Database
+- Product Change bonus should be 0's by default.
 
-## Profile Settings
+## Backend
+
+## Frontend
+
+### Home
+
+### Roadmap Tool
+
+### Profile Settings

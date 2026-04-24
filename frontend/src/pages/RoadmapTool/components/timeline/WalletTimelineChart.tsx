@@ -14,6 +14,7 @@ import {
   cardEafWindow,
 } from '../../../../utils/cardIncome'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
+import { CurrencySettingsDropdown } from '../summary/CurrencySettingsDropdown'
 
 interface Props {
   wallet: Wallet
@@ -30,7 +31,6 @@ interface Props {
   onToggleEnabled: (cardId: number, enabled: boolean) => void
   onEditCard: (wc: WalletCard) => void
   onAddCard: () => void
-  onEditCurrency: (currencyId: number) => void
 }
 
 const LEFT_GUTTER = 380 // px
@@ -65,8 +65,7 @@ function pctOf(range: Range, ms: number): number {
 }
 
 /** Format a card's annual income. Cash cards: "$X /Year". Points/miles
- * cards: "X Pts/Year" or "X Miles/Year" based on the effective currency
- * name (airline mileage programs get "Miles"). */
+ * cards: "X /Year" (unit label omitted to match the currency rows). */
 function formatCardIncome(c: CardResult | null, includeSubs: boolean): string | null {
   const pts = cardAnnualPointIncomeActive(c, includeSubs)
   if (pts == null || c == null) return null
@@ -75,7 +74,7 @@ function formatCardIncome(c: CardResult | null, includeSubs: boolean): string | 
     return `${formatMoney(dollars)} /Year`
   }
   const rounded = Math.round(pts)
-  return `${formatPoints(rounded)} ${pointsUnitLabel(c.effective_currency_name)}/Year`
+  return `${formatPoints(rounded)} /Year`
 }
 
 /** Annual dollar value of a group, regardless of reward kind. Sums only
@@ -223,8 +222,10 @@ export function WalletTimelineChart({
   onToggleEnabled,
   onEditCard,
   onAddCard,
-  onEditCurrency,
 }: Props) {
+  const [expandedCurrencyId, setExpandedCurrencyId] = useState<number | null>(null)
+  const toggleExpanded = (cid: number) =>
+    setExpandedCurrencyId((prev) => (prev === cid ? null : cid))
   const range = useMemo<Range>(() => {
     const start = parseDate(today())
     const end = addMonths(start, durationYears * 12 + durationMonths)
@@ -469,11 +470,6 @@ export function WalletTimelineChart({
     return out
   }, [range])
 
-  const chartHeight = groups.reduce(
-    (s, g) => s + CURRENCY_ROW_HEIGHT + g.cards.length * CARD_ROW_HEIGHT,
-    0,
-  )
-
   // Observe the scroll container's width so we can decide whether each
   // bar's EAF label fits inside the bar; if not, place it to the right,
   // or to the left when there's no room on either side.
@@ -559,7 +555,7 @@ export function WalletTimelineChart({
                 z-30 still overlay them. */}
             <div
               className="pointer-events-none absolute z-[25]"
-              style={{ left: LEFT_GUTTER, right: 0, top: 0, height: AXIS_HEIGHT + chartHeight }}
+              style={{ left: LEFT_GUTTER, right: 0, top: 0, bottom: 0 }}
             >
               {yearTicks.map((t) => (
                 <div
@@ -576,7 +572,7 @@ export function WalletTimelineChart({
                 axis (z-40). */}
             <div
               className="pointer-events-none absolute z-[25]"
-              style={{ left: LEFT_GUTTER, right: 0, top: AXIS_HEIGHT, height: chartHeight }}
+              style={{ left: LEFT_GUTTER, right: 0, top: AXIS_HEIGHT, bottom: 0 }}
             >
               <div
                 className="absolute top-0 bottom-0"
@@ -612,7 +608,11 @@ export function WalletTimelineChart({
                 }
                 onToggleEnabled={onToggleEnabled}
                 onEditCard={onEditCard}
-                onEditCurrency={onEditCurrency}
+                walletId={wallet.id}
+                isExpanded={
+                  g.currencyId != null && expandedCurrencyId === g.currencyId
+                }
+                onToggleExpanded={toggleExpanded}
               />
             ))}
           </div>
@@ -673,9 +673,11 @@ interface GroupSectionProps {
   rightColumnPx: number
   walletWindowYears: number
   currencyWindowYears: number | undefined
+  walletId: number
+  isExpanded: boolean
   onToggleEnabled: (cardId: number, enabled: boolean) => void
   onEditCard: (wc: WalletCard) => void
-  onEditCurrency: (currencyId: number) => void
+  onToggleExpanded: (currencyId: number) => void
 }
 
 function GroupSection({
@@ -688,9 +690,11 @@ function GroupSection({
   rightColumnPx,
   walletWindowYears,
   currencyWindowYears,
+  walletId,
+  isExpanded,
   onToggleEnabled,
   onEditCard,
-  onEditCurrency,
+  onToggleExpanded,
 }: GroupSectionProps) {
   const balanceLabel = formatGroupBalance(group)
   const incomeLabel = formatGroupIncome(group, includeSubs, walletWindowYears, currencyWindowYears)
@@ -732,10 +736,19 @@ function GroupSection({
         {group.currencyId != null && (
           <button
             type="button"
-            onClick={() => onEditCurrency(group.currencyId!)}
-            className="ml-auto p-1.5 rounded text-slate-500 hover:text-indigo-400 hover:bg-slate-700 transition-colors shrink-0"
-            title={`Edit ${group.name} settings`}
+            onClick={() => onToggleExpanded(group.currencyId!)}
+            className={`ml-auto p-1.5 rounded transition-colors shrink-0 ${
+              isExpanded
+                ? 'bg-slate-700 text-indigo-300'
+                : 'text-slate-500 hover:text-indigo-400 hover:bg-slate-700'
+            }`}
+            title={
+              isExpanded
+                ? `Close ${group.name} settings`
+                : `Edit ${group.name} settings`
+            }
             aria-label={`Edit ${group.name} settings`}
+            aria-expanded={isExpanded}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="4" y1="6" x2="20" y2="6" />
@@ -757,6 +770,14 @@ function GroupSection({
         style={{ height: CURRENCY_ROW_HEIGHT }}
       >
       </div>
+      {isExpanded && group.currencyId != null && (
+        <CurrencySettingsDropdown
+          walletId={walletId}
+          currencyId={group.currencyId}
+          leftGutterPx={LEFT_GUTTER}
+          onClose={() => onToggleExpanded(group.currencyId!)}
+        />
+      )}
       {group.cards.map(({ wc, cr, secondary }) => (
         <CardRow
           key={wc.id}
