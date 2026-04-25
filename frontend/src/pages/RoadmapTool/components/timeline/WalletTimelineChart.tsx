@@ -15,6 +15,7 @@ import {
 } from '../../../../utils/cardIncome'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
 import { CurrencySettingsDropdown } from '../summary/CurrencySettingsDropdown'
+import { InfoQuoteBox } from '../../../../components/InfoPopover'
 
 interface Props {
   wallet: Wallet
@@ -226,21 +227,91 @@ export function WalletTimelineChart({
   const [expandedCurrencyId, setExpandedCurrencyId] = useState<number | null>(null)
   const toggleExpanded = (cid: number) =>
     setExpandedCurrencyId((prev) => (prev === cid ? null : cid))
-  // Per-currency-group expansion state for the disabled-cards fold. Folded
-  // by default on first mount; survives recalculation (component stays
-  // mounted) and resets to folded on a full page refresh (component
-  // re-mounts with a fresh Set).
-  const [expandedDisabledGroups, setExpandedDisabledGroups] = useState<
-    Set<string>
-  >(() => new Set())
-  const toggleDisabledExpanded = (groupName: string) => {
-    setExpandedDisabledGroups((prev) => {
-      const next = new Set(prev)
-      if (next.has(groupName)) next.delete(groupName)
-      else next.add(groupName)
-      return next
+  const [rulesAnchor, setRulesAnchor] = useState<HTMLElement | null>(null)
+
+  // Issuer-specific application rules whose issuer has at least one card
+  // in this wallet. Global (issuer-less) rules are intentionally excluded —
+  // these warnings are scoped to issuer velocity rules. Each rule is
+  // enriched with a severity:
+  //   - 'inactive': count below max
+  //   - 'in_effect': limit reached but no card from the rule's issuer was
+  //     added past it (the rule will block future adds but nothing yet
+  //     "broke" it — e.g. 6 non-Chase personal cards puts the wallet over
+  //     5/24 but doesn't violate it)
+  //   - 'violated': a card from the rule's issuer is present past the limit
+  //     (e.g. a Chase card added while already over 5/24)
+  const ruleData = useMemo(() => {
+    type Severity = 'inactive' | 'in_effect' | 'violated'
+    const empty = { rules: [] as (RoadmapResponse['rule_statuses'][number] & { severity: Severity })[], maxSeverity: 'inactive' as Severity }
+    if (!roadmap) return empty
+    const walletIssuers = new Set<string>()
+    for (const c of roadmap.cards ?? []) {
+      if (c.issuer_name) walletIssuers.add(c.issuer_name)
+    }
+    const applicable = roadmap.rule_statuses.filter(
+      (r) => r.issuer_name != null && walletIssuers.has(r.issuer_name),
+    )
+    const enriched = applicable.map((r) => {
+      let severity: Severity
+      if (r.current_count < r.max_count) {
+        severity = 'inactive'
+      } else {
+        // Limit reached. A rule is *violated* (vs. just *in effect*) only
+        // when a card from the rule's issuer was approved while the count
+        // — within that card's own trailing period window — was already at
+        // or over max. We have to do the per-card date check on every
+        // rule, not just scope_all_issuers ones: short cooldowns like
+        // Citi 1/8 anchor `counted_cards` to today with no upper bound,
+        // so two issuer cards more than `period_days` apart (e.g. one
+        // today and one planned 10 days out) can both land in
+        // `counted_cards` without actually violating each other.
+        const counted = new Set(r.counted_cards)
+        const periodMs = r.period_days * 86400000
+        const cards = roadmap.cards ?? []
+        const candidateCards = cards.filter((c) => {
+          if (!counted.has(c.card_name)) return false
+          // For scope_all_issuers rules (e.g. Chase 5/24) only the rule's
+          // own issuer can violate it; non-issuer cards in the count just
+          // contribute to the trigger threshold.
+          if (r.issuer_name && c.issuer_name !== r.issuer_name) return false
+          return true
+        })
+        const violated = candidateCards.some((c) => {
+          const cMs = parseDate(c.added_date).getTime()
+          const windowStartMs = cMs - periodMs
+          let priorCount = 0
+          for (const other of cards) {
+            if (other === c) continue
+            if (!counted.has(other.card_name)) continue
+            const oMs = parseDate(other.added_date).getTime()
+            // <= cMs because we don't have intraday ordering — treat
+            // same-day adds as already in the count when c is approved.
+            if (oMs >= windowStartMs && oMs <= cMs) priorCount++
+          }
+          return priorCount >= r.max_count
+        })
+        severity = violated ? 'violated' : 'in_effect'
+      }
+      return { ...r, severity }
     })
-  }
+    const rank: Record<Severity, number> = { inactive: 0, in_effect: 1, violated: 2 }
+    const maxSeverity = enriched.reduce<Severity>(
+      (m, r) => (rank[r.severity] > rank[m] ? r.severity : m),
+      'inactive',
+    )
+    // Sort highest-risk first: violated → in effect → inactive, then by how
+    // close to the limit (count/max), then alphabetically for stability.
+    const sorted = [...enriched].sort((a, b) => {
+      const ds = rank[b.severity] - rank[a.severity]
+      if (ds !== 0) return ds
+      const dr = b.current_count / b.max_count - a.current_count / a.max_count
+      if (Math.abs(dr) > 1e-9) return dr
+      return a.rule_name.localeCompare(b.rule_name)
+    })
+    return { rules: sorted, maxSeverity }
+  }, [roadmap])
+  const applicableRules = ruleData.rules
+  const maxSeverity = ruleData.maxSeverity
   const range = useMemo<Range>(() => {
     const start = parseDate(today())
     const end = addMonths(start, durationYears * 12 + durationMonths)
@@ -464,8 +535,19 @@ export function WalletTimelineChart({
     <div className="bg-slate-900 border border-slate-700 rounded-xl pt-2 px-4 pb-4 min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
       {visibleCards.length === 0 ? (
         <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto">
-          <div className="text-slate-500 text-sm text-center py-10">
-            No cards yet. Click + to add one.
+          <div className="flex flex-col items-center gap-3 py-10">
+            <p className="text-slate-500 text-sm">No cards yet.</p>
+            <button
+              type="button"
+              onClick={onAddCard}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Add Card
+            </button>
           </div>
         </div>
       ) : (
@@ -490,15 +572,47 @@ export function WalletTimelineChart({
               <button
                 type="button"
                 onClick={onAddCard}
-                className="p-1 rounded text-slate-500 hover:text-indigo-400 hover:bg-slate-800 transition-colors"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
                 aria-label="Add card"
                 title="Add card"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
+                Add Card
               </button>
+              {applicableRules.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    const anchor = e.currentTarget
+                    setRulesAnchor((cur) => (cur ? null : anchor))
+                  }}
+                  className={`ml-auto mr-3 shrink-0 transition-colors ${
+                    rulesAnchor
+                      ? maxSeverity === 'violated'
+                        ? 'text-red-300'
+                        : maxSeverity === 'in_effect'
+                          ? 'text-amber-300'
+                          : 'text-indigo-300'
+                      : maxSeverity === 'violated'
+                        ? 'text-red-400 hover:text-red-300'
+                        : maxSeverity === 'in_effect'
+                          ? 'text-amber-400 hover:text-amber-300'
+                          : 'text-slate-500 hover:text-indigo-300'
+                  }`}
+                  aria-label="Application rule status"
+                  aria-expanded={!!rulesAnchor}
+                  title="Application rule status"
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </button>
+              )}
             </div>
             <div
               className={`bg-slate-900 ${DIVIDER_CLASS} relative`}
@@ -600,13 +714,71 @@ export function WalletTimelineChart({
                   g.currencyId != null && expandedCurrencyId === g.currencyId
                 }
                 onToggleExpanded={toggleExpanded}
-                isDisabledExpanded={expandedDisabledGroups.has(g.name)}
-                onToggleDisabledExpanded={() => toggleDisabledExpanded(g.name)}
               />
             ))}
             </div>
           </div>
         </>
+      )}
+      {rulesAnchor && (
+        <InfoQuoteBox
+          anchorEl={rulesAnchor}
+          title="Application Rules"
+          onClose={() => setRulesAnchor(null)}
+        >
+          <p>
+            Issuer velocity rules tracked across the cards in this wallet.
+          </p>
+          <ul className="space-y-2">
+            {applicableRules.map((r) => {
+              const containerClass =
+                r.severity === 'violated'
+                  ? 'border-red-700/50 bg-red-900/20'
+                  : r.severity === 'in_effect'
+                    ? 'border-amber-700/50 bg-amber-900/20'
+                    : 'border-slate-700 bg-slate-800/40'
+              const titleClass =
+                r.severity === 'violated'
+                  ? 'text-red-300'
+                  : r.severity === 'in_effect'
+                    ? 'text-amber-300'
+                    : 'text-slate-200'
+              const countClass =
+                r.severity === 'violated'
+                  ? 'text-red-300'
+                  : r.severity === 'in_effect'
+                    ? 'text-amber-300'
+                    : 'text-slate-400'
+              return (
+                <li
+                  key={r.rule_id}
+                  className={`rounded-md border px-2.5 py-2 ${containerClass}`}
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className={`font-medium truncate ${titleClass}`}>
+                        {r.rule_name}
+                      </span>
+                      {r.issuer_name && (
+                        <span className="text-[10px] text-slate-500 shrink-0">
+                          {r.issuer_name}
+                        </span>
+                      )}
+                    </div>
+                    <span className={`text-[11px] tabular-nums shrink-0 ${countClass}`}>
+                      {r.current_count}/{r.max_count} in {r.period_days}d
+                    </span>
+                  </div>
+                  {r.description && (
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {r.description}
+                    </p>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </InfoQuoteBox>
       )}
     </div>
   )
@@ -666,11 +838,9 @@ interface GroupSectionProps {
   walletId: number
   walletCards: WalletCard[]
   isExpanded: boolean
-  isDisabledExpanded: boolean
   onToggleEnabled: (cardId: number, enabled: boolean) => void
   onEditCard: (wc: WalletCard) => void
   onToggleExpanded: (currencyId: number) => void
-  onToggleDisabledExpanded: () => void
 }
 
 function GroupSection({
@@ -686,11 +856,9 @@ function GroupSection({
   walletId,
   walletCards,
   isExpanded,
-  isDisabledExpanded,
   onToggleEnabled,
   onEditCard,
   onToggleExpanded,
-  onToggleDisabledExpanded,
 }: GroupSectionProps) {
   const balanceLabel = formatGroupBalance(group)
   const incomeLabel = formatGroupIncome(group, includeSubs, walletWindowYears, currencyWindowYears)
@@ -729,7 +897,7 @@ function GroupSection({
             </div>
           )}
         </div>
-        {group.currencyId != null && (
+        {group.currencyId != null && group.rewardKind !== 'cash' && (
           <button
             type="button"
             onClick={() => onToggleExpanded(group.currencyId!)}
@@ -775,102 +943,24 @@ function GroupSection({
           onClose={() => onToggleExpanded(group.currencyId!)}
         />
       )}
-      {group.cards
-        .filter(({ wc }) => wc.is_enabled)
-        .map(({ wc, cr, secondary }) => (
-          <CardRow
-            key={wc.id}
-            wc={wc}
-            cr={cr}
-            secondary={secondary}
-            color={group.color}
-            range={range}
-            roadmapStatus={roadmapById.get(wc.card_id)}
-            isUpdating={isUpdating}
-            isStale={isStale}
-            includeSubs={includeSubs}
-            rightColumnPx={rightColumnPx}
-            onToggleEnabled={onToggleEnabled}
-            onEditCard={onEditCard}
-          />
-        ))}
-      <DisabledFoldRow
-        count={group.cards.filter(({ wc }) => !wc.is_enabled).length}
-        expanded={isDisabledExpanded}
-        onToggle={onToggleDisabledExpanded}
-      />
-      {isDisabledExpanded &&
-        group.cards
-          .filter(({ wc }) => !wc.is_enabled)
-          .map(({ wc, cr, secondary }) => (
-            <CardRow
-              key={wc.id}
-              wc={wc}
-              cr={cr}
-              secondary={secondary}
-              color={group.color}
-              range={range}
-              roadmapStatus={roadmapById.get(wc.card_id)}
-              isUpdating={isUpdating}
-              isStale={isStale}
-              includeSubs={includeSubs}
-              rightColumnPx={rightColumnPx}
-              onToggleEnabled={onToggleEnabled}
-              onEditCard={onEditCard}
-            />
-          ))}
+      {group.cards.map(({ wc, cr, secondary }) => (
+        <CardRow
+          key={wc.id}
+          wc={wc}
+          cr={cr}
+          secondary={secondary}
+          color={group.color}
+          range={range}
+          roadmapStatus={roadmapById.get(wc.card_id)}
+          isUpdating={isUpdating}
+          isStale={isStale}
+          includeSubs={includeSubs}
+          rightColumnPx={rightColumnPx}
+          onToggleEnabled={onToggleEnabled}
+          onEditCard={onEditCard}
+        />
+      ))}
     </>
-  )
-}
-
-const DISABLED_FOLD_ROW_HEIGHT = 26
-
-function DisabledFoldRow({
-  count,
-  expanded,
-  onToggle,
-}: {
-  count: number
-  expanded: boolean
-  onToggle: () => void
-}) {
-  if (count === 0) return null
-  const label = `${count} Disabled Card${count === 1 ? '' : 's'}`
-  return (
-    <div className="contents">
-      <button
-        type="button"
-        onClick={onToggle}
-        className={`flex items-center gap-1.5 px-3 ${DIVIDER_CLASS} bg-slate-900/40 hover:bg-slate-800/40 text-slate-400 text-xs transition-colors`}
-        style={{ height: DISABLED_FOLD_ROW_HEIGHT }}
-        aria-expanded={expanded}
-        title={expanded ? 'Hide disabled cards' : 'Show disabled cards'}
-      >
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={`shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
-          aria-hidden
-        >
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-        <span className="truncate">{label}</span>
-      </button>
-      <button
-        type="button"
-        onClick={onToggle}
-        className={`${DIVIDER_CLASS} bg-slate-900/40 hover:bg-slate-800/40 transition-colors`}
-        style={{ height: DISABLED_FOLD_ROW_HEIGHT }}
-        aria-label={expanded ? 'Hide disabled cards' : 'Show disabled cards'}
-        tabIndex={-1}
-      />
-    </div>
   )
 }
 

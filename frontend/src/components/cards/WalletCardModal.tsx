@@ -479,14 +479,31 @@ export function WalletCardModal({
       >
         {/* ── Fixed header ── */}
         <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-slate-700">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-lg font-semibold text-white">{title}</h2>
-            {lib?.network_tier && (
-              <span className="text-[10px] font-medium bg-slate-700 text-slate-400 border border-slate-600 rounded px-1.5 py-0.5">
-                {lib.network_tier.name}
-              </span>
-            )}
-            <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1 space-y-1">
+              <h2 className="text-lg font-semibold text-white">{title}</h2>
+              {(lib?.network_tier || lib?.issuer) && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                  {lib?.network_tier && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="uppercase tracking-wide">Network</span>
+                      <span className="font-medium bg-slate-700 text-slate-300 border border-slate-600 rounded px-1.5 py-0.5">
+                        {lib.network_tier.name}
+                      </span>
+                    </div>
+                  )}
+                  {lib?.issuer && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="uppercase tracking-wide">Issuer</span>
+                      <span className="font-medium bg-slate-700 text-slate-300 border border-slate-600 rounded px-1.5 py-0.5">
+                        {lib.issuer.name}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
               {mode === 'edit' && walletCard && onRemove && (
                 <button
                   type="button"
@@ -575,53 +592,8 @@ export function WalletCardModal({
               <p className="text-[11px] text-slate-500 -mx-6 px-6 pb-2 border-b border-slate-700/60">
                 When and how this card entered the wallet, and whether it's still active.
               </p>
-              {/* Acquisition type (left) | Opening date (right) */}
-              <div className="grid grid-cols-2 gap-3 items-start">
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">Acquisition Type</label>
-                  <div role="radiogroup" className="flex flex-col bg-slate-700/30 border border-slate-600 rounded-lg overflow-hidden">
-                    {(['opened', 'product_change'] as const).map((v, i) => {
-                      const selected = acquisitionType === v
-                      return (
-                        <button
-                          key={v}
-                          type="button"
-                          role="radio"
-                          aria-checked={selected}
-                          onClick={() => handleAcquisitionTypeChange(v)}
-                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
-                            i > 0 ? 'border-t border-slate-600/60' : ''
-                          } ${
-                            selected
-                              ? 'bg-slate-700 text-white'
-                              : 'text-slate-300 hover:bg-slate-700/60'
-                          }`}
-                        >
-                          <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                            selected ? 'border-indigo-500' : 'border-slate-500'
-                          }`}>
-                            {selected && <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />}
-                          </span>
-                          {v === 'opened' ? 'Account Opening' : 'Product Change'}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">
-                    {acquisitionType === 'product_change' ? 'Product Change Date *' : 'Opening Date *'}
-                  </label>
-                  <input
-                    type="date"
-                    className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500"
-                    value={addedDate}
-                    onChange={(e) => setAddedDate(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Card pickers (add mode only) */}
+              {/* Card pickers (add mode only) — shown first so the user picks the card before
+                  filling in surrounding lifecycle metadata. */}
               {mode === 'add' && (
                 <>
                   {/* PC: "Changing from" — wallet cards only */}
@@ -691,6 +663,52 @@ export function WalletCardModal({
                   </div>
                 </>
               )}
+
+              {/* Acquisition type (left) | Opening date (right) */}
+              <div className="grid grid-cols-2 gap-3 items-start">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Acquisition Type</label>
+                  <div role="radiogroup" className="flex flex-col bg-slate-700/30 border border-slate-600 rounded-lg overflow-hidden">
+                    {(['opened', 'product_change'] as const).map((v, i) => {
+                      const selected = acquisitionType === v
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={() => handleAcquisitionTypeChange(v)}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
+                            i > 0 ? 'border-t border-slate-600/60' : ''
+                          } ${
+                            selected
+                              ? 'bg-slate-700 text-white'
+                              : 'text-slate-300 hover:bg-slate-700/60'
+                          }`}
+                        >
+                          <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                            selected ? 'border-indigo-500' : 'border-slate-500'
+                          }`}>
+                            {selected && <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />}
+                          </span>
+                          {v === 'opened' ? 'Account Opening' : 'Product Change'}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">
+                    {acquisitionType === 'product_change' ? 'Product Change Date *' : 'Opening Date *'}
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500"
+                    value={addedDate}
+                    onChange={(e) => setAddedDate(e.target.value)}
+                  />
+                </div>
+              </div>
 
               {/* Card Status toggle + Closed Date (edit mode only).
                   Closed date empty = card is still active. */}

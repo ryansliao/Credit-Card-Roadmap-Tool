@@ -18,4 +18,5 @@ export const queryKeys = {
   walletPortalShares: (walletId: number | null) =>
     ['wallet-portal-shares', walletId] as const,
   travelPortals: ['travel-portals'] as const,
+  issuerApplicationRules: () => ['issuer-application-rules'] as const,
 } as const

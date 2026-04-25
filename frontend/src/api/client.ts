@@ -626,6 +626,25 @@ export const currenciesApi = {
   list: () => request<CurrencyRead[]>('/currencies'),
 }
 
+// ─── Issuers ──────────────────────────────────────────────────────────────────
+
+export interface IssuerApplicationRuleRead {
+  id: number
+  issuer_id: number | null
+  issuer_name: string | null
+  rule_name: string
+  description: string | null
+  max_count: number
+  period_days: number
+  personal_only: boolean
+  scope_all_issuers: boolean
+}
+
+export const issuersApi = {
+  listApplicationRules: () =>
+    request<IssuerApplicationRuleRead[]>('/issuers/application-rules'),
+}
+
 // ─── Cards ────────────────────────────────────────────────────────────────────
 
 export const cardsApi = {
