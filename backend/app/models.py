@@ -27,19 +27,30 @@ from .dal import (
     CardCredit,
     # Travel portal
     TravelPortal,
-    # Wallet
+    # Wallet (legacy + new)
     Wallet,
     WalletCard,
-    # Wallet currency
+    # Scenario (new)
+    Scenario,
+    CardInstance,
+    ScenarioCardOverlay,
+    ScenarioCardMultiplier,
+    ScenarioCardCredit,
+    ScenarioCardCategoryPriority,
+    ScenarioCardGroupSelection,
+    ScenarioCurrencyCpp,
+    ScenarioCurrencyBalance,
+    ScenarioPortalShare,
+    # Wallet currency (legacy)
     WalletCurrencyCpp,
-    # Wallet card overrides
+    # Wallet card overrides (legacy)
     WalletCardCredit,
     WalletCardGroupSelection,
     WalletCardCategoryPriority,
     WalletCardMultiplier,
     # Wallet spend
     WalletSpendItem,
-    # Wallet portal
+    # Wallet portal (legacy)
     WalletPortalShare,
     # User spend categories
     UserSpendCategory,
@@ -65,6 +76,16 @@ __all__ = [
     "TravelPortal",
     "Wallet",
     "WalletCard",
+    "Scenario",
+    "CardInstance",
+    "ScenarioCardOverlay",
+    "ScenarioCardMultiplier",
+    "ScenarioCardCredit",
+    "ScenarioCardCategoryPriority",
+    "ScenarioCardGroupSelection",
+    "ScenarioCurrencyCpp",
+    "ScenarioCurrencyBalance",
+    "ScenarioPortalShare",
     "WalletCurrencyCpp",
     "WalletCardCredit",
     "WalletCardGroupSelection",

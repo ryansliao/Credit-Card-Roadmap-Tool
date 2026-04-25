@@ -86,6 +86,43 @@ from .wallet_overrides import (
     WalletCardCreditRead,
     WalletCardCreditUpsert,
 )
+from .card_instance import (
+    CardInstanceBase,
+    CardInstanceRead,
+    FutureCardCreate,
+    FutureCardUpdate,
+    OwnedCardCreate,
+    OwnedCardUpdate,
+)
+from .scenario import (
+    ScenarioBase,
+    ScenarioCreate,
+    ScenarioRead,
+    ScenarioSummary,
+    ScenarioUpdate,
+)
+from .scenario_currency import (
+    ScenarioCurrencyBalanceRead,
+    ScenarioCurrencyBalanceSet,
+    ScenarioCurrencyCppRead,
+    ScenarioCurrencyCppSet,
+    ScenarioPortalShareRead,
+    ScenarioPortalShareSet,
+)
+from .scenario_overlay import (
+    ScenarioCardOverlayRead,
+    ScenarioCardOverlayUpsert,
+)
+from .scenario_overrides import (
+    ScenarioCardCategoryPriorityRead,
+    ScenarioCardCategoryPrioritySet,
+    ScenarioCardCreditRead,
+    ScenarioCardCreditUpsert,
+    ScenarioCardGroupSelectionRead,
+    ScenarioCardGroupSelectionSet,
+    ScenarioCardMultiplierRead,
+    ScenarioCardMultiplierUpsert,
+)
 
 __all__ = [
     # Admin
@@ -161,4 +198,36 @@ __all__ = [
     "WalletCardCategoryPrioritySet",
     "WalletCardCreditRead",
     "WalletCardCreditUpsert",
+    # Card instance
+    "CardInstanceBase",
+    "CardInstanceRead",
+    "FutureCardCreate",
+    "FutureCardUpdate",
+    "OwnedCardCreate",
+    "OwnedCardUpdate",
+    # Scenario
+    "ScenarioBase",
+    "ScenarioCreate",
+    "ScenarioRead",
+    "ScenarioSummary",
+    "ScenarioUpdate",
+    # Scenario currency / portal
+    "ScenarioCurrencyBalanceRead",
+    "ScenarioCurrencyBalanceSet",
+    "ScenarioCurrencyCppRead",
+    "ScenarioCurrencyCppSet",
+    "ScenarioPortalShareRead",
+    "ScenarioPortalShareSet",
+    # Scenario overlay
+    "ScenarioCardOverlayRead",
+    "ScenarioCardOverlayUpsert",
+    # Scenario per-card overrides
+    "ScenarioCardCategoryPriorityRead",
+    "ScenarioCardCategoryPrioritySet",
+    "ScenarioCardCreditRead",
+    "ScenarioCardCreditUpsert",
+    "ScenarioCardGroupSelectionRead",
+    "ScenarioCardGroupSelectionSet",
+    "ScenarioCardMultiplierRead",
+    "ScenarioCardMultiplierUpsert",
 ]

@@ -21,6 +21,8 @@ from ..database import Base
 
 if TYPE_CHECKING:
     from .card import Card
+    from .card_instance import CardInstance
+    from .scenario import Scenario
     from .user import User
     from .wallet_card_override import (
         WalletCardCredit,
@@ -93,6 +95,12 @@ class Wallet(Base):
         back_populates="wallet", cascade="all, delete-orphan"
     )
     portal_shares: Mapped[list["WalletPortalShare"]] = relationship(
+        back_populates="wallet", cascade="all, delete-orphan"
+    )
+    scenarios: Mapped[list["Scenario"]] = relationship(
+        back_populates="wallet", cascade="all, delete-orphan"
+    )
+    card_instances: Mapped[list["CardInstance"]] = relationship(
         back_populates="wallet", cascade="all, delete-orphan"
     )
 

@@ -33,6 +33,20 @@ from .wallet_card_override import (
 from .wallet_spend import WalletSpendItem
 from .wallet_portal import WalletPortalShare
 from .user_spend import UserSpendCategory, UserSpendCategoryMapping
+from .scenario import Scenario
+from .card_instance import CardInstance
+from .scenario_overlay import ScenarioCardOverlay
+from .scenario_overrides import (
+    ScenarioCardMultiplier,
+    ScenarioCardCredit,
+    ScenarioCardCategoryPriority,
+    ScenarioCardGroupSelection,
+)
+from .scenario_currency import (
+    ScenarioCurrencyCpp,
+    ScenarioCurrencyBalance,
+    ScenarioPortalShare,
+)
 
 __all__ = [
     # User
@@ -57,19 +71,30 @@ __all__ = [
     "CardCredit",
     # Travel portal
     "TravelPortal",
-    # Wallet
+    # Wallet (legacy + new)
     "Wallet",
     "WalletCard",
-    # Wallet currency
+    # Scenario (new)
+    "Scenario",
+    "CardInstance",
+    "ScenarioCardOverlay",
+    "ScenarioCardMultiplier",
+    "ScenarioCardCredit",
+    "ScenarioCardCategoryPriority",
+    "ScenarioCardGroupSelection",
+    "ScenarioCurrencyCpp",
+    "ScenarioCurrencyBalance",
+    "ScenarioPortalShare",
+    # Wallet currency (legacy)
     "WalletCurrencyCpp",
-    # Wallet card overrides
+    # Wallet card overrides (legacy)
     "WalletCardCredit",
     "WalletCardGroupSelection",
     "WalletCardCategoryPriority",
     "WalletCardMultiplier",
     # Wallet spend
     "WalletSpendItem",
-    # Wallet portal
+    # Wallet portal (legacy)
     "WalletPortalShare",
     # User spend categories
     "UserSpendCategory",
