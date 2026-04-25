@@ -21,6 +21,10 @@ interface Props {
   roadmap?: RoadmapResponse | null
   isCalculating: boolean
   isStale: boolean
+  /** True when the wallet has cards/spending set up but no calc has ever
+   * been persisted. Drives the empty-state copy so first-time users see a
+   * "Click Calculate" prompt instead of the "Add cards" message. */
+  hasNeverCalculated?: boolean
   durationYears: number
   durationMonths: number
   onDurationChange: (years: number, months: number) => void
@@ -34,6 +38,7 @@ export function WalletSummaryStats({
   roadmap,
   isCalculating,
   isStale,
+  hasNeverCalculated,
   durationYears,
   durationMonths,
   onDurationChange,
@@ -87,9 +92,15 @@ export function WalletSummaryStats({
             {resultsError.message}
           </div>
         ) : !hasStats ? (
-          <div className="text-slate-500 text-xs text-center py-2">
-            Add cards to see effective annual fee (credits, SUB and fees amortised over your projection).
-          </div>
+          hasNeverCalculated ? (
+            <div className="text-slate-300 text-xs text-center py-2">
+              Click <span className="font-semibold text-indigo-300">Calculate</span> to see your effective annual fee, fees, and point income.
+            </div>
+          ) : (
+            <div className="text-slate-500 text-xs text-center py-2">
+              Add cards to see effective annual fee (credits, SUB and fees amortised over your projection).
+            </div>
+          )
         ) : (
           <div
             className={`grid grid-cols-[1fr_1px_1fr_1px_1fr] gap-3 items-stretch w-full transition-opacity ${

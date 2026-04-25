@@ -78,6 +78,8 @@ function SignInDropdown() {
   const { signIn, login, register } = useAuth()
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<'signin' | 'signup'>('signin')
+  // Sign-in keys off this single field — username or email both match.
+  const [identifier, setIdentifier] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [username, setLocalUsername] = useState('')
@@ -116,6 +118,7 @@ function SignInDropdown() {
   }, [open])
 
   function resetForm() {
+    setIdentifier('')
     setEmail('')
     setPassword('')
     setLocalUsername('')
@@ -128,9 +131,12 @@ function SignInDropdown() {
     setLoading(true)
     try {
       if (tab === 'signup') {
-        await register(username, email, password)
+        // Treat blank email as "not provided" so the backend stores NULL
+        // instead of an empty string (which would fail EmailStr validation).
+        const trimmed = email.trim()
+        await register(username, trimmed === '' ? null : trimmed, password)
       } else {
-        await login(email, password)
+        await login(identifier.trim(), password)
       }
       setOpen(false)
       resetForm()
@@ -181,26 +187,37 @@ function SignInDropdown() {
           </div>
 
           <form onSubmit={handleSubmit} className="p-4 space-y-3">
-            {tab === 'signup' && (
+            {tab === 'signup' ? (
+              <>
+                <input
+                  type="text"
+                  placeholder="Username"
+                  value={username}
+                  onChange={(e) => setLocalUsername(e.target.value)}
+                  className={inputClass}
+                  required
+                  minLength={3}
+                  maxLength={30}
+                />
+                <input
+                  type="email"
+                  placeholder="Email (optional)"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={inputClass}
+                />
+              </>
+            ) : (
               <input
                 type="text"
-                placeholder="Username"
-                value={username}
-                onChange={(e) => setLocalUsername(e.target.value)}
+                placeholder="Username or email"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 className={inputClass}
                 required
-                minLength={3}
-                maxLength={30}
+                autoComplete="username"
               />
             )}
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputClass}
-              required
-            />
             <input
               type="password"
               placeholder="Password"

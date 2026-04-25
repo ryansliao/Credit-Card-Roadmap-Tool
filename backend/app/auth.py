@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .database import get_db
@@ -54,12 +54,16 @@ class GoogleSignInRequest(BaseModel):
 
 class LocalRegisterRequest(BaseModel):
     username: str
-    email: EmailStr
+    # Email is optional. The frontend sends ``null`` (or omits the field) when
+    # the user leaves it blank; we coerce empty strings to ``None`` in the
+    # endpoint so an EmailStr validation error doesn't fire on "".
+    email: EmailStr | None = None
     password: str
 
 
 class LocalLoginRequest(BaseModel):
-    email: EmailStr
+    # Username or email — the login endpoint matches against either column.
+    identifier: str
     password: str
 
 
@@ -71,7 +75,7 @@ class AuthUserResponse(BaseModel):
     id: int
     username: str | None = None
     name: str
-    email: str
+    email: str | None = None
     picture: str | None = None
     token: str | None = None
     needs_username: bool = False
@@ -82,13 +86,14 @@ class AuthUserResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _create_jwt(user_id: int, email: str) -> str:
-    payload = {
+def _create_jwt(user_id: int, email: str | None) -> str:
+    payload: dict = {
         "sub": str(user_id),
-        "email": email,
         "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRY_DAYS),
         "iat": datetime.now(timezone.utc),
     }
+    if email:
+        payload["email"] = email
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -212,7 +217,7 @@ async def google_sign_in(body: GoogleSignInRequest, db: AsyncSession = Depends(g
 
 @router.post("/auth/register", response_model=AuthUserResponse)
 async def local_register(body: LocalRegisterRequest, db: AsyncSession = Depends(get_db)):
-    """Register a new user with username, email, and password."""
+    """Register a new user with a username, optional email, and password."""
     if not JWT_SECRET:
         raise HTTPException(status_code=500, detail="JWT_SECRET not configured")
 
@@ -224,10 +229,12 @@ async def local_register(body: LocalRegisterRequest, db: AsyncSession = Depends(
     if len(body.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
-    # Check email uniqueness
-    existing = await db.execute(select(User).where(User.email == body.email))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Email already in use")
+    # Email-only uniqueness check when one was provided. NULL is allowed for
+    # any number of users so we skip the check entirely when omitted.
+    if body.email is not None:
+        existing = await db.execute(select(User).where(User.email == body.email))
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail="Email already in use")
 
     # Check username uniqueness
     existing = await db.execute(select(User).where(User.username == body.username))
@@ -257,18 +264,26 @@ async def local_register(body: LocalRegisterRequest, db: AsyncSession = Depends(
 
 @router.post("/auth/login", response_model=AuthUserResponse)
 async def local_login(body: LocalLoginRequest, db: AsyncSession = Depends(get_db)):
-    """Sign in with email and password."""
+    """Sign in with username-or-email and password."""
     if not JWT_SECRET:
         raise HTTPException(status_code=500, detail="JWT_SECRET not configured")
 
-    result = await db.execute(select(User).where(User.email == body.email))
+    identifier = body.identifier.strip()
+    if not identifier:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    # Match against either column. ``email`` is unique per non-NULL value and
+    # ``username`` is globally unique, so at most one row can match.
+    result = await db.execute(
+        select(User).where(or_(User.username == identifier, User.email == identifier))
+    )
     user = result.scalar_one_or_none()
 
     if not user or not user.password_hash:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid username or password")
 
     if not _verify_password(body.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid username or password")
 
     token = _create_jwt(user.id, user.email)
     return AuthUserResponse(

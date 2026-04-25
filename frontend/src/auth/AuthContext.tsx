@@ -43,8 +43,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setNeedsUsername(result.needs_username ?? false)
   }, [])
 
-  const login = useCallback(async (email: string, password: string) => {
-    const result = await authApi.login(email, password)
+  const login = useCallback(async (identifier: string, password: string) => {
+    const result = await authApi.login(identifier, password)
     if (result.token) {
       setAuthToken(result.token)
     }
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setNeedsUsername(result.needs_username ?? false)
   }, [])
 
-  const register = useCallback(async (username: string, email: string, password: string) => {
+  const register = useCallback(async (username: string, email: string | null, password: string) => {
     const result = await authApi.register(username, email, password)
     if (result.token) {
       setAuthToken(result.token)

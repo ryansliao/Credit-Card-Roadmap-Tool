@@ -65,7 +65,9 @@ export function SettingsTab() {
           )}
           <div className="min-w-0">
             <p className="text-white font-semibold text-base truncate">{user.username ?? user.name}</p>
-            <p className="text-slate-400 text-sm truncate">{user.email}</p>
+            {user.email && (
+              <p className="text-slate-400 text-sm truncate">{user.email}</p>
+            )}
           </div>
         </div>
 
@@ -136,7 +138,9 @@ export function SettingsTab() {
           {/* Email row */}
           <div className="px-6 py-4">
             <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-1">Email</p>
-            <p className="text-white text-sm">{user.email}</p>
+            <p className="text-white text-sm">
+              {user.email ?? <span className="text-slate-500 italic">Not set</span>}
+            </p>
           </div>
         </div>
       </div>

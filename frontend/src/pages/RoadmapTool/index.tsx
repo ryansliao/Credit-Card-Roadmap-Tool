@@ -359,6 +359,17 @@ export default function RoadmapToolPage() {
     inSigDirty ||
     (snapshotSignature !== null && currentSignature !== snapshotSignature)
 
+  // First-time state: the wallet has been set up (cards + spending), but no
+  // calculation has been persisted yet. `latestResults` returns null in that
+  // case, so once the query has settled and nothing hydrated `result`, we
+  // know the user is in the initial empty state and should see an enabled
+  // Calculate prompt instead of the disabled "Up to Date" pill.
+  const hasNeverCalculated =
+    latestResultFetched && latestResult == null && result == null
+  const hasEnabledCards = (wallet?.wallet_cards ?? []).some((wc) => wc.is_enabled)
+  const needsInitialCalc = hasNeverCalculated && hasEnabledCards
+  const needsCalculate = isStale || needsInitialCalc
+
   // Warm the global credit library cache so the credits picker inside
   // WalletCardModal renders instantly when a card is opened.
   useCreditLibrary()
@@ -609,20 +620,28 @@ export default function RoadmapToolPage() {
             <button
               type="button"
               onClick={calculateNow}
-              disabled={resultsMutation.isPending || !isStale}
+              disabled={resultsMutation.isPending || !needsCalculate}
               aria-live="polite"
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 resultsMutation.isPending
                   ? 'bg-slate-700 text-slate-400 cursor-wait'
                   : isStale
                   ? 'bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-sm shadow-amber-900/40'
+                  : needsInitialCalc
+                  ? 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-sm shadow-indigo-900/40'
                   : 'bg-slate-700 text-slate-500 cursor-not-allowed'
               }`}
-              title={isStale ? 'Results are out of date — click to recalculate' : 'Results are up to date'}
+              title={
+                isStale
+                  ? 'Results are out of date — click to recalculate'
+                  : needsInitialCalc
+                  ? 'Click to calculate your wallet'
+                  : 'Results are up to date'
+              }
             >
               {resultsMutation.isPending
                 ? 'Calculating…'
-                : isStale
+                : needsCalculate
                 ? 'Calculate'
                 : 'Up to Date'}
             </button>
@@ -656,6 +675,7 @@ export default function RoadmapToolPage() {
                 roadmap={roadmap ?? null}
                 isCalculating={resultsMutation.isPending}
                 isStale={isStale}
+                hasNeverCalculated={hasNeverCalculated}
                 durationYears={durationYears}
                 durationMonths={durationMonths}
                 onDurationChange={(y, m) => {

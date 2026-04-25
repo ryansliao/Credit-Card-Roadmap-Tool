@@ -860,8 +860,13 @@ function GroupSection({
   onEditCard,
   onToggleExpanded,
 }: GroupSectionProps) {
-  const balanceLabel = formatGroupBalance(group)
-  const incomeLabel = formatGroupIncome(group, includeSubs, walletWindowYears, currencyWindowYears)
+  // When the group has no contributing CardResults yet — fresh wallet, every
+  // card just added, or every card disabled — fall back to dashed placeholders
+  // so the balance/income labels still anchor the row instead of disappearing.
+  const balanceLabel = formatGroupBalance(group) ?? '—'
+  const incomeLabel =
+    formatGroupIncome(group, includeSubs, walletWindowYears, currencyWindowYears) ??
+    '— /Year'
 
   return (
     <>
@@ -1019,19 +1024,24 @@ function CardRow({
   const subPct = showSubMarker ? pctOf(range, subMs!) : null
   // Per-card income and EAF are driven by the last calc's `cr`, not the live
   // toggle, so the numbers (and layout) stay stable when the user flips
-  // `is_enabled` — only a recalc refreshes what's shown. Cards that weren't
-  // in the last calc (cr == null) have nothing to display.
+  // `is_enabled` — only a recalc refreshes what's shown.
   //
-  // For disabled cards we want to suppress real numbers (including "0") and
-  // show an em-dash placeholder so the row clearly reads as "not
-  // contributing right now" instead of implying $0 EAF / 0 pts.
-  const incomeLabel = enabled ? formatCardIncome(cr, includeSubs) : '—'
-  const eafValue = enabled ? cardEafActive(cr, includeSubs) : null
-  const eafLabelText = enabled
-    ? eafValue != null
+  // Show dashed placeholders ("--- /Year", "--- EAF") whenever the row has
+  // no real data to display: the card is currently disabled, OR it was added
+  // since the last calc and isn't in `cr`. This is preferred over a bare
+  // em-dash because it keeps the unit labels in place so the columns read
+  // consistently and the user can tell what figure will appear once they
+  // recalc / re-enable.
+  const showPlaceholders = !enabled || !cr
+  const incomeLabel = showPlaceholders
+    ? '— /Year'
+    : formatCardIncome(cr, includeSubs)
+  const eafValue = showPlaceholders ? null : cardEafActive(cr, includeSubs)
+  const eafLabelText = showPlaceholders
+    ? '— EAF'
+    : eafValue != null
       ? `${formatMoney(eafValue)} EAF`
       : null
-    : '—'
 
   const tooltip = [
     `Added: ${formatDate(wc.added_date)}`,
@@ -1040,9 +1050,16 @@ function CardRow({
       ? subProjectedDate
         ? `SUB projected: ${formatDate(subProjectedDate)}`
         : 'No SUB'
-      : 'Not Calculated',
-    enabled && eafValue != null ? `EAF: ${formatMoney(eafValue)}` : null,
-    enabled && incomeLabel ? `Income: ${incomeLabel.replace(/^\+/, '')}` : null,
+      : 'Disabled — not contributing',
+    enabled && showPlaceholders
+      ? 'Click Calculate to see EAF and income'
+      : null,
+    !showPlaceholders && eafValue != null
+      ? `EAF: ${formatMoney(eafValue)}`
+      : null,
+    !showPlaceholders && incomeLabel
+      ? `Income: ${incomeLabel.replace(/^\+/, '')}`
+      : null,
   ]
     .filter(Boolean)
     .join('\n')
@@ -1134,7 +1151,7 @@ function CardRow({
         })()}
         {barWidthPct > 0 && eafLabelText != null && (() => {
           const labelText = eafLabelText
-          const baseColor = !enabled
+          const baseColor = showPlaceholders
             ? 'text-slate-500'
             : eafValue != null && eafValue < 0
               ? 'text-emerald-400'

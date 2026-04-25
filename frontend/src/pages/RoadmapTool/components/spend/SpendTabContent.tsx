@@ -366,12 +366,24 @@ export function SpendTabContent({
     return formatPointsExact(adjusted)
   }
 
+  // First-time empty state: wallet has cards but no calc has run, so the
+  // backend hasn't produced any selected card results to populate the Top
+  // ROS column or per-card income figures. Show an inline prompt above the
+  // table so the empty cells read as "needs calc" rather than "no data".
+  const showCalculatePrompt =
+    !isLoading && selectedCards.length === 0 && walletCards.length > 0
+
   return (
     <div className="flex flex-col flex-1 min-h-0 min-w-0">
       {isLoading ? (
         <div className="text-slate-500 text-sm">Loading…</div>
       ) : (
         <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-slate-800">
+          {showCalculatePrompt && (
+            <div className="px-3 py-2 text-xs text-indigo-200 bg-indigo-900/20 border-b border-indigo-700/40">
+              Click <span className="font-semibold text-indigo-300">Calculate</span> to see your top earning card per category.
+            </div>
+          )}
           <table className="w-full text-sm border-collapse table-fixed">
             <colgroup>
               <col />

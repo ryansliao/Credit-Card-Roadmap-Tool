@@ -20,7 +20,13 @@ class User(Base):
     username: Mapped[Optional[str]] = mapped_column(String(40), unique=True, nullable=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False, default="Default User")
     google_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    # Email is optional — users can register with just a username + password.
+    # Uniqueness across non-NULL values is enforced by the filtered index
+    # ``UX_users_email_notnull`` (see migration 007). We deliberately don't set
+    # ``unique=True`` here because that would emit a plain UNIQUE constraint,
+    # which in SQL Server treats NULL as a single value and would reject more
+    # than one email-less user.
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     picture: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 

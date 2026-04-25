@@ -46,7 +46,7 @@ export interface AuthUser {
   id: number
   username: string | null
   name: string
-  email: string
+  email: string | null
   picture: string | null
   token?: string | null
   needs_username?: boolean
@@ -58,15 +58,15 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ credential }),
     }),
-  register: (username: string, email: string, password: string) =>
+  register: (username: string, email: string | null, password: string) =>
     request<AuthUser>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ username, email, password }),
     }),
-  login: (email: string, password: string) =>
+  login: (identifier: string, password: string) =>
     request<AuthUser>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
     }),
   setUsername: (username: string) =>
     request<AuthUser>('/auth/username', {

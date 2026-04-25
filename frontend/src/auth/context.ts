@@ -7,8 +7,8 @@ export interface AuthState {
   isLoading: boolean
   needsUsername: boolean
   signIn: (credential: string) => Promise<void>
-  login: (email: string, password: string) => Promise<void>
-  register: (username: string, email: string, password: string) => Promise<void>
+  login: (identifier: string, password: string) => Promise<void>
+  register: (username: string, email: string | null, password: string) => Promise<void>
   setUsername: (username: string) => Promise<void>
   signOut: () => void
 }
