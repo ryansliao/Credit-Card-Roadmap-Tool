@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
-import { walletsApi, walletSpendItemsApi } from '../api/client'
+import { walletApi, walletSpendApi } from '../api/client'
 import { queryKeys } from '../lib/queryKeys'
 
 type StepStatus = 'pending' | 'current' | 'complete' | 'preview'
@@ -10,22 +10,21 @@ export default function Home() {
   const { isAuthenticated } = useAuth()
 
   const { data: wallet, isFetched: walletFetched } = useQuery({
-    queryKey: queryKeys.myWallet(),
-    queryFn: () => walletsApi.getMyWallet(),
+    queryKey: queryKeys.myWalletWithScenarios(),
+    queryFn: () => walletApi.get(),
     enabled: isAuthenticated,
   })
 
-  const walletId = wallet?.id ?? null
-
   const { data: spendItems, isFetched: spendFetched } = useQuery({
-    queryKey: queryKeys.walletSpendItems(walletId),
-    queryFn: () => walletSpendItemsApi.list(walletId!),
-    enabled: walletId != null,
+    queryKey: queryKeys.walletSpendItemsSingular(),
+    queryFn: () => walletSpendApi.list(),
+    enabled: isAuthenticated && wallet != null,
   })
 
-  const hasCards = (wallet?.wallet_cards?.length ?? 0) > 0
+  const hasCards = (wallet?.card_instances?.length ?? 0) > 0
   const hasSpend = (spendItems?.length ?? 0) > 0
-  const stateKnown = !isAuthenticated || (walletFetched && (walletId == null || spendFetched))
+  const stateKnown =
+    !isAuthenticated || (walletFetched && (wallet == null || spendFetched))
 
   const currentStep: 1 | 2 | 3 | null = !isAuthenticated
     ? null

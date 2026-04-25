@@ -7,7 +7,6 @@ Pure transform functions (apply_*) live in ``app.card_data_transforms``.
 from __future__ import annotations
 
 from dataclasses import replace as _replace
-from typing import TYPE_CHECKING
 
 from fastapi import Depends
 from sqlalchemy import select
@@ -27,19 +26,9 @@ from ..models import (
     SpendCategory,
     UserSpendCategory,
     UserSpendCategoryMapping,
-    Wallet,
-    WalletCardCategoryPriority,
-    WalletCardCredit,
-    WalletCardGroupSelection,
-    WalletCardMultiplier,
-    WalletCurrencyCpp,
-    WalletPortalShare,
     WalletSpendItem,
     travel_portal_cards,
 )
-
-if TYPE_CHECKING:
-    from ..models import WalletCard
 
 
 def _currency_data(
@@ -110,13 +99,6 @@ class CalculatorDataService:
     # -------------------------------------------------------------------------
     # Currency loading
     # -------------------------------------------------------------------------
-
-    async def load_wallet_cpp_overrides(self, wallet_id: int) -> dict[int, float]:
-        """Load wallet-scoped CPP overrides: currency_id -> cents_per_point."""
-        result = await self.db.execute(
-            select(WalletCurrencyCpp).where(WalletCurrencyCpp.wallet_id == wallet_id)
-        )
-        return {row.currency_id: row.cents_per_point for row in result.scalars()}
 
     async def load_currency_defaults(self) -> dict[int, float]:
         """Load default CPP for all currencies: currency_id -> cents_per_point."""
@@ -222,122 +204,8 @@ class CalculatorDataService:
         return spend
 
     # -------------------------------------------------------------------------
-    # Wallet card overrides loading
-    # -------------------------------------------------------------------------
-
-    async def load_wallet_card_credits(
-        self, wallet_id: int
-    ) -> dict[int, list[WalletCardCredit]]:
-        """Load WalletCardCredit rows keyed by wallet_card_id."""
-        from ..models import WalletCard as WalletCardModel
-
-        result = await self.db.execute(
-            select(WalletCardCredit)
-            .options(selectinload(WalletCardCredit.library_credit))
-            .join(
-                WalletCardModel,
-                WalletCardModel.id == WalletCardCredit.wallet_card_id,
-            )
-            .where(WalletCardModel.wallet_id == wallet_id)
-        )
-        rows = result.scalars().all()
-        out: dict[int, list[WalletCardCredit]] = {}
-        for row in rows:
-            out.setdefault(row.wallet_card_id, []).append(row)
-        return out
-
-    async def load_wallet_card_multipliers(
-        self, wallet_id: int
-    ) -> list[WalletCardMultiplier]:
-        """Load WalletCardMultiplier rows for a wallet."""
-        result = await self.db.execute(
-            select(WalletCardMultiplier)
-            .options(selectinload(WalletCardMultiplier.spend_category))
-            .where(WalletCardMultiplier.wallet_id == wallet_id)
-        )
-        return list(result.scalars().all())
-
-    async def load_wallet_card_group_selections(
-        self, wallet_id: int
-    ) -> dict[int, dict[int, set[str]]]:
-        """Load manual group selections: {card_id: {group_id: {category_name, ...}}}."""
-        from ..models import WalletCard as WalletCardModel
-
-        result = await self.db.execute(
-            select(WalletCardGroupSelection)
-            .options(selectinload(WalletCardGroupSelection.spend_category))
-            .join(
-                WalletCardModel,
-                WalletCardModel.id == WalletCardGroupSelection.wallet_card_id,
-            )
-            .where(WalletCardModel.wallet_id == wallet_id)
-        )
-        rows = result.scalars().all()
-        wc_ids: set[int] = {r.wallet_card_id for r in rows}
-        if not wc_ids:
-            return {}
-
-        wc_result = await self.db.execute(
-            select(WalletCardModel).where(WalletCardModel.id.in_(wc_ids))
-        )
-        wc_map = {wc.id: wc.card_id for wc in wc_result.scalars().all()}
-
-        out: dict[int, dict[int, set[str]]] = {}
-        for r in rows:
-            card_id = wc_map.get(r.wallet_card_id)
-            if card_id is None:
-                continue
-            cat_name = r.spend_category.category if r.spend_category else ""
-            if not cat_name:
-                continue
-            out.setdefault(card_id, {}).setdefault(
-                r.multiplier_group_id, set()
-            ).add(cat_name)
-        return out
-
-    async def load_wallet_card_category_priorities(
-        self, wallet_id: int
-    ) -> dict[int, frozenset[str]]:
-        """Load category priority pins: {card_id: frozenset(lowercased_category_name, ...)}."""
-        from ..models import WalletCard as WalletCardModel
-
-        result = await self.db.execute(
-            select(WalletCardCategoryPriority)
-            .options(selectinload(WalletCardCategoryPriority.spend_category))
-            .where(WalletCardCategoryPriority.wallet_id == wallet_id)
-        )
-        rows = result.scalars().all()
-        if not rows:
-            return {}
-
-        wc_ids = {r.wallet_card_id for r in rows}
-        wc_result = await self.db.execute(
-            select(WalletCardModel).where(WalletCardModel.id.in_(wc_ids))
-        )
-        wc_map = {wc.id: wc.card_id for wc in wc_result.scalars().all()}
-
-        per_card: dict[int, set[str]] = {}
-        for r in rows:
-            card_id = wc_map.get(r.wallet_card_id)
-            if card_id is None:
-                continue
-            cat_name = r.spend_category.category if r.spend_category else ""
-            key = (cat_name or "").strip().lower()
-            if not key:
-                continue
-            per_card.setdefault(card_id, set()).add(key)
-        return {cid: frozenset(keys) for cid, keys in per_card.items()}
-
-    # -------------------------------------------------------------------------
     # Portal loading
     # -------------------------------------------------------------------------
-
-    async def load_wallet_portal_shares(self, wallet_id: int) -> dict[int, float]:
-        """Load per-portal shares: {travel_portal_id: share}."""
-        result = await self.db.execute(
-            select(WalletPortalShare).where(WalletPortalShare.wallet_id == wallet_id)
-        )
-        return {row.travel_portal_id: float(row.share) for row in result.scalars()}
 
     async def load_card_ids_by_portal(self) -> dict[int, set[int]]:
         """Return {travel_portal_id: {card_id, ...}}."""

@@ -19,7 +19,6 @@ from ..database import Base
 if TYPE_CHECKING:
     from .card import Card, CardCategoryMultiplier
     from .user_spend import UserSpendCategoryMapping
-    from .wallet_card_override import WalletCardMultiplier
 
 
 class Issuer(Base):
@@ -129,9 +128,6 @@ class SpendCategory(Base):
         order_by="SpendCategory.category",
     )
     card_multipliers: Mapped[list["CardCategoryMultiplier"]] = relationship(
-        back_populates="spend_category"
-    )
-    wallet_card_multipliers: Mapped[list["WalletCardMultiplier"]] = relationship(
         back_populates="spend_category"
     )
     user_category_mappings: Mapped[list["UserSpendCategoryMapping"]] = relationship(

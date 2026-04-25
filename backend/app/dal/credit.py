@@ -19,7 +19,6 @@ from ..database import Base
 if TYPE_CHECKING:
     from .card import Card
     from .currency import Currency
-    from .wallet_card_override import WalletCardCredit
 
 
 class Credit(Base):
@@ -28,7 +27,8 @@ class Credit(Base):
     (e.g. Priority Pass, Global Entry, Free Checked Bags, Uber Cash).
 
     `credit_value` is the default dollar valuation; users can override it on a
-    per-wallet-card basis via WalletCardCredit. Credits are recurring by default.
+    per-scenario per-card-instance basis via ScenarioCardCredit. Credits are
+    recurring by default.
     When `excludes_first_year` is True, the credit is not counted in the first
     year of card ownership (e.g. anniversary free night awards).
     """
@@ -51,10 +51,6 @@ class Credit(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    wallet_credit_overrides: Mapped[list["WalletCardCredit"]] = relationship(
-        back_populates="library_credit", cascade="all, delete-orphan"
-    )
 
     # Cards in the global library that natively offer this credit. Used by the UI to
     # auto-suggest credits when a card is added to a wallet.

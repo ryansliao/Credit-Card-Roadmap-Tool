@@ -3,7 +3,7 @@
 from typing import Optional
 
 from fastapi import Depends, HTTPException
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,6 +11,7 @@ from ..database import get_db
 from ..models import (
     Card,
     CardCategoryMultiplier,
+    CardInstance,
     CardMultiplierGroup,
     CoBrand,
     Currency,
@@ -18,7 +19,6 @@ from ..models import (
     NetworkTier,
     RotatingCategory,
     SpendCategory,
-    WalletCard,
 )
 from .base import BaseService
 
@@ -220,27 +220,21 @@ class CardService(BaseService[Card]):
         return card
 
     async def delete_card_if_unused(self, card: Card) -> None:
-        """Delete a card after ensuring it isn't referenced by any WalletCard.
-
-        Checks both ``card_id`` (the card a wallet holds) and
-        ``pc_from_card_id`` (the source card of a product change). The latter
-        has a NO ACTION FK, so the database would also reject the delete; we
-        check up front to return a clean 409 instead of a raw SQL error.
+        """Delete a card after ensuring it isn't referenced by any
+        CardInstance (owned or scenario-scoped). PC chains link
+        ``pc_from_instance_id`` (instance-to-instance), so the library
+        ``card_id`` only appears via the instance's ``card_id`` column.
+        Returns a clean 409 if the card is still in use.
         """
         used = await self.db.execute(
-            select(WalletCard.id).where(
-                or_(
-                    WalletCard.card_id == card.id,
-                    WalletCard.pc_from_card_id == card.id,
-                )
-            )
+            select(CardInstance.id).where(CardInstance.card_id == card.id)
         )
         if used.scalars().first() is not None:
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    "Cannot delete card — it is used in one or more wallets "
-                    "(directly or as a product-change source). Remove all "
+                    "Cannot delete card — it is held by one or more card "
+                    "instances (owned or scenario-scoped). Remove all "
                     "references first."
                 ),
             )

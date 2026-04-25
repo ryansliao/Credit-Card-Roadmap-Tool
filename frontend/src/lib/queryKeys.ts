@@ -1,25 +1,10 @@
 export const queryKeys = {
-  // Legacy wallet-keyed keys (kept during the migration window).
-  wallet: (walletId: number) => ['wallet', walletId] as const,
-  wallets: () => ['wallets'] as const,
-  myWallet: () => ['my-wallet'] as const,
-  walletCurrencies: (walletId: number | null) => ['wallet-currencies', walletId] as const,
-  walletSpendItems: (walletId: number | null) =>
-    ['wallet-spend-items', walletId] as const,
-  roadmap: (walletId: number) => ['roadmap', walletId] as const,
-  walletLatestResults: (walletId: number | null) =>
-    ['wallet-latest-results', walletId] as const,
-  walletCardCredits: (walletId: number | null, cardId: number | null) =>
-    ['wallet-card-credits', walletId, cardId] as const,
-  walletCategoryPriorities: (walletId: number | null) =>
-    ['wallet-category-priorities', walletId] as const,
-  walletPortalShares: (walletId: number | null) =>
-    ['wallet-portal-shares', walletId] as const,
-
-  // New canonical keys.
+  // Wallet (singular).
   myWalletWithScenarios: () => ['wallet-with-scenarios'] as const,
   ownedCardInstances: () => ['wallet-card-instances'] as const,
   walletSpendItemsSingular: () => ['wallet-spend-items-singular'] as const,
+
+  // Scenarios.
   scenarios: () => ['scenarios'] as const,
   scenario: (scenarioId: number | null) => ['scenario', scenarioId] as const,
   scenarioFutureCards: (scenarioId: number | null) =>
@@ -41,7 +26,7 @@ export const queryKeys = {
   scenarioCardCredits: (scenarioId: number | null, instanceId: number | null) =>
     ['scenario-card-credits', scenarioId, instanceId] as const,
 
-  // Reference data (unchanged).
+  // Reference data.
   cards: () => ['cards'] as const,
   credits: () => ['credits'] as const,
   currencies: () => ['currencies'] as const,

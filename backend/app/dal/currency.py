@@ -9,7 +9,6 @@ from ..database import Base
 
 if TYPE_CHECKING:
     from .card import Card
-    from .wallet_currency import WalletCurrencyCpp
 
 
 class Currency(Base):
@@ -59,9 +58,6 @@ class Currency(Base):
         "Currency",
         foreign_keys=[converts_to_currency_id],
         remote_side=[id],
-    )
-    wallet_cpp_overrides: Mapped[list["WalletCurrencyCpp"]] = relationship(
-        back_populates="currency", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

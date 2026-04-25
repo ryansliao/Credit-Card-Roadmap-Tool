@@ -21,10 +21,8 @@ from .builders import (
     card_instance_read,
     scenario_read,
     scenario_summary,
-    wallet_read,
     wallet_to_schema,
     wallet_with_scenarios_read,
-    wc_read,
 )
 from .card import (
     CardMultiplierGroupRead,
@@ -41,10 +39,7 @@ from .credit import (
     CreateCreditPayload,
     UpdateCreditPayload,
 )
-from .currency import (
-    CurrencyRead,
-    WalletCurrencyCppSet,
-)
+from .currency import CurrencyRead
 from .reference import (
     CoBrandRead,
     IssuerApplicationRuleRead,
@@ -70,30 +65,11 @@ from .spend import (
     WalletSpendItemRead,
     WalletSpendItemUpdate,
 )
-from .travel_portal import (
-    TravelPortalRead,
-    WalletPortalSharePayload,
-    WalletPortalShareRead,
-)
+from .travel_portal import TravelPortalRead
 from .wallet import (
-    CreditTotalByCurrency,
-    InitialWalletCardCredit,
     WalletBase,
-    WalletCardBase,
-    WalletCardCreate,
-    WalletCardRead,
-    WalletCardUpdate,
-    WalletCreate,
-    WalletRead,
-    WalletSummary,
     WalletUpdate,
     WalletWithScenariosRead,
-)
-from .wallet_overrides import (
-    WalletCardCategoryPriorityRead,
-    WalletCardCategoryPrioritySet,
-    WalletCardCreditRead,
-    WalletCardCreditUpsert,
 )
 from .card_instance import (
     CardInstanceBase,
@@ -149,10 +125,8 @@ __all__ = [
     "card_instance_read",
     "scenario_read",
     "scenario_summary",
-    "wallet_read",
     "wallet_to_schema",
     "wallet_with_scenarios_read",
-    "wc_read",
     # Card
     "CardMultiplierGroupRead",
     "CardMultiplierGroupSchema",
@@ -168,7 +142,6 @@ __all__ = [
     "UpdateCreditPayload",
     # Currency
     "CurrencyRead",
-    "WalletCurrencyCppSet",
     # Reference
     "CoBrandRead",
     "IssuerApplicationRuleRead",
@@ -192,26 +165,10 @@ __all__ = [
     "WalletSpendItemUpdate",
     # Travel portal
     "TravelPortalRead",
-    "WalletPortalSharePayload",
-    "WalletPortalShareRead",
     # Wallet
-    "CreditTotalByCurrency",
-    "InitialWalletCardCredit",
     "WalletBase",
-    "WalletCardBase",
-    "WalletCardCreate",
-    "WalletCardRead",
-    "WalletCardUpdate",
-    "WalletCreate",
-    "WalletRead",
-    "WalletSummary",
     "WalletUpdate",
     "WalletWithScenariosRead",
-    # Wallet overrides
-    "WalletCardCategoryPriorityRead",
-    "WalletCardCategoryPrioritySet",
-    "WalletCardCreditRead",
-    "WalletCardCreditUpsert",
     # Card instance
     "CardInstanceBase",
     "CardInstanceRead",

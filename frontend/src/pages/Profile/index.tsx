@@ -59,7 +59,7 @@ export default function Profile() {
             isLoading={walletLoading}
           />
         )}
-        {activeTab === 'spending' && <SpendingTab walletId={wallet?.id ?? null} />}
+        {activeTab === 'spending' && <SpendingTab />}
         {activeTab === 'settings' && <SettingsTab />}
       </div>
     </div>

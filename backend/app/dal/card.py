@@ -25,7 +25,6 @@ if TYPE_CHECKING:
     from .currency import Currency
     from .reference import CoBrand, Issuer, NetworkTier, SpendCategory
     from .travel_portal import TravelPortal
-    from .wallet import WalletCard, WalletCardMultiplier
 
 
 # Many-to-many: a TravelPortal contains the set of cards whose portal-only
@@ -175,14 +174,6 @@ class Card(Base):
         back_populates="card", cascade="all, delete-orphan"
     )
     rotating_categories: Mapped[list["RotatingCategory"]] = relationship(
-        back_populates="card", cascade="all, delete-orphan"
-    )
-    wallet_cards: Mapped[list["WalletCard"]] = relationship(
-        back_populates="card",
-        cascade="all, delete-orphan",
-        foreign_keys="WalletCard.card_id",
-    )
-    wallet_multipliers: Mapped[list["WalletCardMultiplier"]] = relationship(
         back_populates="card", cascade="all, delete-orphan"
     )
     card_instances: Mapped[list["CardInstance"]] = relationship(

@@ -1,10 +1,10 @@
-"""Currency read + wallet-scoped CPP override schemas."""
+"""Currency read schema."""
 
 from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class CurrencyRead(BaseModel):
@@ -21,11 +21,6 @@ class CurrencyRead(BaseModel):
     converts_at_rate: Optional[float] = None
     no_transfer_cpp: Optional[float] = None
     no_transfer_rate: Optional[float] = None
-    # When listing with ?user_id=, effective CPP for that user (override or base)
+    # Effective CPP for the active scenario (override or base) when surfaced
+    # via /scenarios/{id}/currencies. Equal to ``cents_per_point`` otherwise.
     user_cents_per_point: Optional[float] = None
-
-
-class WalletCurrencyCppSet(BaseModel):
-    """Set wallet-scoped cents-per-point override for a currency."""
-
-    cents_per_point: float = Field(..., gt=0)

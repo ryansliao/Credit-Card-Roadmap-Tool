@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import {
-  walletSpendItemsApi,
-  walletsApi,
+  walletApi,
+  walletSpendApi,
   type UserSpendCategory,
   type WalletSpendItem,
 } from '../../../api/client'
@@ -10,11 +10,7 @@ import { useMyWallet } from '../hooks/useMyWallet'
 import { queryKeys } from '../../../lib/queryKeys'
 import { InfoIconButton, InfoQuoteBox } from '../../../components/InfoPopover'
 
-interface SpendingTabProps {
-  walletId: number | null
-}
-
-export function SpendingTab({ walletId }: SpendingTabProps) {
+export function SpendingTab() {
   const queryClient = useQueryClient()
   const [editingAmountId, setEditingAmountId] = useState<number | null>(null)
   const [amountDraft, setAmountDraft] = useState('')
@@ -25,35 +21,36 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
     { cat: UserSpendCategory; anchor: HTMLElement } | null
   >(null)
 
-  const { data: spendItems = [], isLoading } = useQuery({
-    queryKey: queryKeys.walletSpendItems(walletId),
-    queryFn: () => walletSpendItemsApi.list(walletId!),
-    enabled: walletId != null,
-  })
-
   const { data: wallet } = useMyWallet()
 
+  const { data: spendItems = [], isLoading } = useQuery({
+    queryKey: queryKeys.walletSpendItemsSingular(),
+    queryFn: () => walletSpendApi.list(),
+    enabled: wallet != null,
+  })
+
   const foreignSpendPercent = draftForeignPct ?? wallet?.foreign_spend_percent ?? 0
+  const walletReady = wallet != null
 
   const updateWalletMutation = useMutation({
-    mutationFn: (pct: number) =>
-      walletsApi.update(walletId!, { foreign_spend_percent: pct }),
+    mutationFn: (pct: number) => walletApi.update({ foreign_spend_percent: pct }),
     onSuccess: () => {
       setDraftForeignPct(null)
-      queryClient.invalidateQueries({ queryKey: queryKeys.myWallet() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.myWalletWithScenarios() })
     },
   })
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.walletSpendItems(walletId) })
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.walletSpendItemsSingular() })
 
   const updateMutation = useMutation({
     mutationFn: ({ id, amount }: { id: number; amount: number }) =>
-      walletSpendItemsApi.update(walletId!, id, { amount }),
+      walletSpendApi.update(id, { amount }),
     onSuccess: invalidate,
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => walletSpendItemsApi.delete(walletId!, id),
+    mutationFn: (id: number) => walletSpendApi.delete(id),
     onSuccess: invalidate,
   })
 
@@ -117,15 +114,15 @@ export function SpendingTab({ walletId }: SpendingTabProps) {
             min={0}
             max={100}
             value={foreignSpendPercent}
-            disabled={walletId == null}
+            disabled={!walletReady}
             onChange={(e) => setDraftForeignPct(Number(e.target.value))}
             onMouseUp={(e) => {
               const pct = Number((e.target as HTMLInputElement).value)
-              if (walletId != null) updateWalletMutation.mutate(pct)
+              if (walletReady) updateWalletMutation.mutate(pct)
             }}
             onTouchEnd={(e) => {
               const pct = Number((e.target as HTMLInputElement).value)
-              if (walletId != null) updateWalletMutation.mutate(pct)
+              if (walletReady) updateWalletMutation.mutate(pct)
             }}
             className="w-full h-1.5 accent-indigo-500 cursor-pointer block my-0 disabled:cursor-not-allowed disabled:opacity-50"
           />

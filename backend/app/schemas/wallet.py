@@ -1,99 +1,16 @@
-"""Wallet + WalletCard schemas (CRUD + read models)."""
+"""Wallet schemas (singular wallet per user).
+
+The legacy ``Wallet`` / ``WalletCard*`` schema family was removed in
+Stage 5 of the scenarios refactor. The remaining types support
+``GET/PATCH /wallet`` (the new canonical singular-wallet endpoints).
+"""
 
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
-
-
-class WalletCardBase(BaseModel):
-    card_id: int
-    added_date: date
-    sub_points: Optional[int] = None
-    sub_min_spend: Optional[int] = None
-    sub_months: Optional[int] = None
-    sub_spend_earn: Optional[int] = None
-    annual_bonus: Optional[int] = Field(default=None, ge=0)
-    annual_bonus_percent: Optional[float] = Field(default=None, ge=0)
-    annual_bonus_first_year_only: Optional[bool] = None
-    years_counted: int = Field(default=2, ge=1, le=20)
-    annual_fee: Optional[float] = Field(default=None, ge=0)
-    first_year_fee: Optional[float] = Field(default=None, ge=0)
-    secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
-    sub_earned_date: Optional[date] = None
-    sub_projected_earn_date: Optional[date] = None
-    closed_date: Optional[date] = None
-    product_changed_date: Optional[date] = None
-    acquisition_type: Literal["opened", "product_change"] = "opened"
-    # For product_change cards: library card_id of the card changed FROM.
-    pc_from_card_id: Optional[int] = None
-    panel: Literal["in_wallet", "future_cards", "considering"] = "considering"
-    is_enabled: bool = True
-
-
-class InitialWalletCardCredit(BaseModel):
-    library_credit_id: int
-    value: float = Field(..., ge=0)
-
-
-class WalletCardCreate(WalletCardBase):
-    credits: list[InitialWalletCardCredit] = Field(default_factory=list)
-    # Library card_id of the card being changed FROM (product change only).
-    # When set, the matching wallet card's product_changed_date is auto-populated.
-    pc_from_card_id: Optional[int] = None
-
-
-class WalletCardUpdate(BaseModel):
-    """Partial update for a wallet card. All fields optional."""
-    added_date: Optional[date] = None
-    sub_points: Optional[int] = None
-    sub_min_spend: Optional[int] = None
-    sub_months: Optional[int] = None
-    sub_spend_earn: Optional[int] = None
-    annual_bonus: Optional[int] = Field(default=None, ge=0)
-    annual_bonus_percent: Optional[float] = Field(default=None, ge=0)
-    annual_bonus_first_year_only: Optional[bool] = None
-    years_counted: Optional[int] = Field(default=None, ge=1, le=20)
-    annual_fee: Optional[float] = Field(default=None, ge=0)
-    first_year_fee: Optional[float] = Field(default=None, ge=0)
-    secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
-    sub_earned_date: Optional[date] = None
-    closed_date: Optional[date] = None
-    product_changed_date: Optional[date] = None
-    acquisition_type: Optional[Literal["opened", "product_change"]] = None
-    panel: Optional[Literal["in_wallet", "future_cards", "considering"]] = None
-    is_enabled: Optional[bool] = None
-
-
-class CreditTotalByCurrency(BaseModel):
-    """One row of `WalletCardRead.credit_totals` — the sum of a wallet card's
-    credit override values grouped by the credit's native currency. Cash
-    credits aggregate under ``kind="cash"``; points credits aggregate per
-    points currency so the UI can render pts alongside $."""
-    model_config = ConfigDict(from_attributes=True)
-    kind: Literal["cash", "points"]
-    currency_id: Optional[int]
-    currency_name: Optional[str]
-    value: float
-
-
-class WalletCardRead(WalletCardBase):
-    """Wallet card read model. Always built via ``schemas.builders.wc_read`` —
-    the enriched fields below are derived from the joined library Card and
-    cannot be populated from the WalletCard ORM row alone, so they are
-    required (no defaults) to surface missing builder calls loudly.
-    """
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    wallet_id: int
-    card_name: str  # from library Card.name
-    transfer_enabler: bool  # from library Card.transfer_enabler
-    photo_slug: Optional[str]  # from library Card.photo_slug (may be None)
-    issuer_name: Optional[str]  # from library Card → Issuer.name (may be None)
-    network_tier_name: Optional[str]  # from library Card → NetworkTier.name (may be None)
-    credit_totals: list[CreditTotalByCurrency]  # per-currency sums of override values
 
 
 class WalletBase(BaseModel):
@@ -102,45 +19,15 @@ class WalletBase(BaseModel):
     as_of_date: Optional[date] = None
 
 
-class WalletCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=120)
-    description: Optional[str] = None
-
-
 class WalletUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    as_of_date: Optional[date] = None
-    foreign_spend_percent: Optional[float] = None
-    include_subs: Optional[bool] = None
-
-
-class WalletRead(WalletBase):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    user_id: int
-    wallet_cards: list[WalletCardRead] = []
-    calc_start_date: Optional[date] = None
-    calc_end_date: Optional[date] = None
-    calc_duration_years: int = 2
-    calc_duration_months: int = 0
-    calc_window_mode: str = "duration"
-    foreign_spend_percent: float = 0
-    include_subs: bool = True
-
-
-class WalletSummary(BaseModel):
-    """Lightweight wallet record for list views (no cards / overrides)."""
-
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    name: str
-    description: Optional[str] = None
+    foreign_spend_percent: Optional[float] = Field(default=None, ge=0, le=100)
 
 
 class WalletWithScenariosRead(BaseModel):
     """The user's single wallet plus owned CardInstances and a summary of
-    its scenarios. Returned by ``GET /wallet`` in the new flow."""
+    its scenarios. Returned by ``GET /wallet``."""
 
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -148,9 +35,5 @@ class WalletWithScenariosRead(BaseModel):
     name: str
     description: Optional[str] = None
     foreign_spend_percent: float = 0.0
-    # Owned card instances (CardInstance rows where scenario_id IS NULL).
-    # The legacy ``wallet_cards`` field on the old WalletRead is gone — the
-    # frontend keys off this list.
     card_instances: list = []
-    # Lightweight scenario summaries for the picker.
     scenarios: list = []

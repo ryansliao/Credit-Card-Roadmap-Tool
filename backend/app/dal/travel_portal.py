@@ -9,7 +9,6 @@ from ..database import Base
 
 if TYPE_CHECKING:
     from .card import Card
-    from .wallet_portal import WalletPortalShare
 
 
 class TravelPortal(Base):
@@ -28,9 +27,6 @@ class TravelPortal(Base):
 
     cards: Mapped[list["Card"]] = relationship(
         secondary="travel_portal_cards", back_populates="travel_portals"
-    )
-    wallet_shares: Mapped[list["WalletPortalShare"]] = relationship(
-        back_populates="travel_portal", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

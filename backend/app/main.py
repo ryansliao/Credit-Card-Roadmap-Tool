@@ -30,11 +30,6 @@ from .routers.reference import (
 )
 from .routers.wallet import (
     wallet_card_instances,
-    wallet_category_priorities,
-    wallet_credits,
-    wallet_currencies,
-    wallet_portals,
-    wallet_results,
     wallet_spend,
     wallets,
 )
@@ -108,11 +103,6 @@ app.include_router(travel_portals.router, prefix="/api")
 app.include_router(wallets.router, prefix="/api")
 app.include_router(wallet_card_instances.router, prefix="/api")
 app.include_router(wallet_spend.router, prefix="/api")
-app.include_router(wallet_currencies.router, prefix="/api")
-app.include_router(wallet_credits.router, prefix="/api")
-app.include_router(wallet_category_priorities.router, prefix="/api")
-app.include_router(wallet_portals.router, prefix="/api")
-app.include_router(wallet_results.router, prefix="/api")
 # Scenario routers
 app.include_router(scenarios.router, prefix="/api")
 app.include_router(scenario_card_instances.router, prefix="/api")
