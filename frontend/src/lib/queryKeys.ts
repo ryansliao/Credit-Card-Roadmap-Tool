@@ -1,5 +1,6 @@
 export const queryKeys = {
   wallet: (walletId: number) => ['wallet', walletId] as const,
+  wallets: () => ['wallets'] as const,
   myWallet: () => ['my-wallet'] as const,
   cards: () => ['cards'] as const,
   credits: () => ['credits'] as const,

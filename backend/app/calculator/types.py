@@ -206,8 +206,6 @@ class CardData:
     wallet_closed_date: Optional[date] = None
     # sub_projected_earn_date: auto-calculated from spend profile
     sub_projected_earn_date: Optional[date] = None
-    # sub_already_earned: True when user has confirmed SUB earned (no projection needed)
-    sub_already_earned: bool = False
     # sub_earnable: False when spend rate is too low to hit the SUB min within the SUB window
     sub_earnable: bool = True
 

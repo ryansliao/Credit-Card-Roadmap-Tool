@@ -77,13 +77,12 @@ def _build_segments(
         for d in (card.wallet_added_date, card.wallet_closed_date):
             if d is not None and window_start < d < window_end:
                 change_dates.add(d)
-        if not card.sub_already_earned:
-            earned = card.sub_projected_earn_date
-            if earned is not None and window_start < earned < window_end:
-                change_dates.add(earned)
+        earned = card.sub_projected_earn_date
+        if earned is not None and window_start < earned < window_end:
+            change_dates.add(earned)
         # SUB window expiry: ensures boost never bleeds past sub_window_end even if
         # sub_projected_earn_date is None or falls outside the calc window.
-        if not card.sub_already_earned and card.wallet_added_date is not None and card.sub_months is not None:
+        if card.wallet_added_date is not None and card.sub_months is not None:
             sub_window_end = add_months(card.wallet_added_date, card.sub_months)
             if window_start < sub_window_end < window_end:
                 change_dates.add(sub_window_end)
@@ -409,7 +408,6 @@ def _is_sub_active_in_segment(card: CardData, seg_start: date) -> bool:
         or not card.sub_min_spend
         or not card.sub_earnable
         or not card.wallet_added_date
-        or card.sub_already_earned
     ):
         return False
     if seg_start < card.wallet_added_date:

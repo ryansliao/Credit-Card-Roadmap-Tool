@@ -226,6 +226,21 @@ export function WalletTimelineChart({
   const [expandedCurrencyId, setExpandedCurrencyId] = useState<number | null>(null)
   const toggleExpanded = (cid: number) =>
     setExpandedCurrencyId((prev) => (prev === cid ? null : cid))
+  // Per-currency-group expansion state for the disabled-cards fold. Folded
+  // by default on first mount; survives recalculation (component stays
+  // mounted) and resets to folded on a full page refresh (component
+  // re-mounts with a fresh Set).
+  const [expandedDisabledGroups, setExpandedDisabledGroups] = useState<
+    Set<string>
+  >(() => new Set())
+  const toggleDisabledExpanded = (groupName: string) => {
+    setExpandedDisabledGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(groupName)) next.delete(groupName)
+      else next.add(groupName)
+      return next
+    })
+  }
   const range = useMemo<Range>(() => {
     const start = parseDate(today())
     const end = addMonths(start, durationYears * 12 + durationMonths)
@@ -418,42 +433,6 @@ export function WalletTimelineChart({
     })
   }, [visibleCards, cardResultById, libraryById, totalYears, walletWindowYears, currencyWindowYearsById])
 
-  // Earliest future date where the 5/24 count (personal, opened, enabled
-  // wallet cards added in the trailing 730 days) transitions from ≥5 to <5
-  // and stays there for the remainder of the event stream. Null when the
-  // wallet is never at 5/24 or never drops back below within the timeline.
-  const backUnder524Ms = useMemo<number | null>(() => {
-    const businessById = new Map<number, boolean>()
-    for (const rc of roadmap?.cards ?? []) businessById.set(rc.wallet_card_id, rc.is_business)
-    const events: Array<{ ms: number; delta: number }> = []
-    for (const wc of wallet.wallet_cards ?? []) {
-      if (!wc.is_enabled) continue
-      if (wc.acquisition_type !== 'opened') continue
-      if (businessById.get(wc.id) !== false) continue
-      const added = parseDate(wc.added_date).getTime()
-      events.push({ ms: added, delta: 1 })
-      events.push({ ms: added + 731 * 86400 * 1000, delta: -1 })
-    }
-    if (events.length === 0) return null
-    events.sort((a, b) => a.ms - b.ms)
-    let count = 0
-    let backUnderMs: number | null = null
-    for (const e of events) {
-      const prev = count
-      count += e.delta
-      if (prev >= 5 && count < 5) backUnderMs = e.ms
-      if (count >= 5) backUnderMs = null
-    }
-    return backUnderMs
-  }, [wallet.wallet_cards, roadmap])
-
-  const showBackUnder524 =
-    backUnder524Ms != null &&
-    backUnder524Ms >= range.startMs &&
-    backUnder524Ms <= range.endMs
-  const backUnder524Pct =
-    showBackUnder524 && backUnder524Ms != null ? pctOf(range, backUnder524Ms) : null
-
   const yearTicks = useMemo(() => {
     const out: Array<{ pct: number; label: string }> = []
     const startYear = new Date(range.startMs).getFullYear()
@@ -483,21 +462,28 @@ export function WalletTimelineChart({
 
   return (
     <div className="bg-slate-900 border border-slate-700 rounded-xl pt-2 px-4 pb-4 min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto">
-        {visibleCards.length === 0 ? (
+      {visibleCards.length === 0 ? (
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto">
           <div className="text-slate-500 text-sm text-center py-10">
             No cards yet. Click + to add one.
           </div>
-        ) : (
+        </div>
+      ) : (
+        <>
+          {/* Axis header — outside the scroll container so the vertical
+              scrollbar starts at the first currency row, not above. The
+              same scrollbar-gutter is applied here so the right edge
+              tracks the body's content area regardless of scrollbar
+              presence. */}
           <div
-            className="relative"
-            style={{ display: 'grid', gridTemplateColumns: `${LEFT_GUTTER}px 1fr` }}
+            className="grid shrink-0 overflow-hidden"
+            style={{
+              gridTemplateColumns: `${LEFT_GUTTER}px 1fr`,
+              scrollbarGutter: 'stable',
+            }}
           >
-            {/* Axis header (sticky, opaque, stays above scrolling bars and
-                the Today line). z-40 keeps it above the Today overlay (z-20)
-                and the bars (z-30) so content scrolls behind it cleanly. */}
             <div
-              className={`sticky top-0 z-40 bg-slate-900 ${DIVIDER_CLASS} px-3 flex items-center gap-2`}
+              className={`bg-slate-900 ${DIVIDER_CLASS} px-3 flex items-center gap-2`}
               style={{ height: AXIS_HEIGHT }}
             >
               <h2 className="text-base font-semibold text-slate-100">Cards</h2>
@@ -515,7 +501,7 @@ export function WalletTimelineChart({
               </button>
             </div>
             <div
-              className={`sticky top-0 z-40 bg-slate-900 ${DIVIDER_CLASS} relative`}
+              className={`bg-slate-900 ${DIVIDER_CLASS} relative`}
               style={{ height: AXIS_HEIGHT }}
             >
               {yearTicks.map((t) => (
@@ -527,68 +513,72 @@ export function WalletTimelineChart({
                   {t.label}
                 </div>
               ))}
-              {/* Today label lives inside the sticky axis so it doesn't
-                  scroll away with the chart body. */}
               <div
                 className="absolute flex items-center text-[11px] text-slate-300 font-semibold whitespace-nowrap pointer-events-none"
                 style={{ left: 0, top: 0, bottom: 0, transform: 'translateX(-50%)' }}
               >
                 Today
               </div>
-              {backUnder524Pct != null && (
-                <div
-                  className="absolute flex items-center text-[11px] text-slate-300 font-semibold whitespace-nowrap pointer-events-none"
-                  style={{ left: `${backUnder524Pct}%`, top: 0, bottom: 0, transform: 'translateX(-50%)' }}
-                  title="Earliest date the wallet is back under 5/24"
-                >
-                  Under 5/24
-                </div>
-              )}
-            </div>
-
-            {/* Year gridlines — z-[25] so they cross over the currency
-                header rows (z-20) instead of being masked by them. Bars at
-                z-30 still overlay them. */}
-            <div
-              className="pointer-events-none absolute z-[25]"
-              style={{ left: LEFT_GUTTER, right: 0, top: 0, bottom: 0 }}
-            >
-              {yearTicks.map((t) => (
-                <div
-                  key={t.label}
-                  className="absolute top-0 bottom-0 border-l border-slate-700"
-                  style={{ left: `${t.pct}%` }}
-                />
-              ))}
-            </div>
-
-            {/* Today vertical line — z-[25] stacks it above currency header
-                rows (z-20); bars at z-30 still overlay it. The line spans
-                only the chart body so it doesn't bleed into the sticky
-                axis (z-40). */}
-            <div
-              className="pointer-events-none absolute z-[25]"
-              style={{ left: LEFT_GUTTER, right: 0, top: AXIS_HEIGHT, bottom: 0 }}
-            >
               <div
-                className="absolute top-0 bottom-0"
-                style={{ left: 0, width: 2, backgroundColor: '#64748b' }}
-              />
-              {backUnder524Pct != null && (
+                className="absolute flex items-center text-[11px] text-slate-300 font-semibold whitespace-nowrap pointer-events-none"
+                style={{ right: 0, top: 0, bottom: 0, transform: 'translateX(50%)' }}
+                title={new Date(range.endMs).toLocaleDateString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              >
+                {new Date(range.endMs).toLocaleDateString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div
+            ref={scrollRef}
+            className="flex-1 min-h-0 overflow-auto"
+            style={{ scrollbarGutter: 'stable' }}
+          >
+            <div
+              className="relative"
+              style={{ display: 'grid', gridTemplateColumns: `${LEFT_GUTTER}px 1fr` }}
+            >
+              {/* Year gridlines — z-[25] so they cross over the currency
+                  header rows (z-20) instead of being masked by them. Bars
+                  at z-30 still overlay them. */}
+              <div
+                className="pointer-events-none absolute z-[25]"
+                style={{ left: LEFT_GUTTER, right: 0, top: 0, bottom: 0 }}
+              >
+                {yearTicks.map((t) => (
+                  <div
+                    key={t.label}
+                    className="absolute top-0 bottom-0 border-l border-slate-700"
+                    style={{ left: `${t.pct}%` }}
+                  />
+                ))}
+              </div>
+
+              {/* Today (start) + duration end vertical lines. Bars at z-30
+                  still overlay them. */}
+              <div
+                className="pointer-events-none absolute z-[25]"
+                style={{ left: LEFT_GUTTER, right: 0, top: 0, bottom: 0 }}
+              >
                 <div
                   className="absolute top-0 bottom-0"
-                  style={{
-                    left: `${backUnder524Pct}%`,
-                    width: 0,
-                    transform: 'translateX(-1px)',
-                    borderLeft: '2px dashed #64748b',
-                  }}
+                  style={{ left: 0, width: 2, backgroundColor: '#64748b' }}
                 />
-              )}
-            </div>
+                <div
+                  className="absolute top-0 bottom-0"
+                  style={{ right: 0, width: 2, backgroundColor: '#64748b' }}
+                />
+              </div>
 
-            {/* Groups */}
-            {groups.map((g) => (
+              {/* Groups */}
+              {groups.map((g) => (
               <GroupSection
                 key={g.name}
                 group={g}
@@ -610,11 +600,14 @@ export function WalletTimelineChart({
                   g.currencyId != null && expandedCurrencyId === g.currencyId
                 }
                 onToggleExpanded={toggleExpanded}
+                isDisabledExpanded={expandedDisabledGroups.has(g.name)}
+                onToggleDisabledExpanded={() => toggleDisabledExpanded(g.name)}
               />
             ))}
+            </div>
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   )
 }
@@ -673,9 +666,11 @@ interface GroupSectionProps {
   walletId: number
   walletCards: WalletCard[]
   isExpanded: boolean
+  isDisabledExpanded: boolean
   onToggleEnabled: (cardId: number, enabled: boolean) => void
   onEditCard: (wc: WalletCard) => void
   onToggleExpanded: (currencyId: number) => void
+  onToggleDisabledExpanded: () => void
 }
 
 function GroupSection({
@@ -691,9 +686,11 @@ function GroupSection({
   walletId,
   walletCards,
   isExpanded,
+  isDisabledExpanded,
   onToggleEnabled,
   onEditCard,
   onToggleExpanded,
+  onToggleDisabledExpanded,
 }: GroupSectionProps) {
   const balanceLabel = formatGroupBalance(group)
   const incomeLabel = formatGroupIncome(group, includeSubs, walletWindowYears, currencyWindowYears)
@@ -778,24 +775,102 @@ function GroupSection({
           onClose={() => onToggleExpanded(group.currencyId!)}
         />
       )}
-      {group.cards.map(({ wc, cr, secondary }) => (
-        <CardRow
-          key={wc.id}
-          wc={wc}
-          cr={cr}
-          secondary={secondary}
-          color={group.color}
-          range={range}
-          roadmapStatus={roadmapById.get(wc.card_id)}
-          isUpdating={isUpdating}
-          isStale={isStale}
-          includeSubs={includeSubs}
-          rightColumnPx={rightColumnPx}
-          onToggleEnabled={onToggleEnabled}
-          onEditCard={onEditCard}
-        />
-      ))}
+      {group.cards
+        .filter(({ wc }) => wc.is_enabled)
+        .map(({ wc, cr, secondary }) => (
+          <CardRow
+            key={wc.id}
+            wc={wc}
+            cr={cr}
+            secondary={secondary}
+            color={group.color}
+            range={range}
+            roadmapStatus={roadmapById.get(wc.card_id)}
+            isUpdating={isUpdating}
+            isStale={isStale}
+            includeSubs={includeSubs}
+            rightColumnPx={rightColumnPx}
+            onToggleEnabled={onToggleEnabled}
+            onEditCard={onEditCard}
+          />
+        ))}
+      <DisabledFoldRow
+        count={group.cards.filter(({ wc }) => !wc.is_enabled).length}
+        expanded={isDisabledExpanded}
+        onToggle={onToggleDisabledExpanded}
+      />
+      {isDisabledExpanded &&
+        group.cards
+          .filter(({ wc }) => !wc.is_enabled)
+          .map(({ wc, cr, secondary }) => (
+            <CardRow
+              key={wc.id}
+              wc={wc}
+              cr={cr}
+              secondary={secondary}
+              color={group.color}
+              range={range}
+              roadmapStatus={roadmapById.get(wc.card_id)}
+              isUpdating={isUpdating}
+              isStale={isStale}
+              includeSubs={includeSubs}
+              rightColumnPx={rightColumnPx}
+              onToggleEnabled={onToggleEnabled}
+              onEditCard={onEditCard}
+            />
+          ))}
     </>
+  )
+}
+
+const DISABLED_FOLD_ROW_HEIGHT = 26
+
+function DisabledFoldRow({
+  count,
+  expanded,
+  onToggle,
+}: {
+  count: number
+  expanded: boolean
+  onToggle: () => void
+}) {
+  if (count === 0) return null
+  const label = `${count} Disabled Card${count === 1 ? '' : 's'}`
+  return (
+    <div className="contents">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`flex items-center gap-1.5 px-3 ${DIVIDER_CLASS} bg-slate-900/40 hover:bg-slate-800/40 text-slate-400 text-xs transition-colors`}
+        style={{ height: DISABLED_FOLD_ROW_HEIGHT }}
+        aria-expanded={expanded}
+        title={expanded ? 'Hide disabled cards' : 'Show disabled cards'}
+      >
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          aria-hidden
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+        <span className="truncate">{label}</span>
+      </button>
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`${DIVIDER_CLASS} bg-slate-900/40 hover:bg-slate-800/40 transition-colors`}
+        style={{ height: DISABLED_FOLD_ROW_HEIGHT }}
+        aria-label={expanded ? 'Hide disabled cards' : 'Show disabled cards'}
+        tabIndex={-1}
+      />
+    </div>
   )
 }
 
@@ -837,12 +912,12 @@ function CardRow({
 
   const enabled = wc.is_enabled
 
-  const subEarnedDate = wc.sub_earned_date ?? roadmapStatus?.sub_earned_date ?? null
+  // sub_earned_date is deprecated and ignored — the projected earn date
+  // (auto-computed by the backend from spend rate) is the single source of
+  // truth for the SUB tick marker.
   const subProjectedDate =
     wc.sub_projected_earn_date ?? roadmapStatus?.sub_projected_earn_date ?? null
-  const subDateStr = subEarnedDate ?? subProjectedDate
-  const subEarned = subEarnedDate != null
-  const subMs = subDateStr ? parseDate(subDateStr).getTime() : null
+  const subMs = subProjectedDate ? parseDate(subProjectedDate).getTime() : null
   // Disabled cards don't participate in calculations, so their SUB projection
   // is meaningless — suppress the marker entirely.
   const showSubMarker =
@@ -872,11 +947,9 @@ function CardRow({
     `Added: ${formatDate(wc.added_date)}`,
     wc.closed_date ? `Closed: ${formatDate(wc.closed_date)}` : null,
     enabled
-      ? subEarned
-        ? `SUB earned: ${formatDate(subEarnedDate)}`
-        : subProjectedDate
-          ? `SUB projected: ${formatDate(subProjectedDate)}`
-          : 'No SUB'
+      ? subProjectedDate
+        ? `SUB projected: ${formatDate(subProjectedDate)}`
+        : 'No SUB'
       : 'Not Calculated',
     enabled && eafValue != null ? `EAF: ${formatMoney(eafValue)}` : null,
     enabled && incomeLabel ? `Income: ${incomeLabel.replace(/^\+/, '')}` : null,
@@ -945,25 +1018,30 @@ function CardRow({
 
       {/* Right column: timeline bar */}
       <div
-        className={`relative ${DIVIDER_CLASS} transition-colors group-hover:bg-slate-800/60`}
+        className={`relative ${DIVIDER_CLASS}`}
         style={{ height: CARD_ROW_HEIGHT }}
         title={tooltip}
       >
-        {barWidthPct > 0 && (
-          <div
-            className="absolute rounded"
-            style={{
-              left: `${barStartPct}%`,
-              width: `${barWidthPct}%`,
-              top: (CARD_ROW_HEIGHT - barHeight) / 2,
-              height: barHeight,
-              backgroundColor: enabled ? `${color}33` : '#33415533',
-              border: `1px solid ${enabled ? color : '#475569'}`,
-              opacity: enabled ? 1 : 0.55,
-              zIndex: 30,
-            }}
-          />
-        )}
+        {barWidthPct > 0 && (() => {
+          const roundLeft = addedMs > range.startMs
+          const roundRight = closedMs < range.endMs
+          const roundedClass = `${roundLeft ? 'rounded-l-full' : ''} ${roundRight ? 'rounded-r-full' : ''}`.trim()
+          return (
+            <div
+              className={`absolute ${roundedClass}`}
+              style={{
+                left: `${barStartPct}%`,
+                width: `${barWidthPct}%`,
+                top: (CARD_ROW_HEIGHT - barHeight) / 2,
+                height: barHeight,
+                backgroundColor: enabled ? `${color}33` : '#33415533',
+                border: `1px solid ${enabled ? color : '#475569'}`,
+                opacity: enabled ? 1 : 0.55,
+                zIndex: 30,
+              }}
+            />
+          )
+        })()}
         {barWidthPct > 0 && eafLabelText != null && (() => {
           const labelText = eafLabelText
           const baseColor = !enabled
@@ -1056,7 +1134,7 @@ function CardRow({
           )
         })()}
         {showSubMarker && subPct != null && (
-          <SubTick earned={subEarned} pct={subPct} rowHeight={CARD_ROW_HEIGHT} barHeight={barHeight} />
+          <SubTick pct={subPct} rowHeight={CARD_ROW_HEIGHT} barHeight={barHeight} />
         )}
       </div>
     </div>
@@ -1161,18 +1239,17 @@ function ToggleSwitch({
 }
 
 function SubTick({
-  earned,
   pct,
   rowHeight,
   barHeight,
 }: {
-  earned: boolean
   pct: number
   rowHeight: number
   barHeight: number
 }) {
-  // A thin amber vertical tick, extending a few px past the bar top and bottom
-  // to keep it visible regardless of bar fill color.
+  // A thin amber vertical tick marking the projected SUB earn date,
+  // extending a few px past the bar top and bottom to stay visible
+  // regardless of bar fill color.
   const extend = 6
   const top = (rowHeight - barHeight) / 2 - extend
   const height = barHeight + extend * 2
@@ -1183,12 +1260,11 @@ function SubTick({
         left: `${pct}%`,
         top,
         height,
-        width: 2,
+        width: 0,
         transform: 'translateX(-1px)',
-        backgroundColor: earned ? '#f59e0b' : 'transparent',
-        borderLeft: earned ? undefined : '2px dashed #f59e0b',
+        borderLeft: '2px dashed #f59e0b',
       }}
-      title={earned ? 'SUB earned' : 'SUB projected'}
+      title="SUB projected"
     />
   )
 }

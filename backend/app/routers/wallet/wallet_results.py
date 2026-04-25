@@ -201,17 +201,13 @@ async def wallet_results(
     wcids = {c.currency.id for c in selected_card_data}
 
     # Cards already in the user's wallet at the calc start: SUB windows for
-    # these are not projected (they would have been earned before the window,
-    # or are marked via sub_earned_date).
+    # these are treated as history (no projection contributes to EV).
     in_wallet_now_card_ids = {
         wc.card_id for wc in active_wallet_cards if wc.added_date <= ref_date
     }
-    sub_already_earned_ids = {wc.card_id for wc in active_wallet_cards if wc.sub_earned_date}
 
     def _has_sub_window(cd) -> bool:
         if cd.id in in_wallet_now_card_ids:
-            return False
-        if cd.id in sub_already_earned_ids:
             return False
         if not cd.sub_points or not cd.sub_min_spend or not cd.wallet_added_date:
             return False
@@ -276,7 +272,6 @@ async def wallet_results(
     modified_cards = [
         dataclasses.replace(
             c,
-            sub_already_earned=c.id in sub_already_earned_ids,
             # In-wallet-now cards' SUBs are history, not projection value —
             # they're either already in the user's balance or were missed.
             # Only future cards with a feasible SUB window contribute to
@@ -423,17 +418,12 @@ async def wallet_roadmap(
             sub_projected is None
             and eff_sub
             and eff_sub_min
-            and not wc.sub_earned_date
             and wc.added_date > today
         ):
             sub_projected = projected_sub_earn_date(wc.added_date, eff_sub_min, eff_sub_months, roadmap_daily_rate)
 
         if not eff_sub:
             sub_status = "no_sub"
-            sub_window_end = None
-            sub_days_remaining = None
-        elif wc.sub_earned_date:
-            sub_status = "earned"
             sub_window_end = None
             sub_days_remaining = None
         elif sub_projected is not None and sub_projected <= today:
@@ -457,7 +447,7 @@ async def wallet_roadmap(
         recurrence = card.sub_recurrence_months
         next_eligible: Optional[date] = None
         if recurrence:
-            effective_earned = wc.sub_earned_date or (sub_projected if sub_projected and sub_projected <= today else None)
+            effective_earned = sub_projected if sub_projected and sub_projected <= today else None
             if effective_earned:
                 next_eligible = add_months(effective_earned, recurrence)
             else:
@@ -473,7 +463,7 @@ async def wallet_roadmap(
                 added_date=wc.added_date,
                 closed_date=wc.closed_date,
                 is_active=is_active,
-                sub_earned_date=wc.sub_earned_date,
+                sub_earned_date=None,
                 sub_projected_earn_date=sub_projected,
                 sub_status=sub_status,
                 sub_window_end=sub_window_end,

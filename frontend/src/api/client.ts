@@ -506,7 +506,21 @@ export interface UpdateWalletCardPayload {
   is_enabled?: boolean
 }
 
+export interface WalletSummary {
+  id: number
+  name: string
+  description: string | null
+}
+
+export interface CreateWalletPayload {
+  name: string
+  description?: string | null
+}
+
 export const walletsApi = {
+  list: () => request<WalletSummary[]>('/wallets'),
+  create: (payload: CreateWalletPayload) =>
+    request<Wallet>('/wallets', { method: 'POST', body: JSON.stringify(payload) }),
   get: (id: number) => request<Wallet>(`/wallets/${id}`),
   getMyWallet: () => request<Wallet>('/wallet'),
   update: (id: number, payload: UpdateWalletPayload) =>

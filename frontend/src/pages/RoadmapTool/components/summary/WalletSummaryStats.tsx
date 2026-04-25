@@ -225,7 +225,7 @@ export function WalletSummaryStats({
       <div
         className={`shrink-0 w-44 bg-slate-900 border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
-        <div className="flex items-center gap-1 mb-2.5">
+        <div className="flex items-center justify-center gap-1 mb-2.5">
           <span className="text-[10px] text-slate-400 uppercase tracking-wider whitespace-nowrap">Sign-Up Bonuses</span>
           <InfoIconButton
             onClick={(e) => {
@@ -272,40 +272,45 @@ export function WalletSummaryStats({
         </div>
       </div>
 
-      {/* Right: 5/24 status + legend */}
+      {/* Right: timeline legend */}
       {roadmap && (
         <div
           className={`shrink-0 w-52 bg-slate-900 border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
         >
-          <div
-            className="flex items-center justify-between gap-2"
-            title={`${roadmap.five_twenty_four_count} personal cards opened in last 24 months`}
-          >
-            <div className="flex items-center gap-1.5">
-              <span
-                aria-hidden
-                className={`inline-block w-1.5 h-1.5 rounded-full ${
-                  roadmap.five_twenty_four_eligible ? 'bg-emerald-400' : 'bg-red-400'
-                }`}
-              />
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider whitespace-nowrap">5/24 Status</p>
-            </div>
-            <p
-              className={`text-sm font-semibold tabular-nums ${
-                roadmap.five_twenty_four_eligible ? 'text-emerald-400' : 'text-red-400'
-              }`}
-            >
-              {roadmap.five_twenty_four_count}/5
-            </p>
-          </div>
-          <div className="mt-1.5 pt-1.5 border-t border-slate-700/40 grid grid-cols-[14px_1fr] gap-x-2 gap-y-0.5 items-center text-[10px] text-slate-500">
+          <div className="grid grid-cols-[20px_1fr] gap-x-2 gap-y-1 items-center text-[10px] text-slate-500">
             <span
               aria-hidden
               className="justify-self-center inline-block"
-              style={{ width: 2, height: 9, backgroundColor: '#f59e0b' }}
-              title="Amber line in the timeline marks the SUB earned date (dashed when projected)"
+              style={{ width: 2, height: 11, backgroundColor: '#64748b' }}
+              title="Solid slate lines mark Today and the end of the projection window"
             />
-            <span className="whitespace-nowrap">SUB Earned Date</span>
+            <span className="whitespace-nowrap">Time Horizon Bounds</span>
+
+            <span
+              aria-hidden
+              className="justify-self-center inline-block"
+              style={{
+                width: 0,
+                height: 11,
+                borderLeft: '2px dashed #f59e0b',
+              }}
+              title="Dashed amber line marks the projected SUB earn date"
+            />
+            <span className="whitespace-nowrap">SUB Earn Date</span>
+
+            <span
+              aria-hidden
+              className="justify-self-center inline-block rounded-full"
+              style={{
+                width: 18,
+                height: 7,
+                backgroundColor: '#818cf833',
+                border: '1px solid #818cf8',
+              }}
+              title="Coloured bar shows when the card is active (open and not closed)"
+            />
+            <span className="whitespace-nowrap">Active Card Window</span>
+
             <span
               aria-hidden
               className="justify-self-center relative inline-block w-4 h-2 rounded-full bg-indigo-500"

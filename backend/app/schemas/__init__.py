@@ -75,7 +75,9 @@ from .wallet import (
     WalletCardCreate,
     WalletCardRead,
     WalletCardUpdate,
+    WalletCreate,
     WalletRead,
+    WalletSummary,
     WalletUpdate,
 )
 from .wallet_overrides import (
@@ -150,7 +152,9 @@ __all__ = [
     "WalletCardCreate",
     "WalletCardRead",
     "WalletCardUpdate",
+    "WalletCreate",
     "WalletRead",
+    "WalletSummary",
     "WalletUpdate",
     # Wallet overrides
     "WalletCardCategoryPriorityRead",

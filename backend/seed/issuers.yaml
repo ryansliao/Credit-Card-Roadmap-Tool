@@ -1,15 +1,10 @@
 issuers:
 - name: American Express
   application_rules:
-  - rule_name: 1/90 Business
+  - rule_name: 1/90
     max_count: 1
     period_days: 90
-    description: American Express typically approves only one new business credit card application per 90-day rolling window.
-  - rule_name: 1/90 Personal
-    max_count: 1
-    period_days: 90
-    description: American Express typically approves only one new personal credit card application per 90-day rolling window.
-    personal_only: true
+    description: American Express typically approves only one new credit card application per 90-day rolling window (applies to personal and business cards alike).
   - rule_name: 5 Card Max
     max_count: 5
     period_days: 36500

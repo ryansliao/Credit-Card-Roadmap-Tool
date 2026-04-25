@@ -1,15 +1,4 @@
 # To-Do List
 
-## Calculation
-
-## Database
-
-## Backend
-
-## Frontend
-
-### Home
-
-### Roadmap Tool
-
-### Profile Settings
+- Create a intro flow for new users
+- Empty state testing

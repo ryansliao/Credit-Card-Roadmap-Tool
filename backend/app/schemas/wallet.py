@@ -102,6 +102,11 @@ class WalletBase(BaseModel):
     as_of_date: Optional[date] = None
 
 
+class WalletCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    description: Optional[str] = None
+
+
 class WalletUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
@@ -122,3 +127,12 @@ class WalletRead(WalletBase):
     calc_window_mode: str = "duration"
     foreign_spend_percent: float = 0
     include_subs: bool = True
+
+
+class WalletSummary(BaseModel):
+    """Lightweight wallet record for list views (no cards / overrides)."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    description: Optional[str] = None

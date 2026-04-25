@@ -82,6 +82,19 @@ class WalletService(BaseService[Wallet]):
         )
         return list(result.scalars().all())
 
+    async def list_summaries_for_user(self, user_id: int) -> list[Wallet]:
+        """List wallets for a user without eager-loading nested relationships.
+
+        Returned rows are intended for the WalletSummary schema (id/name/
+        description only) — used by the wallet picker dropdown.
+        """
+        result = await self.db.execute(
+            select(Wallet)
+            .where(Wallet.user_id == user_id)
+            .order_by(Wallet.id)
+        )
+        return list(result.scalars().all())
+
     async def get_for_user(self, user_id: int) -> Optional[Wallet]:
         """Get the user's single wallet with eager-loaded relationships.
 

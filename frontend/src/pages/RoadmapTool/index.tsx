@@ -1,6 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   walletsApi,
   walletCardCategoryPriorityApi,
@@ -29,6 +29,8 @@ import { MethodologyInfoPopover } from './components/summary/MethodologyInfoPopo
 import { WalletTimelineChart } from './components/timeline/WalletTimelineChart'
 import { SpendPanel } from './components/spend/SpendPanel'
 import { ApplicationRuleWarningModal } from './components/ApplicationRuleWarningModal'
+import { AddWalletModal } from './components/AddWalletModal'
+import { WalletPicker } from './components/WalletPicker'
 import { InfoIconButton } from '../../components/InfoPopover'
 import { useCreditLibrary } from '../../hooks/useCreditLibrary'
 import { useTravelPortals } from '../../hooks/useTravelPortals'
@@ -173,6 +175,9 @@ function walletCalcSignature(
 
 export default function RoadmapToolPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const { walletId: walletIdParam } = useParams<{ walletId?: string }>()
+  const requestedWalletId = walletIdParam ? Number(walletIdParam) : null
   const [walletCardModal, setWalletCardModal] = useState<WalletCardModalOpen | null>(null)
   const [durationYears, setDurationYears] = useState(2)
   const [durationMonths, setDurationMonths] = useState(0)
@@ -193,11 +198,42 @@ export default function RoadmapToolPage() {
   const [pendingRemoval, setPendingRemoval] = useState<{ cardId: number; cardName: string } | null>(
     null
   )
+  const [showAddWallet, setShowAddWallet] = useState(false)
+  const [addWalletError, setAddWalletError] = useState<string | null>(null)
 
-  const { data: wallet, isLoading: walletLoading } = useQuery({
-    queryKey: queryKeys.myWallet(),
-    queryFn: () => walletsApi.getMyWallet(),
+  const { data: walletList } = useQuery({
+    queryKey: queryKeys.wallets(),
+    queryFn: () => walletsApi.list(),
   })
+
+  // Single wallet query that resolves to either the URL-requested wallet or
+  // the user's default. Falls back gracefully when the requested wallet is
+  // missing/forbidden so a stale link doesn't dead-end the page. The fallback
+  // signal travels with the data so the banner stays in sync with refetches.
+  const { data: walletData, isLoading: walletLoading } = useQuery({
+    queryKey: [...queryKeys.myWallet(), requestedWalletId] as const,
+    queryFn: async (): Promise<{
+      wallet: Wallet
+      isFallback: boolean
+      requestedId: number | null
+    }> => {
+      if (requestedWalletId != null) {
+        try {
+          const w = await walletsApi.get(requestedWalletId)
+          return { wallet: w, isFallback: false, requestedId: requestedWalletId }
+        } catch {
+          const w = await walletsApi.getMyWallet()
+          return { wallet: w, isFallback: true, requestedId: requestedWalletId }
+        }
+      }
+      const w = await walletsApi.getMyWallet()
+      return { wallet: w, isFallback: false, requestedId: null }
+    },
+  })
+  const wallet = walletData?.wallet ?? null
+  const fallbackMessage = walletData?.isFallback
+    ? `Wallet #${walletData.requestedId} is unavailable — showing your default wallet.`
+    : null
 
   const walletId = wallet?.id ?? null
 
@@ -329,6 +365,19 @@ export default function RoadmapToolPage() {
   // Same trick for travel portals so the per-currency portal-share meter
   // renders instantly the first time the currency settings dropdown opens.
   useTravelPortals()
+
+  const createWalletMutation = useMutation({
+    mutationFn: ({ name }: { name: string }) => walletsApi.create({ name }),
+    onSuccess: async (newWallet) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.wallets() })
+      setShowAddWallet(false)
+      setAddWalletError(null)
+      navigate(`/roadmap-tool/wallets/${newWallet.id}`)
+    },
+    onError: (err) => {
+      setAddWalletError(err instanceof Error ? err.message : String(err))
+    },
+  })
 
   const addCardMutation = useMutation({
     mutationFn: ({ walletId, payload }: { walletId: number; payload: AddCardToWalletPayload }) =>
@@ -532,8 +581,19 @@ export default function RoadmapToolPage() {
         </div>
       )}
       <header className="mb-3 shrink-0 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-white">Roadmap Tool</h1>
+        <div className="min-w-0 flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-white shrink-0">Roadmap Tool</h1>
+          {walletList && (
+            <WalletPicker
+              wallets={walletList}
+              currentId={walletId}
+              onSelect={(id) => navigate(`/roadmap-tool/wallets/${id}`)}
+              onAddWallet={() => {
+                setAddWalletError(null)
+                setShowAddWallet(true)
+              }}
+            />
+          )}
         </div>
         {wallet && (
           <div className="shrink-0 flex items-center gap-2">
@@ -575,6 +635,12 @@ export default function RoadmapToolPage() {
           anchorEl={methodologyAnchor}
           onClose={() => setMethodologyAnchor(null)}
         />
+      )}
+
+      {fallbackMessage && (
+        <div className="mb-3 shrink-0 px-3 py-2 rounded-md border border-amber-700/60 bg-amber-900/30 text-amber-200 text-sm">
+          {fallbackMessage}
+        </div>
       )}
 
       <div className="min-w-0 flex-1 min-h-0 flex flex-col">
@@ -698,6 +764,21 @@ export default function RoadmapToolPage() {
         <ApplicationRuleWarningModal
           violations={applicationRuleWarnings}
           onClose={() => setApplicationRuleWarnings(null)}
+        />
+      )}
+
+      {showAddWallet && (
+        <AddWalletModal
+          isSubmitting={createWalletMutation.isPending}
+          errorMessage={addWalletError}
+          onClose={() => {
+            setShowAddWallet(false)
+            setAddWalletError(null)
+          }}
+          onSubmit={(name) => {
+            setAddWalletError(null)
+            createWalletMutation.mutate({ name })
+          }}
         />
       )}
 
