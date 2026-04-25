@@ -17,7 +17,15 @@ from .admin import (
     AdminUpdateCardMultiplierGroupPayload,
     AdminUpdateTravelPortalPayload,
 )
-from .builders import wallet_read, wallet_to_schema, wc_read
+from .builders import (
+    card_instance_read,
+    scenario_read,
+    scenario_summary,
+    wallet_read,
+    wallet_to_schema,
+    wallet_with_scenarios_read,
+    wc_read,
+)
 from .card import (
     CardMultiplierGroupRead,
     CardMultiplierGroupSchema,
@@ -79,6 +87,7 @@ from .wallet import (
     WalletRead,
     WalletSummary,
     WalletUpdate,
+    WalletWithScenariosRead,
 )
 from .wallet_overrides import (
     WalletCardCategoryPriorityRead,
@@ -137,8 +146,12 @@ __all__ = [
     "AdminUpdateCardMultiplierGroupPayload",
     "AdminUpdateTravelPortalPayload",
     # Builders
+    "card_instance_read",
+    "scenario_read",
+    "scenario_summary",
     "wallet_read",
     "wallet_to_schema",
+    "wallet_with_scenarios_read",
     "wc_read",
     # Card
     "CardMultiplierGroupRead",
@@ -193,6 +206,7 @@ __all__ = [
     "WalletRead",
     "WalletSummary",
     "WalletUpdate",
+    "WalletWithScenariosRead",
     # Wallet overrides
     "WalletCardCategoryPriorityRead",
     "WalletCardCategoryPrioritySet",

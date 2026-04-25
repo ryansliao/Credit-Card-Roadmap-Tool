@@ -136,3 +136,21 @@ class WalletSummary(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
+
+
+class WalletWithScenariosRead(BaseModel):
+    """The user's single wallet plus owned CardInstances and a summary of
+    its scenarios. Returned by ``GET /wallet`` in the new flow."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    user_id: int
+    name: str
+    description: Optional[str] = None
+    foreign_spend_percent: float = 0.0
+    # Owned card instances (CardInstance rows where scenario_id IS NULL).
+    # The legacy ``wallet_cards`` field on the old WalletRead is gone — the
+    # frontend keys off this list.
+    card_instances: list = []
+    # Lightweight scenario summaries for the picker.
+    scenarios: list = []

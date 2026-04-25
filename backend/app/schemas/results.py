@@ -89,10 +89,17 @@ class WalletResultSchema(BaseModel):
 
 
 class WalletResultResponseSchema(BaseModel):
-    """Response for GET /wallets/{id}/results."""
+    """Response for GET /wallets/{id}/results and /scenarios/{id}/results.
+
+    Under the new model, ``wallet_id`` is the wallet (one per user), and
+    ``scenario_id`` / ``scenario_name`` identify the scenario whose state
+    was calculated. Legacy clients that read ``wallet_name`` get the
+    scenario's name (matching the entity being calculated)."""
 
     wallet_id: int
     wallet_name: str
+    scenario_id: Optional[int] = None
+    scenario_name: Optional[str] = None
     start_date: date
     end_date: Optional[date] = None
     duration_years: int = 0

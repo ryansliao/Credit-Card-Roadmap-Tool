@@ -11,9 +11,19 @@ from __future__ import annotations
 
 from typing import Literal, cast
 
-from ..models import Card, Wallet, WalletCard
+from ..models import Card, CardInstance, Scenario, Wallet, WalletCard
+from .card_instance import (
+    CardInstanceRead,
+    CreditTotalByCurrency as CICreditTotalByCurrency,
+)
 from .results import CardResultSchema, CategoryEarnItem, WalletResultSchema
-from .wallet import CreditTotalByCurrency, WalletCardRead, WalletRead
+from .scenario import ScenarioRead, ScenarioSummary
+from .wallet import (
+    CreditTotalByCurrency,
+    WalletCardRead,
+    WalletRead,
+    WalletWithScenariosRead,
+)
 
 
 def _build_credit_totals(wc: WalletCard) -> list[CreditTotalByCurrency]:
@@ -121,6 +131,114 @@ def wallet_read(wallet: Wallet) -> WalletRead:
         foreign_spend_percent=wallet.foreign_spend_percent,
         include_subs=wallet.include_subs,
         wallet_cards=[wc_read(wc, wc.card) for wc in wallet.wallet_cards],
+    )
+
+
+def _build_instance_credit_totals(
+    inst: CardInstance,
+) -> list[CICreditTotalByCurrency]:
+    """Aggregate scenario-scoped credit override values for a card instance
+    by the credit's native currency. Mirrors :func:`_build_credit_totals`
+    but reads from ``ScenarioCardCredit`` rows attached to the instance."""
+    rows = getattr(inst, "credit_overrides_rows", None) or []
+    if not rows:
+        return []
+    buckets: dict[tuple[str, int | None], CICreditTotalByCurrency] = {}
+    for row in rows:
+        lib = row.library_credit
+        currency = lib.credit_currency if lib is not None else None
+        if currency is not None and currency.reward_kind == "points":
+            key = ("points", currency.id)
+            name = currency.name
+            kind = "points"
+            cur_id: int | None = currency.id
+        else:
+            key = ("cash", None)
+            name = currency.name if currency is not None else None
+            kind = "cash"
+            cur_id = currency.id if currency is not None else None
+        existing = buckets.get(key)
+        if existing is None:
+            buckets[key] = CICreditTotalByCurrency(
+                kind=kind,
+                currency_id=cur_id,
+                currency_name=name,
+                value=float(row.value or 0),
+            )
+        else:
+            existing.value += float(row.value or 0)
+    return sorted(
+        buckets.values(),
+        key=lambda e: (0 if e.kind == "cash" else 1, e.currency_name or ""),
+    )
+
+
+def card_instance_read(inst: CardInstance) -> CardInstanceRead:
+    """Build a CardInstanceRead. Library Card must be eager-loaded on the
+    instance (CardInstanceService.instance_load_opts() handles this)."""
+    card = inst.card
+    return CardInstanceRead(
+        id=inst.id,
+        wallet_id=inst.wallet_id,
+        scenario_id=inst.scenario_id,
+        card_id=inst.card_id,
+        card_name=card.name,
+        transfer_enabler=bool(getattr(card, "transfer_enabler", False)),
+        photo_slug=getattr(card, "photo_slug", None),
+        issuer_name=card.issuer.name if getattr(card, "issuer", None) else None,
+        network_tier_name=(
+            card.network_tier.name
+            if getattr(card, "network_tier", None)
+            else None
+        ),
+        opening_date=inst.opening_date,
+        product_change_date=inst.product_change_date,
+        closed_date=inst.closed_date,
+        sub_points=inst.sub_points,
+        sub_min_spend=inst.sub_min_spend,
+        sub_months=inst.sub_months,
+        sub_spend_earn=inst.sub_spend_earn,
+        annual_bonus=inst.annual_bonus,
+        annual_bonus_percent=inst.annual_bonus_percent,
+        annual_bonus_first_year_only=inst.annual_bonus_first_year_only,
+        years_counted=inst.years_counted,
+        annual_fee=inst.annual_fee,
+        first_year_fee=inst.first_year_fee,
+        secondary_currency_rate=inst.secondary_currency_rate,
+        sub_earned_date=inst.sub_earned_date,
+        sub_projected_earn_date=inst.sub_projected_earn_date,
+        pc_from_instance_id=inst.pc_from_instance_id,
+        panel=cast(
+            Literal["in_wallet", "future_cards", "considering"],
+            inst.panel,
+        ),
+        is_enabled=bool(inst.is_enabled),
+        credit_totals=_build_instance_credit_totals(inst),
+    )
+
+
+def scenario_summary(scenario: Scenario) -> ScenarioSummary:
+    return ScenarioSummary.model_validate(scenario)
+
+
+def scenario_read(scenario: Scenario) -> ScenarioRead:
+    return ScenarioRead.model_validate(scenario)
+
+
+def wallet_with_scenarios_read(
+    wallet: Wallet,
+    owned_instances: list[CardInstance],
+    scenarios: list[Scenario],
+) -> WalletWithScenariosRead:
+    """Compose the new ``GET /wallet`` response."""
+    return WalletWithScenariosRead(
+        id=wallet.id,
+        user_id=wallet.user_id,
+        name=wallet.name,
+        description=wallet.description,
+        foreign_spend_percent=wallet.foreign_spend_percent or 0.0,
+        card_instances=[card_instance_read(i) for i in owned_instances],
+        scenarios=[scenario_summary(s) for s in scenarios],
     )
 
 
