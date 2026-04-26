@@ -1148,29 +1148,7 @@ function CardRow({
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-slate-200 truncate flex items-center gap-1.5">
               <span className="truncate">{wc.card_name ?? `Card #${wc.card_id}`}</span>
-              {wc.is_future ? (
-                <IconHoverLabel
-                  label="Future card"
-                  className="shrink-0 text-sky-300 inline-flex"
-                >
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="5" width="18" height="16" rx="2" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                    <line x1="8" y1="3" x2="8" y2="7" />
-                    <line x1="16" y1="3" x2="16" y2="7" />
-                    <circle cx="16" cy="16" r="2.5" />
-                  </svg>
-                </IconHoverLabel>
-              ) : (
+              {!wc.is_future && (
                 <IconHoverLabel
                   label="Owned card — locked from this view"
                   className="shrink-0 text-emerald-300 inline-flex"
