@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { Card, CardResult, UserSpendCategory } from '../../../../api/client'
+import type {
+  Card,
+  CardResult,
+  ScenarioCardCategoryPriority,
+  UserSpendCategory,
+} from '../../../../api/client'
 import { walletSpendApi } from '../../../../api/client'
 import type { ResolvedCard } from '../../lib/resolveScenarioCards'
 import { InfoQuoteBox } from '../../../../components/InfoPopover'
@@ -11,6 +16,7 @@ import { useCardLibrary } from '../../hooks/useCardLibrary'
 interface Props {
   selectedCards: CardResult[]
   walletCards: ResolvedCard[]
+  categoryPriorities: ScenarioCardCategoryPriority[]
   isTotal: boolean
   totalYears: number
   isStale: boolean
@@ -42,6 +48,7 @@ function CardPhoto({ slug, name }: { slug: string | null; name: string }) {
 export function SpendTabContent({
   selectedCards,
   walletCards,
+  categoryPriorities,
   isTotal,
   totalYears,
   isStale,
@@ -145,6 +152,18 @@ export function SpendTabContent({
     () => selectedCards.filter((c) => !excludedInstanceIds.has(c.card_id)),
     [selectedCards, excludedInstanceIds]
   )
+
+  // Pinned earn-category IDs per card_instance_id. CardResult.card_id under
+  // the new model is the synthetic CardInstance.id, so we key by that.
+  const pinnedEarnCategoriesByInstanceId = useMemo(() => {
+    const m = new Map<number, Set<number>>()
+    for (const pr of categoryPriorities) {
+      const set = m.get(pr.card_instance_id) ?? new Set<number>()
+      set.add(pr.spend_category_id)
+      m.set(pr.card_instance_id, set)
+    }
+    return m
+  }, [categoryPriorities])
 
   // Cycling through cards in the third column. Index is clamped to the
   // current card list so removing a card doesn't leave a stale index.
@@ -272,15 +291,38 @@ export function SpendTabContent({
   interface TopCardEntry {
     card: CardResult
     ros: number
-    tag: 'baseline' | 'rotating' | 'portal'
+    tag: 'baseline' | 'rotating' | 'portal' | 'override'
   }
 
   function topCardsForCategory(userCategory: UserSpendCategory | null): TopCardEntry[] {
     if (topRosCards.length === 0 || !userCategory) return []
-    // Baseline top (excludes rotating bonuses and portal elevation).
+
+    // Manual category-priority pins for this user category. A pin matches
+    // when the priority's spend_category_id is one of the user category's
+    // mapped earn categories. Pinned cards always surface with an OVERRIDE
+    // badge — they take precedence over baseline/rotating/portal tags so
+    // the user sees the manual pin, not the auto-pick that would have won.
+    const userMappedEarnIds = new Set(
+      userCategory.mappings.map((m) => m.earn_category.id),
+    )
+    const overrideInstanceIds = new Set<number>()
+    for (const card of topRosCards) {
+      const pinned = pinnedEarnCategoriesByInstanceId.get(card.card_id)
+      if (!pinned) continue
+      for (const earnId of pinned) {
+        if (userMappedEarnIds.has(earnId)) {
+          overrideInstanceIds.add(card.card_id)
+          break
+        }
+      }
+    }
+
+    // Baseline top (excludes rotating bonuses and portal elevation, and
+    // excludes overridden cards — we surface them under their own tag).
     let baselineBest = -Infinity
     let baselineCards: CardResult[] = []
     for (const card of topRosCards) {
+      if (overrideInstanceIds.has(card.card_id)) continue
       const r = getWeightedRosForCard(card, userCategory, 'baseline')
       if (r > baselineBest + 1e-9) {
         baselineBest = r
@@ -289,34 +331,49 @@ export function SpendTabContent({
         baselineCards.push(card)
       }
     }
-    if (!(baselineBest > 0)) return []
+    const baselineEntries: TopCardEntry[] =
+      baselineBest > 0
+        ? baselineCards.map((card) => ({
+            card,
+            ros: baselineBest,
+            tag: 'baseline' as const,
+          }))
+        : []
 
-    const entries: TopCardEntry[] = baselineCards.map((card) => ({
-      card,
-      ros: baselineBest,
-      tag: 'baseline',
-    }))
+    const overrideEntries: TopCardEntry[] = topRosCards
+      .filter((card) => overrideInstanceIds.has(card.card_id))
+      .map((card) => ({
+        card,
+        ros: getWeightedRosForCard(card, userCategory, 'baseline'),
+        tag: 'override' as const,
+      }))
+      .sort((a, b) => b.ros - a.ros)
 
-    // Rotating / portal candidates: any card whose boosted ROS strictly
-    // exceeds both its own baseline (so the boost actually helps the card)
-    // and the baseline top. Both tags can appear for the same card when
-    // the user category draws from overlapping earn categories (e.g. Chase
-    // Freedom Flex has rotating Dining and a Travel portal row).
+    if (baselineEntries.length === 0 && overrideEntries.length === 0) return []
+
+    // Rotating / portal candidates: any non-overridden card whose boosted
+    // ROS strictly exceeds both its own baseline (so the boost actually
+    // helps the card) and the baseline top. Both tags can appear for the
+    // same card when the user category draws from overlapping earn
+    // categories (e.g. Chase Freedom Flex has rotating Dining and a
+    // Travel portal row).
     const rotatingEntries: TopCardEntry[] = []
     const portalEntries: TopCardEntry[] = []
+    const baselineThreshold = baselineBest > 0 ? baselineBest : 0
     for (const card of topRosCards) {
+      if (overrideInstanceIds.has(card.card_id)) continue
       const ownBaseline = getWeightedRosForCard(card, userCategory, 'baseline')
 
       if (userCategoryHasRotatingCoverage(card, userCategory)) {
         const rotRos = getWeightedRosForCard(card, userCategory, 'rotating')
-        if (rotRos > ownBaseline + 1e-9 && rotRos > baselineBest + 1e-9) {
+        if (rotRos > ownBaseline + 1e-9 && rotRos > baselineThreshold + 1e-9) {
           rotatingEntries.push({ card, ros: rotRos, tag: 'rotating' })
         }
       }
 
       if (userCategoryHasPortalCoverage(card, userCategory)) {
         const portalRos = getWeightedRosForCard(card, userCategory, 'portal')
-        if (portalRos > ownBaseline + 1e-9 && portalRos > baselineBest + 1e-9) {
+        if (portalRos > ownBaseline + 1e-9 && portalRos > baselineThreshold + 1e-9) {
           portalEntries.push({ card, ros: portalRos, tag: 'portal' })
         }
       }
@@ -327,7 +384,7 @@ export function SpendTabContent({
     // portal beats baseline top gets noisy on Travel-heavy buckets where
     // several cards qualify, and only the highest one is actionable.
     const topPortal = portalEntries.length > 0 ? [portalEntries[0]] : []
-    return [...entries, ...rotatingEntries, ...topPortal]
+    return [...overrideEntries, ...baselineEntries, ...rotatingEntries, ...topPortal]
   }
 
   function formatRos(ros: number): string {
@@ -562,6 +619,14 @@ export function SpendTabContent({
                                       title="Only applies when this category is in the card's active rotating bonus"
                                     >
                                       Rotating
+                                    </span>
+                                  )}
+                                  {entry.tag === 'override' && (
+                                    <span
+                                      className="text-[10px] uppercase tracking-wide text-emerald-300/90 bg-emerald-500/10 border border-emerald-500/30 rounded px-1 py-[1px]"
+                                      title="This card is manually pinned for this category in the current scenario"
+                                    >
+                                      Override
                                     </span>
                                   )}
                                 </div>

@@ -6,6 +6,11 @@ credits:
   currency: Cash
   cards:
   - card: American AAdvantage Executive
+- credit_name: Admirals Club Globe Passes
+  value: 0.0
+  currency: Cash
+  cards:
+  - card: American AAdvantage Globe
 - credit_name: Airline Credit
   currency: Cash
   cards:
@@ -29,6 +34,7 @@ credits:
   excludes_first_year: true
   currency: Cash
   cards:
+  - card: American AAdvantage Globe
   - card: Delta SkyMiles Platinum
   - card: Delta SkyMiles Reserve
 - credit_name: Apple TV+/Music Credit
@@ -49,8 +55,10 @@ credits:
   cards:
   - card: Atmos Rewards Summit
 - credit_name: Avis / Budget Car Rental Credit
-  value: 0.0
   currency: Cash
+  cards:
+  - card: American AAdvantage Executive
+    value: 120.0
 - credit_name: Bank of America Lifestyle Credit
   currency: Cash
   cards:
@@ -183,6 +191,7 @@ credits:
   currency: Cash
   cards:
   - card: American AAdvantage Executive
+  - card: American AAdvantage Globe
   - card: American Express Platinum
   - card: Atmos Rewards Summit
   - card: Bank of America Premium Rewards
@@ -204,6 +213,9 @@ credits:
   - card: American Express Platinum
 - credit_name: Grubhub Credit
   currency: Cash
+  cards:
+  - card: American AAdvantage Executive
+    value: 120.0
 - credit_name: Hertz Five Star Status
   value: 0.0
   currency: Cash
@@ -242,6 +254,11 @@ credits:
   currency: Cash
   cards:
   - card: Chase Sapphire Reserve
+- credit_name: Inflight Credit
+  currency: Cash
+  cards:
+  - card: American AAdvantage Globe
+    value: 100.0
 - credit_name: Lululemon Credit
   currency: Cash
   cards:
@@ -250,6 +267,8 @@ credits:
 - credit_name: Lyft Credit
   currency: Cash
   cards:
+  - card: American AAdvantage Executive
+    value: 120.0
   - card: Chase Sapphire Reserve
     value: 120.0
 - credit_name: Marriot Bonvoy Gold Elite Status
@@ -320,6 +339,8 @@ credits:
 - credit_name: Splurge Credit
   currency: Cash
   cards:
+  - card: American AAdvantage Globe
+    value: 100.0
   - card: Citi Strata Elite
     value: 200.0
 - credit_name: Streaming Credit
@@ -345,6 +366,9 @@ credits:
     value: 200.0
 - credit_name: Turo Credit
   currency: Cash
+  cards:
+  - card: American AAdvantage Globe
+    value: 240.0
 - credit_name: Uber Cash
   currency: Cash
   cards:

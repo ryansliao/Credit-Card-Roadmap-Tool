@@ -979,6 +979,7 @@ export default function RoadmapToolPage() {
                   <SpendPanel
                     selectedCards={result?.wallet.card_results.filter((c) => c.selected) ?? []}
                     walletCards={resolvedCards}
+                    categoryPriorities={categoryPriorities ?? []}
                     totalYears={Math.max(durationYears + durationMonths / 12, 1 / 12)}
                     isStale={isStale}
                   />

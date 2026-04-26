@@ -294,17 +294,16 @@ class ScenarioCategoryPriorityService(BaseService[ScenarioCardCategoryPriority])
             await self.db.delete(row)
         await self.db.flush()
 
-        new_rows: list[ScenarioCardCategoryPriority] = []
         for sc_id in spend_category_ids:
-            row = ScenarioCardCategoryPriority(
-                scenario_id=scenario_id,
-                card_instance_id=card_instance.id,
-                spend_category_id=sc_id,
+            self.db.add(
+                ScenarioCardCategoryPriority(
+                    scenario_id=scenario_id,
+                    card_instance_id=card_instance.id,
+                    spend_category_id=sc_id,
+                )
             )
-            self.db.add(row)
-            new_rows.append(row)
         await self.db.flush()
-        return new_rows
+        return await self.list_for_instance(scenario_id, card_instance.id)
 
 
 class ScenarioCardGroupSelectionService(BaseService[ScenarioCardGroupSelection]):
