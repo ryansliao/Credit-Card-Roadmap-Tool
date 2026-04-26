@@ -1153,28 +1153,8 @@ function CardRow({
         >
           <CardThumb slug={wc.photo_slug} name={wc.card_name ?? ''} />
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-slate-200 truncate flex items-center gap-1.5">
-              <span className="truncate">{wc.card_name ?? `Card #${wc.card_id}`}</span>
-              {!wc.is_future && (
-                <IconHoverLabel
-                  label="Owned card — locked from this view"
-                  className="shrink-0 text-yellow-300 inline-flex"
-                >
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
-                </IconHoverLabel>
-              )}
+            <div className="text-sm font-medium text-slate-200 truncate">
+              {wc.card_name ?? `Card #${wc.card_id}`}
             </div>
             {incomeLabel && (
               <div
@@ -1203,17 +1183,36 @@ function CardRow({
           </div>
           <EditAffordance />
         </button>
-        {/* Owned cards are always part of the wallet — can't be toggled off
-            from the timeline. To remove an owned card from a scenario use
-            the close-date or product-change overlay in the modal. Future
-            cards keep the toggle since they're hypothetical. */}
-        {wc.is_future && (
+        {/* Owned cards are always part of the wallet — they get a padlock
+            badge in place of the toggle. To remove an owned card from a
+            scenario use the close-date or product-change overlay in the
+            modal. Future cards keep the toggle since they're hypothetical. */}
+        {wc.is_future ? (
           <ToggleSwitch
             enabled={enabled}
             disabled={isUpdating}
             onChange={(next) => onToggleEnabled(wc.instance_id, next)}
             label={enabled ? 'Disable card' : 'Enable card'}
           />
+        ) : (
+          <IconHoverLabel
+            label="Owned card — locked from this view"
+            className="shrink-0 text-yellow-300 inline-flex items-center justify-center w-9 h-5"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </IconHoverLabel>
         )}
       </div>
 
