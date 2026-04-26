@@ -1,0 +1,83 @@
+{
+  "card_results": [
+    {
+      "accelerator_activations": 0,
+      "accelerator_bonus_points": 0.0,
+      "accelerator_cost_points": 0.0,
+      "annual_bonus": 0,
+      "annual_bonus_first_year_only": false,
+      "annual_bonus_percent": 0.0,
+      "annual_fee": 0.0,
+      "annual_point_earn": 42000.0,
+      "annual_point_earn_window": 42000.0,
+      "avg_spend_multiplier": 1.4,
+      "card_active_years": 2.0,
+      "card_effective_annual_fee": -420.0,
+      "card_id": 701,
+      "card_name": "Chase Freedom Flex",
+      "card_sub_eaf_contribution": 0.0,
+      "category_earn": [
+        [
+          "Dining",
+          18000.0
+        ],
+        [
+          "All Other",
+          15000.0
+        ],
+        [
+          "Groceries",
+          5000.0
+        ],
+        [
+          "Travel",
+          4000.0
+        ]
+      ],
+      "category_multipliers": {
+        "All Other": 1.0,
+        "Dining": 3.0
+      },
+      "cents_per_point": 1.0,
+      "credit_valuation": 0,
+      "effective_annual_fee": -420.0,
+      "effective_currency_id": 7,
+      "effective_currency_name": "Chase UR (with fallback)",
+      "effective_currency_photo_slug": null,
+      "effective_reward_kind": "points",
+      "first_year_fee": null,
+      "secondary_currency_earn": 0.0,
+      "secondary_currency_id": 0,
+      "secondary_currency_name": "",
+      "secondary_currency_net_earn": 0.0,
+      "secondary_currency_value_dollars": 0.0,
+      "selected": true,
+      "sub_eaf_contribution": 0.0,
+      "sub_extra_spend": 0.0,
+      "sub_opp_cost_dollars": 0.0,
+      "sub_opp_cost_gross_dollars": 0.0,
+      "sub_points": 0,
+      "sub_spend_earn": 0,
+      "total_points": 84000.0
+    }
+  ],
+  "currency_pts": {
+    "Chase UR (with fallback)": 84000.0
+  },
+  "currency_pts_by_id": {
+    "7": 84000.0
+  },
+  "currency_window_years": {
+    "7": 2.0
+  },
+  "point_income": 42000.0,
+  "secondary_currency_pts": {},
+  "secondary_currency_pts_by_id": {},
+  "total_cash_reward_dollars": 0,
+  "total_effective_annual_fee": -420.0,
+  "total_points_earned": 84000.0,
+  "total_reward_value_usd": 840.0,
+  "total_sub_eaf_contribution": 0.0,
+  "wallet_window_years": 2.0,
+  "years_counted": 2
+}

@@ -192,6 +192,7 @@ def compute_wallet(
     housing_category_names: set[str] | None = None,
     foreign_spend_pct: float = 0.0,
     foreign_eligible_categories: set[str] | None = None,
+    enabler_model_currency_ids: set[int] | None = None,
 ) -> WalletResult:
     """
     Compute results for every card in `all_cards`.
@@ -205,6 +206,16 @@ def compute_wallet(
     that can plausibly have foreign spend. Only these are split into a foreign
     bucket by the wallet-level ``foreign_spend_pct``; everything else stays
     100% domestic. Pass ``None`` to split every category (legacy behaviour).
+
+    enabler_model_currency_ids: currency ids for which the *full* card library
+    contains at least one transfer-enabler card. When provided, CPP reduction
+    for currencies lacking an enabler in the selected wallet uses this set
+    rather than deriving it from ``all_cards`` — important because callers
+    typically pass only the wallet's resolved card instances, not the full
+    library. Without this, a wallet that holds e.g. a Citi Custom Cash but no
+    Citi Strata Premier/Elite would never trigger Citi TY's reduced CPP since
+    no enabler card is visible to the calculator. Pass ``None`` to derive
+    from ``all_cards`` (legacy behaviour, used by self-contained tests).
 
     SUB-related dollar contributions (sub bonus, sub_spend_earn, sub_cash,
     sub_secondary SUB, and SUB opportunity cost) are always included in the
@@ -227,7 +238,14 @@ def compute_wallet(
     selected_cards = [c for c in all_cards if c.id in selected_ids]
 
     # Adjust CPP for currencies that lack a transfer enabler in the wallet.
-    all_cards = _apply_transfer_enabler_cpp(all_cards, selected_cards)
+    # The "uses enabler model" set must come from the full library (not just
+    # ``all_cards``, which is constrained to the wallet's resolved instances).
+    # Otherwise a wallet holding e.g. only Citi Custom Cash would silently
+    # value Citi TY at the full transfer CPP because no enabler card is in
+    # ``all_cards`` to mark Citi TY as enabler-model.
+    all_cards = _apply_transfer_enabler_cpp(
+        all_cards, selected_cards, enabler_model_currency_ids
+    )
     selected_cards = [c for c in all_cards if c.id in selected_ids]
 
     # Apply earn_bonus_factor for percentage-based annual bonuses.

@@ -77,6 +77,22 @@ def _ur_cash_currency() -> CurrencyData:
     )
 
 
+def _ur_currency_with_fallback() -> CurrencyData:
+    """Chase UR with the transfer-enabler fallback fields populated. When no
+    transfer-enabler card is in the selected wallet, the calculator drops the
+    CPP to max(no_transfer_cpp, cash_transfer_rate) — here both are 1.0,
+    matching real-life UR's cash-only redemption when no CSR/CSP is held."""
+    return CurrencyData(
+        id=7,
+        name="Chase UR (with fallback)",
+        reward_kind="points",
+        cents_per_point=2.05,
+        comparison_cpp=2.05,
+        no_transfer_cpp=1.0,
+        cash_transfer_rate=1.0,
+    )
+
+
 def _bilt_points_currency() -> CurrencyData:
     return CurrencyData(
         id=5,
@@ -581,6 +597,44 @@ def _sub_opp_cost_result() -> WalletResult:
     )
 
 
+def _no_transfer_enabler_reduced_cpp_result() -> WalletResult:
+    """Freedom Flex (non-enabler) earns Chase UR. With no CSR/CSP enabler in
+    the selected wallet, the calculator must reduce the CPP from 2.05 to the
+    enabler-fallback (here 1.0¢/pt = cash-only redemption).
+
+    Mirrors the production pipeline by passing ONLY the non-enabler card in
+    ``all_cards`` and supplying ``enabler_model_currency_ids`` explicitly —
+    matching the original bug where the wallet held a Citi Custom Cash but
+    no Citi Strata Premier/Elite. Without the explicit set, the calculator
+    can't see any enabler card for Citi TY and silently keeps the full CPP.
+    The snapshot locks in the reduced earn so a regression on either side
+    (the parameter wiring or the fallback math) immediately flips it red."""
+    ur_fb = _ur_currency_with_fallback()
+    freedom = CardData(
+        id=701,
+        name="Chase Freedom Flex",
+        issuer_name="Chase",
+        currency=ur_fb,
+        annual_fee=0.0,
+        sub_points=0, sub_cash=0.0, sub_secondary_points=0,
+        sub_min_spend=0, sub_months=0, sub_spend_earn=0,
+        annual_bonus=0,
+        multipliers={"All Other": 1.0, "Dining": 3.0},
+        transfer_enabler=False,
+    )
+    return compute_wallet(
+        all_cards=[freedom],
+        selected_ids={freedom.id},
+        spend=SPEND,
+        years=2,
+        foreign_spend_pct=0.0,
+        # Library has at least one enabler for this currency (a CSP somewhere)
+        # — matches production where the resolver supplies this set from the
+        # full Card library, not from the wallet's resolved instances.
+        enabler_model_currency_ids={ur_fb.id},
+    )
+
+
 def _priority_category_pin_result() -> WalletResult:
     """Gold has 4x Dining, CSP has 3x Dining with a priority_categories pin.
     The pin should force Dining to CSP regardless of the 4x > 3x ordering."""
@@ -617,6 +671,7 @@ SCENARIOS: dict[str, Callable[[], WalletResult]] = {
     "first_year_pct_bonus": _first_year_pct_bonus_result,
     "sub_opp_cost": _sub_opp_cost_result,
     "priority_category_pin": _priority_category_pin_result,
+    "no_transfer_enabler_reduced_cpp": _no_transfer_enabler_reduced_cpp_result,
 }
 
 

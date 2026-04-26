@@ -105,7 +105,9 @@ def _adjust_currency_for_transfer(
 
 
 def _apply_transfer_enabler_cpp(
-    cards: list[CardData], selected_cards: list[CardData]
+    cards: list[CardData],
+    selected_cards: list[CardData],
+    uses_enabler_model: set[int] | None = None,
 ) -> list[CardData]:
     """Return card copies with CPP adjusted when no transfer enabler is present.
 
@@ -114,9 +116,16 @@ def _apply_transfer_enabler_cpp(
     the selected wallet, the CPP falls back to the best available reduction:
     ``no_transfer_rate`` (rate-based), ``no_transfer_cpp`` (fixed), and/or
     ``cash_transfer_rate`` (cash-out value) — whichever is highest.
+
+    ``uses_enabler_model`` should be precomputed from the full card library by
+    the caller. When ``None``, falls back to deriving it from ``cards``, which
+    is only correct when ``cards`` actually IS the full library (e.g.
+    self-contained calculator tests). Production callers pass the wallet's
+    resolved instances as ``cards`` and must supply this set explicitly.
     """
     transfer_enabled = _transfer_enabled_currency_ids(selected_cards)
-    uses_enabler_model = _enabler_model_currency_ids(cards)
+    if uses_enabler_model is None:
+        uses_enabler_model = _enabler_model_currency_ids(cards)
     return [
         replace(
             card,

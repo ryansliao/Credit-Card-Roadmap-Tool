@@ -334,6 +334,18 @@ async def scenario_results(
         for c in modified_cards
     ]
 
+    # Currencies for which the FULL library has at least one transfer-enabler
+    # card. Computed from inputs.library_cards_by_id (the entire reference
+    # card table) — not from modified_cards, which only contains the wallet's
+    # resolved instances. Without this, a wallet missing a Citi Strata
+    # Premier/Elite would never trigger Citi TY's reduced CPP because no
+    # enabler card is visible to the calculator.
+    enabler_model_currency_ids = {
+        cd.currency.id
+        for cd in inputs.library_cards_by_id.values()
+        if cd.transfer_enabler
+    }
+
     wallet_result = compute_wallet(
         all_cards=modified_cards,
         selected_ids=selected_ids,
@@ -345,6 +357,7 @@ async def scenario_results(
         housing_category_names=inputs.housing_category_names,
         foreign_spend_pct=inputs.foreign_spend_pct,
         foreign_eligible_categories=inputs.foreign_eligible_categories,
+        enabler_model_currency_ids=enabler_model_currency_ids,
     )
 
     # photo_slug lives on the ORM ``Card``, not on ``CardData``, so resolve
