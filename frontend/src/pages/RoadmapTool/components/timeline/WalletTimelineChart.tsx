@@ -1091,6 +1091,27 @@ function CardRow({
     if (subProjectedMs <= range.startMs || startMs >= range.endMs) return null
     return { startMs, endMs: subProjectedMs }
   })()
+
+  // Detect "card has a SUB but cannot earn it" — drives the lifetime-bar
+  // warning tooltip. roadmap status carries the authoritative classification:
+  // "expired" (window closed) or "pending" with no projected date (rate too
+  // low to reach the minimum within the window).
+  const subStatus = roadmapStatus?.sub_status
+  const subUnearnable =
+    enabled &&
+    !!wc.sub_points &&
+    !!wc.sub_min_spend &&
+    (subStatus === 'expired' ||
+      (subStatus === 'pending' && roadmapStatus?.sub_projected_earn_date == null))
+
+  // Tooltip text shown on hover over the yellow SUB segment. The segment
+  // itself owns the listener (pointer-events: auto) so the tooltip fires
+  // reliably whenever the cursor is over the yellow region.
+  const subSegmentTitle = subProjectedDate
+    ? subStatus === 'earned'
+      ? `SUB earned ${formatDate(subProjectedDate)}`
+      : `SUB projected to earn ${formatDate(subProjectedDate)}`
+    : null
   // Per-card income and EAF are driven by the last calc's `cr`, not the live
   // toggle, so the numbers (and layout) stay stable when the user flips
   // `is_enabled` — only a recalc refreshes what's shown.
@@ -1112,16 +1133,24 @@ function CardRow({
       ? `${formatMoney(eafValue)} EAF`
       : null
 
+  const subTooltipLine = enabled
+    ? subUnearnable
+      ? subStatus === 'expired'
+        ? 'SUB window expired — cannot be earned'
+        : 'SUB cannot be earned at the current spend rate'
+      : subProjectedDate
+        ? subStatus === 'earned'
+          ? `SUB earned: ${formatDate(subProjectedDate)}`
+          : `SUB projected: ${formatDate(subProjectedDate)}`
+        : 'No SUB'
+    : 'Disabled — not contributing'
+
   const tooltip = [
     wc.product_changed_date
       ? `Product change: ${formatDate(wc.product_changed_date)} (account opened ${formatDate(wc.added_date)})`
       : `Added: ${formatDate(wc.added_date)}`,
     wc.closed_date ? `Closed: ${formatDate(wc.closed_date)}` : null,
-    enabled
-      ? subProjectedDate
-        ? `SUB projected: ${formatDate(subProjectedDate)}`
-        : 'No SUB'
-      : 'Disabled — not contributing',
+    subTooltipLine,
     enabled && showPlaceholders
       ? 'Click Calculate to see EAF and income'
       : null,
@@ -1205,7 +1234,7 @@ function CardRow({
         ) : (
           <IconHoverLabel
             label="Owned card — locked from this view"
-            className="shrink-0 text-yellow-300 inline-flex items-center justify-center w-9 h-5"
+            className="shrink-0 text-amber-400 inline-flex items-center justify-center w-9 h-5"
           >
             <svg
               width="18"
@@ -1350,6 +1379,7 @@ function CardRow({
             lifetimeEndMs={closedMs}
             rowHeight={rowHeight}
             barHeight={barHeight}
+            title={subSegmentTitle}
           />
         )}
       </div>
@@ -1462,6 +1492,7 @@ function SubEarningSegment({
   lifetimeEndMs,
   rowHeight,
   barHeight,
+  title,
 }: {
   range: Range
   /** When the SUB starts being earned (sub_start_date or opening_date). */
@@ -1474,6 +1505,10 @@ function SubEarningSegment({
   lifetimeEndMs: number
   rowHeight: number
   barHeight: number
+  /** Native tooltip text shown on hover. The segment owns its own
+   * pointer-events handling so this fires reliably regardless of any
+   * parent `title` attributes. */
+  title: string | null
 }) {
   // Yellow segment of the lifetime bar covering [sub_start_date or opening,
   // sub_projected_earn_date]. Same y-position and height as the lifetime
@@ -1507,7 +1542,7 @@ function SubEarningSegment({
   const yellow = '#fbbf24'
   return (
     <div
-      className={`absolute pointer-events-none ${roundedClass}`}
+      className={`absolute ${roundedClass}`}
       style={{
         left: `${startPct}%`,
         width: `${widthPct}%`,
@@ -1517,6 +1552,7 @@ function SubEarningSegment({
         border: `1px solid ${yellow}`,
         zIndex: 31,
       }}
+      title={title ?? undefined}
     />
   )
 }

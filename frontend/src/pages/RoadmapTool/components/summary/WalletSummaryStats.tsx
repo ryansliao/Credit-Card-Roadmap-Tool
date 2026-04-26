@@ -291,7 +291,7 @@ export function WalletSummaryStats({
           <div className="grid grid-cols-[26px_1fr] gap-x-2 gap-y-1.5 items-center text-[11px] text-slate-500">
             <span
               aria-hidden
-              className="justify-self-center inline-block rounded-full"
+              className="justify-self-center inline-block rounded-l-full"
               style={{
                 width: 24,
                 height: 9,
