@@ -37,7 +37,7 @@ interface Props {
   onAddCard: () => void
 }
 
-const LEFT_GUTTER = 380 // px
+const LEFT_GUTTER = 420 // px
 const CURRENCY_ROW_HEIGHT = 45
 const CARD_ROW_HEIGHT = 50
 const AXIS_HEIGHT = 50
