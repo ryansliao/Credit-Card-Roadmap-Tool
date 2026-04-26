@@ -18,6 +18,9 @@ class CardCreditRead(BaseModel):
     excludes_first_year: bool = False
     is_one_time: bool = False
     credit_currency_id: Optional[int] = None
+    # NULL = system credit, set = user-created. Frontend uses this to gate
+    # edits/deletes (a user can only modify their own rows).
+    owner_user_id: Optional[int] = None
     card_ids: list[int] = Field(default_factory=list)
     # Per-card values: {card_id: dollar_value}. Only includes cards with a non-null value.
     card_values: dict[int, float] = Field(default_factory=dict)
@@ -31,7 +34,7 @@ class CardCreditRead(BaseModel):
                 {
                     **{k: getattr(data, k) for k in (
                         "id", "credit_name", "value", "excludes_first_year",
-                        "is_one_time", "credit_currency_id",
+                        "is_one_time", "credit_currency_id", "owner_user_id",
                     )},
                     "card_ids": sorted(link.card_id for link in links),
                     "card_values": {

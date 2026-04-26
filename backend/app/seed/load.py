@@ -614,11 +614,15 @@ async def _load_credits(db) -> None:
     }
 
     for cr_data in data.get("credits", []) or []:
-        credit = await _upsert_by_unique(
-            db,
-            Credit,
-            "credit_name",
-            cr_data["credit_name"],
+        # Seed credits are system-scoped (NULL owner). Match by name within
+        # that scope so a user-created credit sharing the name doesn't get
+        # picked up and accidentally promoted to a system credit.
+        stmt = select(Credit).where(
+            Credit.credit_name == cr_data["credit_name"],
+            Credit.owner_user_id.is_(None),
+        )
+        credit = (await db.execute(stmt)).scalar_one_or_none()
+        fields = dict(
             value=cr_data.get("value"),
             excludes_first_year=cr_data.get("excludes_first_year", False),
             is_one_time=cr_data.get("is_one_time", False),
@@ -626,6 +630,17 @@ async def _load_credits(db) -> None:
                 currencies[cr_data["currency"]] if cr_data.get("currency") else None
             ),
         )
+        if credit is None:
+            credit = Credit(
+                credit_name=cr_data["credit_name"],
+                owner_user_id=None,
+                **fields,
+            )
+            db.add(credit)
+            await db.flush()
+        else:
+            for k, v in fields.items():
+                setattr(credit, k, v)
         await _sync_credit_card_links(db, credit, cr_data.get("cards", []) or [], cards)
 
 

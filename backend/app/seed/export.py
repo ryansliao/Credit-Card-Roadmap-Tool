@@ -393,9 +393,12 @@ async def _export_cards(db) -> None:
 
 
 async def _export_credits(db) -> None:
+    # Only system credits (NULL owner) belong in the seed; user-scoped
+    # credits are per-user data, not reference data.
     credits_q = await db.execute(
         select(Credit)
         .options(selectinload(Credit.card_links))
+        .where(Credit.owner_user_id.is_(None))
         .order_by(Credit.credit_name)
     )
     credits = credits_q.scalars().all()

@@ -11,6 +11,7 @@ import {
   scenarioPortalShareApi,
   walletApi,
   walletSpendApi,
+  type CardCredit,
   type CardInstance,
   type CurrencyRead,
   type FutureCardCreatePayload,
@@ -93,6 +94,7 @@ function scenarioCalcSignature(
   portalShares: ScenarioPortalShareRead[] | undefined,
   categoryPriorities: ScenarioCardCategoryPriority[] | undefined,
   creditOverridesByInstanceId: Map<number, ScenarioCardCreditOverride[]>,
+  creditLibraryById: Map<number, CardCredit>,
 ): string {
   // Only serialize cards that would participate in the calc. Disabled cards
   // are filtered by the backend's active-instance predicate, so edits to
@@ -156,14 +158,34 @@ function scenarioCalcSignature(
     }))
     .sort((a, b) => a.instance_id - b.instance_id)
   // Per-instance credit overrides — same treatment as priorities: drop
-  // disabled cards, sort by library credit id for stability.
-  const credits: { instance_id: number; overrides: { library_credit_id: number; value: number }[] }[] = []
+  // disabled cards, sort by library credit id for stability. Library-level
+  // calc inputs (currency, year-1 exclusion, one-time flag) are pulled in
+  // here so editing them in the credit picker also flips the signature.
+  const credits: {
+    instance_id: number
+    overrides: {
+      library_credit_id: number
+      value: number
+      currency_id: number | null
+      excludes_first_year: boolean
+      is_one_time: boolean
+    }[]
+  }[] = []
   for (const [instanceId, rows] of creditOverridesByInstanceId) {
     if (!activeInstanceIds.has(instanceId)) continue
     credits.push({
       instance_id: instanceId,
       overrides: [...rows]
-        .map((o) => ({ library_credit_id: o.library_credit_id, value: o.value }))
+        .map((o) => {
+          const lib = creditLibraryById.get(o.library_credit_id)
+          return {
+            library_credit_id: o.library_credit_id,
+            value: o.value,
+            currency_id: lib?.credit_currency_id ?? null,
+            excludes_first_year: lib?.excludes_first_year ?? false,
+            is_one_time: lib?.is_one_time ?? false,
+          }
+        })
         .sort((a, b) => a.library_credit_id - b.library_credit_id),
     })
   }
@@ -344,6 +366,16 @@ export default function RoadmapToolPage() {
   const foreignSpendPercent = wallet?.foreign_spend_percent ?? 0
   const todayStr = useToday()
 
+  // Credit library is also a calc input via per-credit currency / year-1
+  // exclusion / one-time flags, so we read its data here (not just warm
+  // the cache) and feed it into the signature below.
+  const { data: creditLibrary } = useCreditLibrary()
+  const creditLibraryById = useMemo(() => {
+    const m = new Map<number, CardCredit>()
+    for (const c of creditLibrary ?? []) m.set(c.id, c)
+    return m
+  }, [creditLibrary])
+
   const currentSignature = useMemo(
     () =>
       scenarioCalcSignature(
@@ -357,6 +389,7 @@ export default function RoadmapToolPage() {
         portalShares,
         categoryPriorities,
         creditOverridesByInstanceId,
+        creditLibraryById,
       ),
     [
       todayStr,
@@ -369,6 +402,7 @@ export default function RoadmapToolPage() {
       portalShares,
       categoryPriorities,
       creditOverridesByInstanceId,
+      creditLibraryById,
     ],
   )
   const signatureMatchesSnapshot =
@@ -407,8 +441,6 @@ export default function RoadmapToolPage() {
   const needsInitialCalc = hasNeverCalculated && hasEnabledCards
   const needsCalculate = isStale || needsInitialCalc
 
-  // Warm caches.
-  useCreditLibrary()
   useTravelPortals()
 
   const createScenarioMutation = useMutation({
@@ -673,6 +705,7 @@ export default function RoadmapToolPage() {
             portalShares,
             categoryPriorities,
             creditOverridesByInstanceId,
+            creditLibraryById,
           ),
       )
     }
@@ -691,6 +724,7 @@ export default function RoadmapToolPage() {
     portalShares,
     categoryPriorities,
     creditOverridesByInstanceId,
+    creditLibraryById,
   ])
 
   // Reset hydration flag when switching scenarios so the persisted snapshot
@@ -1028,7 +1062,6 @@ export default function RoadmapToolPage() {
             walletCardModal.mode === 'add-future' ? undefined : walletCardModal.resolved
           }
           existingCardIds={resolvedCards.map((wc) => wc.card_id)}
-          walletCardIds={resolvedCards.map((wc) => wc.card_id)}
           instanceLookup={resolvedCards.map((wc) => ({
             instance_id: wc.instance_id,
             card_id: wc.card_id,

@@ -143,7 +143,9 @@ export interface TravelPortal {
   card_ids: number[]
 }
 
-/** A standardized statement credit in the global library (e.g. Priority Pass). */
+/** A statement credit (e.g. Priority Pass). System credits have a NULL owner
+ *  and are visible to every user; user-created credits have ``owner_user_id``
+ *  set and are visible only to their creator. */
 export interface CardCredit {
   id: number
   credit_name: string
@@ -155,6 +157,8 @@ export interface CardCredit {
   is_one_time: boolean
   /** Currency this credit is denominated in. Cash = dollar credit, points currency = converted via CPP. */
   credit_currency_id: number | null
+  /** NULL for system credits; user id for user-created credits. */
+  owner_user_id: number | null
   /** IDs of cards in the global library that natively offer this credit. */
   card_ids: number[]
   /** Per-card issuer-stated values: {card_id: dollar_value}. */
@@ -517,6 +521,7 @@ export interface CreateCreditPayload {
   excludes_first_year?: boolean
   is_one_time?: boolean
   credit_currency_id?: number | null
+  card_ids?: number[]
   card_values?: Record<number, number>
 }
 
@@ -526,23 +531,28 @@ export interface UpdateCreditPayload {
   excludes_first_year?: boolean
   is_one_time?: boolean
   credit_currency_id?: number | null
+  card_ids?: number[]
   card_values?: Record<number, number>
 }
 
 export const creditsApi = {
   list: () => request<CardCredit[]>('/credits'),
+  // User-scoped create — backend stamps owner_user_id from the JWT and the
+  // credit is only visible to the creator.
   create: (payload: CreateCreditPayload) =>
-    request<CardCredit>('/admin/credits', {
+    request<CardCredit>('/credits', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  // Update / delete a credit the user owns. Returns 403 for system credits;
+  // callers should gate the affordance on ``owner_user_id != null``.
   update: (creditId: number, payload: UpdateCreditPayload) =>
-    request<CardCredit>(`/admin/credits/${creditId}`, {
+    request<CardCredit>(`/credits/${creditId}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
   delete: (creditId: number) =>
-    request<void>(`/admin/credits/${creditId}`, { method: 'DELETE' }),
+    request<void>(`/credits/${creditId}`, { method: 'DELETE' }),
 }
 
 

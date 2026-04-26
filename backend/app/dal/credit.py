@@ -19,11 +19,12 @@ from ..database import Base
 if TYPE_CHECKING:
     from .card import Card
     from .currency import Currency
+    from .user import User
 
 
 class Credit(Base):
     """
-    Standardized statement credit / perk in the global library
+    Standardized statement credit / perk
     (e.g. Priority Pass, Global Entry, Free Checked Bags, Uber Cash).
 
     `credit_value` is the default dollar valuation; users can override it on a
@@ -31,12 +32,18 @@ class Credit(Base):
     recurring by default.
     When `excludes_first_year` is True, the credit is not counted in the first
     year of card ownership (e.g. anniversary free night awards).
+
+    ``owner_user_id`` partitions the library: NULL rows are system credits
+    visible to every user; non-NULL rows are user-created credits visible
+    only to that user. Uniqueness on ``credit_name`` is enforced per owner
+    via the composite index ``UX_credits_owner_name`` (see migration 014),
+    which is why the column itself is no longer marked ``unique=True``.
     """
 
     __tablename__ = "credits"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    credit_name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    credit_name: Mapped[str] = mapped_column(String(120), nullable=False)
     value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     excludes_first_year: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     is_one_time: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
@@ -48,6 +55,10 @@ class Credit(Base):
     credit_currency: Mapped[Optional["Currency"]] = relationship(
         foreign_keys=[credit_currency_id]
     )
+    owner_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+    owner: Mapped[Optional["User"]] = relationship(foreign_keys=[owner_user_id])
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

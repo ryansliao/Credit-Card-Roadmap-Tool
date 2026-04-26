@@ -216,7 +216,6 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
             walletCardModal.mode === 'edit' ? walletCardModal.instance : undefined
           }
           existingCardIds={cardInstances.map((c) => c.card_id)}
-          walletCardIds={cardInstances.map((c) => c.card_id)}
           onClose={() => setWalletCardModal(null)}
           onAddOwned={(payload) => addCardMutation.mutate(payload)}
           onSaveOwned={(payload) => {

@@ -58,9 +58,6 @@ export interface WalletCardModalProps {
   ownedInstance?: CardInstance
   /** Library card_ids already in the wallet (excluded from add picker). */
   existingCardIds: number[]
-  /** Same as existingCardIds today; kept for backward compat with currency
-   * group derivation. */
-  walletCardIds: number[]
   /** Instance lookup for the PC picker + "Changed From" display.
    * `pc_from_instance_id` references CardInstance.id (not library card_id),
    * so the picker stores instance ids and the read display resolves the
@@ -103,7 +100,6 @@ export function WalletCardModal(props: WalletCardModalProps) {
     resolvedCard,
     ownedInstance,
     existingCardIds,
-    walletCardIds,
     instanceLookup,
     onClose,
     onAddOwned,
@@ -129,23 +125,30 @@ export function WalletCardModal(props: WalletCardModalProps) {
   const { data: cards } = useCardLibrary()
   const queryClient = useQueryClient()
 
-  // Currency IDs present in the wallet for credit-currency dropdown filtering.
-  const walletCurrencyIds = useMemo(() => {
-    if (!cards) return new Set<number>()
-    const ids = new Set<number>()
-    for (const wcId of walletCardIds) {
-      const c = cards.find((card) => card.id === wcId)
-      if (c) ids.add(c.currency_id)
-    }
-    return ids
-  }, [cards, walletCardIds])
-
   // ── Form state ──────────────────────────────────────────────────────────
   // For add flows, cardId starts unselected.
   // For edit flows, the resolved card / owned instance pins cardId.
   const editingCardId =
     resolvedCard?.card_id ?? ownedInstance?.card_id ?? null
   const [cardId, setCardId] = useState<number | ''>(editingCardId ?? '')
+
+  // Currency IDs in the issuer ecosystem of the card being edited — used to
+  // restrict the credit-currency dropdown so a Chase card can't denominate a
+  // credit in Amex MR, etc. Cash currencies are always allowed (the dropdown
+  // adds them on top of this set).
+  const issuerCurrencyIds = useMemo(() => {
+    if (!cards) return new Set<number>()
+    const focusCardId = (typeof cardId === 'number' ? cardId : null) ?? editingCardId
+    if (focusCardId == null) return new Set<number>()
+    const focus = cards.find((c) => c.id === focusCardId)
+    if (!focus) return new Set<number>()
+    const ids = new Set<number>()
+    for (const c of cards) {
+      if (c.issuer_id === focus.issuer_id) ids.add(c.currency_id)
+    }
+    return ids
+  }, [cards, cardId, editingCardId])
+
   const [cardSearch, setCardSearch] = useState('')
   const [cardDropdownOpen, setCardDropdownOpen] = useState(false)
   const cardSearchRef = useRef<HTMLDivElement>(null)
@@ -182,6 +185,18 @@ export function WalletCardModal(props: WalletCardModalProps) {
 
   // Selected statement credits: library_credit_id -> value
   const [selectedCredits, setSelectedCredits] = useState<Record<number, number>>({})
+  // Buffered library-level edits to user-owned credits — { libId: { … } }.
+  // Applied on Save; reset on hydrate so closing without saving discards them.
+  const [creditFlagEdits, setCreditFlagEdits] = useState<
+    Record<
+      number,
+      {
+        excludes_first_year?: boolean
+        is_one_time?: boolean
+        credit_currency_id?: number | null
+      }
+    >
+  >({})
   const [creditSearch, setCreditSearch] = useState('')
   const [creditOptionsOpen, setCreditOptionsOpen] = useState<number | null>(null)
   const [showCreditPicker, setShowCreditPicker] = useState(false)
@@ -211,11 +226,22 @@ export function WalletCardModal(props: WalletCardModalProps) {
   })
 
   const createCreditMutation = useMutation({
-    mutationFn: (credit_name: string) => creditsApi.create({ credit_name, value: 0 }),
+    // Auto-link the new credit to the card the user is currently editing so
+    // it shows up in this card's default suggestions next time. The credit
+    // is user-scoped (owner stamped server-side), but card_ids is the global
+    // suggestion link — so it still appears in the search dropdown when
+    // editing other cards.
+    mutationFn: (credit_name: string) =>
+      creditsApi.create({
+        credit_name,
+        value: 0,
+        card_ids: effectiveCardId != null ? [effectiveCardId] : [],
+      }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.credits() })
       setSelectedCredits((prev) => ({ ...prev, [created.id]: created.value ?? 0 }))
       setCreditSearch('')
+      setShowCreditPicker(false)
     },
     onError: (e: Error) => setFormError(e.message),
   })
@@ -336,6 +362,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
         setFirstYearFee('')
         setSecondaryCurrencyRate('')
         setSelectedCredits({})
+        setCreditFlagEdits({})
         setFormError(null)
         return
       }
@@ -356,6 +383,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
         }
       }
       setSelectedCredits(defaults)
+      setCreditFlagEdits({})
       setFormError(null)
     } else {
       // Edit flow.
@@ -388,6 +416,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
         setSecondaryCurrencyRate(effSecRate != null ? String(effSecRate) : '')
         // No scenario context → no credits to hydrate from scenario API.
         setSelectedCredits({})
+        setCreditFlagEdits({})
         setFormError(null)
         return
       }
@@ -410,6 +439,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
           for (const o of existingCreditOverrides) m[o.library_credit_id] = o.value
           setSelectedCredits(m)
         }
+        setCreditFlagEdits({})
         setFormError(null)
       }
     }
@@ -479,12 +509,39 @@ export function WalletCardModal(props: WalletCardModalProps) {
     setCardDropdownOpen(true)
   }
 
+  /** Push buffered library-credit edits (currency / year-1 / one-time) to the
+   *  backend. Runs at the start of every save path so the global Credit row
+   *  matches what the user sees in the picker before any scenario or owned-
+   *  card payload is sent. Throws on failure so the outer save is aborted. */
+  async function flushCreditFlagEdits() {
+    const entries = Object.entries(creditFlagEdits)
+    if (entries.length === 0) return
+    try {
+      await Promise.all(
+        entries.map(([idStr, patch]) =>
+          creditsApi.update(Number(idStr), patch),
+        ),
+      )
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to save credit settings.'
+      setFormError(msg)
+      throw e
+    }
+    setCreditFlagEdits({})
+    queryClient.invalidateQueries({ queryKey: queryKeys.credits() })
+  }
+
   async function handlePrimary() {
     setFormError(null)
 
     // Owned-base ADD: simplest path — just card_id + opening_date
     if (isOwnedBase && isAddFlow) {
       if (typeof cardId !== 'number') return
+      try {
+        await flushCreditFlagEdits()
+      } catch {
+        return
+      }
       onAddOwned?.({ card_id: cardId, opening_date: openingDate })
       return
     }
@@ -511,6 +568,11 @@ export function WalletCardModal(props: WalletCardModalProps) {
     if (isOwnedBase && !isAddFlow && ownedInstance && lib) {
       const secRate = secondaryCurrencyRate.trim() ? Number(secondaryCurrencyRate) : null
       const isPc = acquisitionMode === 'pc'
+      try {
+        await flushCreditFlagEdits()
+      } catch {
+        return
+      }
       onSaveOwned?.(
         walletFormToOwnedUpdatePayload(
           built,
@@ -552,6 +614,11 @@ export function WalletCardModal(props: WalletCardModalProps) {
         secondary_currency_rate: secRate,
         priority_category_ids: Array.from(priorityCategoryIds),
       }
+      try {
+        await flushCreditFlagEdits()
+      } catch {
+        return
+      }
       onAddFuture?.(payload)
       return
     }
@@ -571,6 +638,11 @@ export function WalletCardModal(props: WalletCardModalProps) {
       )
 
       // Reconcile credits + priorities for scenario modes.
+      try {
+        await flushCreditFlagEdits()
+      } catch {
+        return
+      }
       await reconcileScenarioOverrides(
         scenarioId!,
         resolvedCard.instance_id,
@@ -606,6 +678,11 @@ export function WalletCardModal(props: WalletCardModalProps) {
         // Don't toggle is_enabled from this modal — keep null.
         null,
       )
+      try {
+        await flushCreditFlagEdits()
+      } catch {
+        return
+      }
       await reconcileScenarioOverrides(
         scenarioId!,
         resolvedCard.instance_id,
@@ -1182,6 +1259,13 @@ export function WalletCardModal(props: WalletCardModalProps) {
                         const libId = Number(idStr)
                         const lc = creditLibraryById.get(libId)
                         const isExpanded = creditOptionsOpen === libId
+                        // Pending currency edit (buffered until Save) drives the $/pts
+                        // affordances so the input UI matches the user's pick instantly.
+                        const pendingEdits = creditFlagEdits[libId]
+                        const effCurrencyIdForRow =
+                          'credit_currency_id' in (pendingEdits ?? {})
+                            ? pendingEdits!.credit_currency_id
+                            : lc?.credit_currency_id ?? null
                         return (
                           <li key={libId}>
                             <div className="flex items-center justify-between gap-2 px-6 py-2 text-sm">
@@ -1203,7 +1287,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <div className="relative">
                                   {(() => {
-                                    const cur = lc?.credit_currency_id != null ? currencies?.find(c => c.id === lc.credit_currency_id) : null
+                                    const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
                                     const isCash = !cur || cur.reward_kind === 'cash'
                                     return isCash ? (
                                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none">$</span>
@@ -1213,7 +1297,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                     type="number"
                                     min={0}
                                     step={(() => {
-                                      const cur = lc?.credit_currency_id != null ? currencies?.find(c => c.id === lc.credit_currency_id) : null
+                                      const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
                                       return (!cur || cur.reward_kind === 'cash') ? '0.01' : '1'
                                     })()}
                                     value={value === 0 ? '' : value}
@@ -1229,7 +1313,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                     }}
                                     className={`w-24 bg-slate-700 border border-slate-600 text-white text-xs tabular-nums pr-2 py-1 rounded outline-none focus:border-indigo-500 placeholder:text-slate-500 ${
                                       (() => {
-                                        const cur = lc?.credit_currency_id != null ? currencies?.find(c => c.id === lc.credit_currency_id) : null
+                                        const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
                                         return (!cur || cur.reward_kind === 'cash') ? 'pl-5' : 'pl-2'
                                       })()
                                     }`}
@@ -1254,57 +1338,89 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                 </button>
                               </div>
                             </div>
-                            {isExpanded && (
-                              <div className="flex items-center gap-3 px-6 pb-2.5 pt-0.5 text-xs text-slate-400">
-                                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                            {isExpanded && (() => {
+                              // System credits (NULL owner) are shared across users — their
+                              // flags/currency are read-only here. User-owned credits can be
+                              // customised by their creator. Edits buffer in
+                              // ``creditFlagEdits`` and only persist on Save.
+                              const isUserOwned = lc?.owner_user_id != null
+                              const edits = creditFlagEdits[libId]
+                              const effExcludesFirstYear =
+                                edits?.excludes_first_year ?? lc?.excludes_first_year ?? false
+                              const effIsOneTime =
+                                edits?.is_one_time ?? lc?.is_one_time ?? false
+                              const effCurrencyId =
+                                'credit_currency_id' in (edits ?? {})
+                                  ? edits!.credit_currency_id
+                                  : lc?.credit_currency_id ?? null
+                              return (
+                              <div className={`flex items-center gap-3 px-6 pb-2.5 pt-0.5 text-xs ${isUserOwned ? 'text-slate-400' : 'text-slate-500'}`}>
+                                <label className={`flex items-center gap-1.5 select-none ${isUserOwned ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                                   <input
                                     type="checkbox"
-                                    checked={lc?.excludes_first_year ?? false}
+                                    disabled={!isUserOwned}
+                                    checked={effExcludesFirstYear}
                                     onChange={() => {
-                                      if (!lc) return
-                                      creditsApi.update(lc.id, { excludes_first_year: !lc.excludes_first_year })
-                                        .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.credits() }))
+                                      if (!lc || !isUserOwned) return
+                                      setCreditFlagEdits((prev) => ({
+                                        ...prev,
+                                        [libId]: {
+                                          ...prev[libId],
+                                          excludes_first_year: !effExcludesFirstYear,
+                                        },
+                                      }))
                                     }}
-                                    className="accent-amber-500 w-3 h-3"
+                                    className="accent-amber-500 w-3 h-3 disabled:cursor-not-allowed"
                                   />
                                   <span>After Year 1</span>
                                 </label>
-                                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                <label className={`flex items-center gap-1.5 select-none ${isUserOwned ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                                   <input
                                     type="checkbox"
-                                    checked={lc?.is_one_time ?? false}
+                                    disabled={!isUserOwned}
+                                    checked={effIsOneTime}
                                     onChange={() => {
-                                      if (!lc) return
-                                      creditsApi.update(lc.id, { is_one_time: !lc.is_one_time })
-                                        .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.credits() }))
+                                      if (!lc || !isUserOwned) return
+                                      setCreditFlagEdits((prev) => ({
+                                        ...prev,
+                                        [libId]: {
+                                          ...prev[libId],
+                                          is_one_time: !effIsOneTime,
+                                        },
+                                      }))
                                     }}
-                                    className="accent-indigo-500 w-3 h-3"
+                                    className="accent-indigo-500 w-3 h-3 disabled:cursor-not-allowed"
                                   />
                                   <span>One-Time</span>
                                 </label>
                                 <div className="flex-1" />
                                 <select
-                                  value={lc?.credit_currency_id ?? 'null'}
+                                  disabled={!isUserOwned}
+                                  value={effCurrencyId ?? 'null'}
                                   onChange={(e) => {
-                                    if (!lc) return
+                                    if (!lc || !isUserOwned) return
                                     const cid = e.target.value === 'null' ? null : Number(e.target.value)
-                                    creditsApi.update(lc.id, { credit_currency_id: cid })
-                                      .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.credits() }))
+                                    setCreditFlagEdits((prev) => ({
+                                      ...prev,
+                                      [libId]: {
+                                        ...prev[libId],
+                                        credit_currency_id: cid,
+                                      },
+                                    }))
                                   }}
-                                  className="bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1 rounded outline-none focus:border-indigo-500"
+                                  className="w-60 bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1 rounded outline-none focus:border-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed truncate"
                                 >
                                   {(currencies ?? []).filter((cur) => {
+                                    // Cash + every currency in the card issuer's ecosystem.
                                     if (cur.reward_kind === 'cash') return true
-                                    if (walletCurrencyIds.has(cur.id)) return true
-                                    const selectedCard = cardId ? cards?.find((c) => c.id === cardId) : null
-                                    if (selectedCard && cur.id === selectedCard.currency_id) return true
-                                    return false
+                                    return issuerCurrencyIds.has(cur.id)
                                   }).map((cur) => (
                                     <option key={cur.id} value={cur.id}>{cur.name}</option>
                                   ))}
                                 </select>
                               </div>
-                            )}
+                              )
+                            })()}
                           </li>
                         )
                       })}
@@ -1356,54 +1472,62 @@ export function WalletCardModal(props: WalletCardModalProps) {
                           const exactExists = (creditLibrary ?? []).some(
                             (c) => c.credit_name.toLowerCase() === q,
                           )
+                          // Create row is always the first row in the dropdown so
+                          // users know the option exists. It's disabled until the
+                          // user has typed a name not already in the library.
                           const canCreate = trimmed.length > 0 && !exactExists
-                          if (matches.length === 0 && !canCreate) {
-                            return (
-                              <p className="text-[11px] text-slate-500 px-1 py-1">
-                                No matching credits.
-                              </p>
-                            )
-                          }
                           return (
                             <ul className="max-h-40 overflow-y-auto rounded border border-slate-700 divide-y divide-slate-700/60">
-                              {matches.map((c) => (
-                                <li key={c.id}>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const cardVal = effectiveCardId ? (c.card_values[effectiveCardId] ?? c.value ?? 0) : (c.value ?? 0)
-                                      setSelectedCredits((prev) => ({
-                                        ...prev,
-                                        [c.id]: cardVal,
-                                      }))
-                                      setCreditSearch('')
-                                      setShowCreditPicker(false)
-                                    }}
-                                    className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-700/60"
-                                  >
-                                    <span className="truncate min-w-0">{c.credit_name}</span>
-                                    <span className="text-slate-500 tabular-nums shrink-0">
-                                      {formatMoney(effectiveCardId ? (c.card_values[effectiveCardId] ?? c.value ?? 0) : (c.value ?? 0))}
-                                    </span>
-                                  </button>
-                                </li>
-                              ))}
-                              {canCreate && (
+                              <li>
+                                <button
+                                  type="button"
+                                  disabled={!canCreate || createCreditMutation.isPending}
+                                  onClick={() => canCreate && createCreditMutation.mutate(trimmed)}
+                                  className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-indigo-300 hover:bg-slate-700/60 disabled:text-slate-500 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                                >
+                                  <span className="shrink-0">+</span>
+                                  <span className="truncate min-w-0">
+                                    {createCreditMutation.isPending
+                                      ? `Creating "${trimmed}"…`
+                                      : trimmed.length === 0
+                                        ? 'Create New Credit (Type in search)'
+                                        : exactExists
+                                          ? `"${trimmed}" already exists`
+                                          : `Create "${trimmed}"`}
+                                  </span>
+                                </button>
+                              </li>
+                              {matches.length === 0 ? (
                                 <li>
-                                  <button
-                                    type="button"
-                                    disabled={createCreditMutation.isPending}
-                                    onClick={() => createCreditMutation.mutate(trimmed)}
-                                    className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-indigo-300 hover:bg-slate-700/60 disabled:opacity-50"
-                                  >
-                                    <span className="shrink-0">+</span>
-                                    <span className="truncate min-w-0">
-                                      {createCreditMutation.isPending
-                                        ? `Creating "${trimmed}"…`
-                                        : `Create "${trimmed}"`}
-                                    </span>
-                                  </button>
+                                  <p className="text-[11px] text-slate-500 px-2 py-1.5">
+                                    {trimmed.length === 0
+                                      ? 'No more credits to add.'
+                                      : 'No matching credits.'}
+                                  </p>
                                 </li>
+                              ) : (
+                                matches.map((c) => (
+                                  <li key={c.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const cardVal = effectiveCardId ? (c.card_values[effectiveCardId] ?? c.value ?? 0) : (c.value ?? 0)
+                                        setSelectedCredits((prev) => ({
+                                          ...prev,
+                                          [c.id]: cardVal,
+                                        }))
+                                        setCreditSearch('')
+                                        setShowCreditPicker(false)
+                                      }}
+                                      className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-700/60"
+                                    >
+                                      <span className="truncate min-w-0">{c.credit_name}</span>
+                                      <span className="text-slate-500 tabular-nums shrink-0">
+                                        {formatMoney(effectiveCardId ? (c.card_values[effectiveCardId] ?? c.value ?? 0) : (c.value ?? 0))}
+                                      </span>
+                                    </button>
+                                  </li>
+                                ))
                               )}
                             </ul>
                           )
@@ -1494,7 +1618,9 @@ export function WalletCardModal(props: WalletCardModalProps) {
       </div>
 
       {/* ── Fixed footer ── */}
-      {hasNextTab && (
+      {/* Next is a step-through affordance for the add flow only — when
+          editing an existing card the user can click tabs directly. */}
+      {isAddFlow && hasNextTab && (
         <div className="flex-shrink-0 flex items-center gap-2 px-6 py-4 border-t border-slate-700">
           <button
             type="button"

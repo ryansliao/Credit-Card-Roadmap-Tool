@@ -3,7 +3,7 @@
 from typing import Optional
 
 from fastapi import Depends, HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -23,14 +23,20 @@ class CreditService(BaseService[Credit]):
         self._card_service = CardService(db)
 
     async def list_all_with_links(self) -> list[Credit]:
-        """List all credits with card links eager-loaded.
-
-        Returns:
-            List of credits ordered by name.
-        """
+        """List every credit (system + every user). Admin/seed use only."""
         result = await self.db.execute(
             select(Credit)
             .options(selectinload(Credit.card_links))
+            .order_by(Credit.credit_name)
+        )
+        return list(result.scalars().all())
+
+    async def list_visible_to_user(self, user_id: int) -> list[Credit]:
+        """List credits this user can see: system credits + their own."""
+        result = await self.db.execute(
+            select(Credit)
+            .options(selectinload(Credit.card_links))
+            .where(or_(Credit.owner_user_id.is_(None), Credit.owner_user_id == user_id))
             .order_by(Credit.credit_name)
         )
         return list(result.scalars().all())
@@ -76,17 +82,21 @@ class CreditService(BaseService[Credit]):
             )
         return credit
 
-    async def get_by_name(self, name: str) -> Optional[Credit]:
-        """Find a credit by name.
+    async def get_by_name(
+        self, name: str, owner_user_id: Optional[int] = None
+    ) -> Optional[Credit]:
+        """Find a credit by (owner, name).
 
-        Args:
-            name: The credit name.
-
-        Returns:
-            The credit if found, None otherwise.
+        ``owner_user_id`` of None scopes to the system library; passing a user
+        id scopes to that user's credits. Names are unique within an owner via
+        the composite index, so at most one row matches.
         """
         result = await self.db.execute(
-            select(Credit).where(Credit.credit_name == name)
+            select(Credit).where(
+                Credit.credit_name == name,
+                Credit.owner_user_id.is_(None) if owner_user_id is None
+                else Credit.owner_user_id == owner_user_id,
+            )
         )
         return result.scalar_one_or_none()
 
@@ -99,29 +109,19 @@ class CreditService(BaseService[Credit]):
         is_one_time: bool = False,
         credit_currency_id: Optional[int] = None,
         card_values: Optional[dict[int, float]] = None,
+        owner_user_id: Optional[int] = None,
     ) -> Credit:
         """Create a new credit with card links.
 
-        Args:
-            credit_name: The credit name.
-            value: Default value.
-            card_ids: List of card IDs to link.
-            excludes_first_year: Whether credit excludes first year.
-            is_one_time: Whether credit is one-time.
-            credit_currency_id: Optional currency ID for credit.
-            card_values: Optional per-card value overrides.
-
-        Returns:
-            The newly created credit.
-
-        Raises:
-            HTTPException: 400 if name is empty, 409 if name exists.
+        ``owner_user_id`` of None creates a system credit (admin path);
+        passing a user id creates a user-scoped credit. Uniqueness on
+        ``credit_name`` is enforced within the owning scope only.
         """
         name = credit_name.strip()
         if not name:
             raise HTTPException(status_code=400, detail="credit_name cannot be empty")
 
-        existing = await self.get_by_name(name)
+        existing = await self.get_by_name(name, owner_user_id=owner_user_id)
         if existing:
             raise HTTPException(
                 status_code=409,
@@ -136,6 +136,7 @@ class CreditService(BaseService[Credit]):
             excludes_first_year=excludes_first_year,
             is_one_time=is_one_time,
             credit_currency_id=credit_currency_id,
+            owner_user_id=owner_user_id,
         )
         self.db.add(credit)
         await self.db.flush()
@@ -194,10 +195,17 @@ class CreditService(BaseService[Credit]):
                 raise HTTPException(status_code=400, detail="credit_name cannot be empty")
 
             if new_name != credit.credit_name:
+                # Uniqueness is per-owner; clash check stays within scope.
+                owner_filter = (
+                    Credit.owner_user_id.is_(None)
+                    if credit.owner_user_id is None
+                    else Credit.owner_user_id == credit.owner_user_id
+                )
                 clash = await self.db.execute(
                     select(Credit).where(
                         Credit.credit_name == new_name,
                         Credit.id != credit.id,
+                        owner_filter,
                     )
                 )
                 if clash.scalar_one_or_none():
@@ -233,10 +241,18 @@ class CreditService(BaseService[Credit]):
             card_ids: New list of card IDs.
             card_values: Optional per-card value overrides.
         """
-        # Preserve existing per-card values for cards that remain
-        existing_values: dict[int, float | None] = {}
-        for link in credit.card_links:
-            existing_values[link.card_id] = link.value
+        # Query existing links explicitly rather than touching
+        # ``credit.card_links``. The relationship may not be loaded on a
+        # freshly-flushed Credit, and lazy-loading it would do sync IO
+        # outside the async greenlet (MissingGreenlet).
+        existing_links = (
+            await self.db.execute(
+                select(CardCredit).where(CardCredit.credit_id == credit.id)
+            )
+        ).scalars().all()
+        existing_values: dict[int, float | None] = {
+            link.card_id: link.value for link in existing_links
+        }
 
         await self.db.execute(
             delete(CardCredit).where(CardCredit.credit_id == credit.id)
