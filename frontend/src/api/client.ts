@@ -457,6 +457,13 @@ export interface RoadmapCardStatus {
   sub_days_remaining: number | null
 }
 
+export interface RuleAtRiskInterval {
+  /** Start of the at-risk window (inclusive). */
+  start: string
+  /** End of the at-risk window (exclusive — count drops below max on this date). */
+  end: string
+}
+
 export interface RoadmapRuleStatus {
   rule_id: number
   rule_name: string
@@ -469,6 +476,8 @@ export interface RoadmapRuleStatus {
   personal_only: boolean
   scope_all_issuers: boolean
   counted_cards: string[]
+  /** Intervals across the projection where count >= max_count. */
+  at_risk_intervals: RuleAtRiskInterval[]
 }
 
 export interface RoadmapResponse {

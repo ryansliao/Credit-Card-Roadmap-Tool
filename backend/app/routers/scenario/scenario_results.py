@@ -30,6 +30,7 @@ from ...schemas import (
     RoadmapCardStatus,
     RoadmapResponse,
     RoadmapRuleStatus,
+    RuleAtRiskInterval,
     WalletResultResponseSchema,
     WalletResultSchema,
     wallet_to_schema,
@@ -560,21 +561,60 @@ async def scenario_roadmap(
             five_twenty_four_as_of if is_long_horizon else today
         )
         cutoff = rule_anchor - timedelta(days=rule.period_days)
+
+        # Eligible instances for this rule (issuer scope, personal-only,
+        # PC exclusion). Used both for the point-in-time `counted_cards`
+        # list and the at-risk interval sweep across the projection.
+        eligible_dates: list[date] = []
         counted: list[str] = []
         for inst in instances:
             card = inst.card
-            if inst.opening_date < cutoff:
-                continue
-            if is_long_horizon and inst.opening_date > rule_anchor:
-                continue
             if not rule.scope_all_issuers and card.issuer_id != rule.issuer_id:
                 continue
             if rule.personal_only and card.business:
                 continue
-            # PCs don't count toward velocity rules.
             if inst.product_change_date is not None:
                 continue
+            eligible_dates.append(inst.opening_date)
+
+            if inst.opening_date < cutoff:
+                continue
+            if is_long_horizon and inst.opening_date > rule_anchor:
+                continue
             counted.append(card.name)
+
+        # Sweep card open / roll-off events to find every interval where
+        # the rolling count is >= max_count. A card opened on D contributes
+        # to the count on dates [D, D + period_days]; it rolls off on
+        # D + period_days + 1. Apply +1s before -1s on the same date so a
+        # new open on the day a previous card rolls off keeps the count.
+        events: list[tuple[date, int]] = []
+        for d in eligible_dates:
+            events.append((d, +1))
+            events.append((d + timedelta(days=rule.period_days + 1), -1))
+        events.sort(key=lambda e: (e[0], -e[1]))
+
+        at_risk_intervals: list[RuleAtRiskInterval] = []
+        running = 0
+        risk_start: Optional[date] = None
+        i = 0
+        while i < len(events):
+            cur_date = events[i][0]
+            while i < len(events) and events[i][0] == cur_date:
+                running += events[i][1]
+                i += 1
+            if running >= rule.max_count and risk_start is None:
+                risk_start = cur_date
+            elif running < rule.max_count and risk_start is not None:
+                # Drop intervals entirely in the past; clip start to today.
+                if cur_date > today:
+                    at_risk_intervals.append(
+                        RuleAtRiskInterval(
+                            start=max(risk_start, today),
+                            end=cur_date,
+                        )
+                    )
+                risk_start = None
 
         rule_statuses.append(
             RoadmapRuleStatus(
@@ -589,6 +629,7 @@ async def scenario_roadmap(
                 personal_only=rule.personal_only,
                 scope_all_issuers=rule.scope_all_issuers,
                 counted_cards=counted,
+                at_risk_intervals=at_risk_intervals,
             )
         )
 

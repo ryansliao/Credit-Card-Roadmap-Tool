@@ -292,13 +292,10 @@ export function WalletTimelineChart({
   // in this wallet. Global (issuer-less) rules are intentionally excluded —
   // these warnings are scoped to issuer velocity rules. Each rule is
   // enriched with a severity:
-  //   - 'inactive': count below max
-  //   - 'in_effect': limit reached but no card from the rule's issuer was
-  //     added past it (the rule will block future adds but nothing yet
-  //     "broke" it — e.g. 6 non-Chase personal cards puts the wallet over
-  //     5/24 but doesn't violate it)
-  //   - 'violated': a card from the rule's issuer is present past the limit
-  //     (e.g. a Chase card added while already over 5/24)
+  //   - 'inactive': count below max.
+  //   - 'in_effect': count at/over max with no violating issuer card yet.
+  //   - 'violated': a card from the rule's issuer is present past the
+  //     limit (e.g. a Chase card added while already over 5/24).
   const ruleData = useMemo(() => {
     type Severity = 'inactive' | 'in_effect' | 'violated'
     const empty = { rules: [] as (RoadmapResponse['rule_statuses'][number] & { severity: Severity })[], maxSeverity: 'inactive' as Severity }
@@ -311,18 +308,15 @@ export function WalletTimelineChart({
       (r) => r.issuer_name != null && walletIssuers.has(r.issuer_name),
     )
     const enriched = applicable.map((r) => {
-      let severity: Severity
-      if (r.current_count < r.max_count) {
-        severity = 'inactive'
-      } else {
-        // Limit reached. A rule is *violated* (vs. just *in effect*) only
-        // when a card from the rule's issuer was approved while the count
-        // — within that card's own trailing period window — was already at
-        // or over max. We have to do the per-card date check on every
-        // rule, not just scope_all_issuers ones: short cooldowns like
-        // Citi 1/8 anchor `counted_cards` to today with no upper bound,
-        // so two issuer cards more than `period_days` apart (e.g. one
-        // today and one planned 10 days out) can both land in
+      let severity: Severity = 'inactive'
+      if (r.current_count >= r.max_count) {
+        // Limit reached. A rule is *violated* only when a card from the
+        // rule's issuer was approved while the count — within that card's
+        // own trailing period window — was already at or over max. We
+        // have to do the per-card date check on every rule, not just
+        // scope_all_issuers ones: short cooldowns like Citi 1/8 anchor
+        // `counted_cards` to today with no upper bound, so two issuer
+        // cards more than `period_days` apart can both land in
         // `counted_cards` without actually violating each other.
         const counted = new Set(r.counted_cards)
         const periodMs = r.period_days * 86400000
@@ -358,8 +352,9 @@ export function WalletTimelineChart({
       (m, r) => (rank[r.severity] > rank[m] ? r.severity : m),
       'inactive',
     )
-    // Sort highest-risk first: violated → in effect → inactive, then by how
-    // close to the limit (count/max), then alphabetically for stability.
+    // Sort highest-risk first: violated → in effect → inactive, then by
+    // how close to the limit (count/max), then alphabetically for
+    // stability.
     const sorted = [...enriched].sort((a, b) => {
       const ds = rank[b.severity] - rank[a.severity]
       if (ds !== 0) return ds
@@ -804,7 +799,7 @@ export function WalletTimelineChart({
                   : r.severity === 'in_effect'
                     ? 'text-amber-300'
                     : 'text-slate-200'
-              const countClass =
+              const intervalClass =
                 r.severity === 'violated'
                   ? 'text-red-300'
                   : r.severity === 'in_effect'
@@ -815,25 +810,32 @@ export function WalletTimelineChart({
                   key={r.rule_id}
                   className={`rounded-md border px-2.5 py-2 ${containerClass}`}
                 >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div className="flex items-baseline gap-1.5 min-w-0">
-                      <span className={`font-medium truncate ${titleClass}`}>
-                        {r.rule_name}
-                      </span>
-                      {r.issuer_name && (
-                        <span className="text-[10px] text-slate-500 shrink-0">
-                          {r.issuer_name}
-                        </span>
-                      )}
-                    </div>
-                    <span className={`text-[11px] tabular-nums shrink-0 ${countClass}`}>
-                      {r.current_count}/{r.max_count} in {r.period_days}d
+                  <div className="flex items-baseline gap-1.5 min-w-0">
+                    <span className={`font-medium truncate ${titleClass}`}>
+                      {r.rule_name}
                     </span>
+                    {r.issuer_name && (
+                      <span className="text-[10px] text-slate-500 shrink-0">
+                        {r.issuer_name}
+                      </span>
+                    )}
                   </div>
                   {r.description && (
                     <p className="text-[11px] text-slate-400 mt-0.5">
                       {r.description}
                     </p>
+                  )}
+                  {r.at_risk_intervals.length > 0 && (
+                    <ul className="mt-1 space-y-0.5">
+                      {r.at_risk_intervals.map((iv, idx) => (
+                        <li
+                          key={idx}
+                          className={`text-[11px] tabular-nums ${intervalClass}`}
+                        >
+                          At limit {formatDate(iv.start)} → {formatDate(iv.end)}
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </li>
               )

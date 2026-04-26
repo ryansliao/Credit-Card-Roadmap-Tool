@@ -56,6 +56,7 @@ from .roadmap import (
     RoadmapCardStatus,
     RoadmapResponse,
     RoadmapRuleStatus,
+    RuleAtRiskInterval,
 )
 from .spend import (
     SpendCategoryRead,
@@ -156,6 +157,7 @@ __all__ = [
     "RoadmapCardStatus",
     "RoadmapResponse",
     "RoadmapRuleStatus",
+    "RuleAtRiskInterval",
     # Spend
     "SpendCategoryRead",
     "UserSpendCategoryMappingRead",

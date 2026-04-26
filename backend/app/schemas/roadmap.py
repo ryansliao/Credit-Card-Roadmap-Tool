@@ -27,6 +27,14 @@ class RoadmapCardStatus(BaseModel):
     sub_days_remaining: Optional[int] = None
 
 
+class RuleAtRiskInterval(BaseModel):
+    # Half-open interval [start, end): the rule's count is >= max_count
+    # from `start` (inclusive) until `end` (exclusive — count drops below
+    # max on this date). Already clipped to start from `as_of_date`.
+    start: date
+    end: date
+
+
 class RoadmapRuleStatus(BaseModel):
     rule_id: int
     rule_name: str
@@ -40,6 +48,10 @@ class RoadmapRuleStatus(BaseModel):
     scope_all_issuers: bool
     # Cards counted toward this rule (names)
     counted_cards: list[str] = []
+    # Date intervals across the projection where count >= max_count. A
+    # single rule can be at risk multiple times as cards are added and
+    # roll off the rolling window.
+    at_risk_intervals: list[RuleAtRiskInterval] = []
 
 
 class RoadmapResponse(BaseModel):
