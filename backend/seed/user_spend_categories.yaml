@@ -25,32 +25,64 @@ user_spend_categories:
       - earn_category: Dining
         weight: 1.0
 
+  - name: Live Entertainment
+    description: Concerts, sports, movies
+    display_order: 3
+    mappings:
+      - earn_category: Live Entertainment
+        weight: 0.70
+      - earn_category: Movies
+        weight: 0.30
+
+  - name: Streaming
+    description: Netflix, Spotify, etc.
+    display_order: 4
+    mappings:
+      - earn_category: Streaming
+        weight: 1.0
+
+  - name: Online Retail
+    description: Online shopping
+    display_order: 5
+    mappings:
+      - earn_category: Online Shopping
+        weight: 1.0
+
   - name: Gas & EV Charging
     description: Fuel and electric vehicle charging
-    display_order: 3
+    display_order: 6
     mappings:
       - earn_category: Gas
         weight: 0.90
       - earn_category: EV Charging
         weight: 0.10
 
+  - name: Local Transit
+    description: Transit and rideshare
+    display_order: 7
+    mappings:
+      - earn_category: Transit
+        weight: 0.60
+      - earn_category: Rideshare
+        weight: 0.40
+
   - name: Airlines
     description: Flights and airfare
-    display_order: 4
+    display_order: 8
     mappings:
       - earn_category: Airlines
         weight: 1.0
 
   - name: Hotels
     description: Hotel stays
-    display_order: 5
+    display_order: 9
     mappings:
       - earn_category: Hotels
         weight: 1.0
 
   - name: Other Travel
     description: Car rentals, cruises, attractions, OTAs
-    display_order: 6
+    display_order: 10
     mappings:
       - earn_category: Travel
         weight: 0.50
@@ -62,38 +94,6 @@ user_spend_categories:
         weight: 0.10
       - earn_category: Cruises
         weight: 0.05
-
-  - name: Local Transportation
-    description: Transit and rideshare
-    display_order: 7
-    mappings:
-      - earn_category: Transit
-        weight: 0.60
-      - earn_category: Rideshare
-        weight: 0.40
-
-  - name: Live Entertainment
-    description: Concerts, sports, movies
-    display_order: 8
-    mappings:
-      - earn_category: Live Entertainment
-        weight: 0.70
-      - earn_category: Movies
-        weight: 0.30
-
-  - name: Streaming
-    description: Netflix, Spotify, etc.
-    display_order: 9
-    mappings:
-      - earn_category: Streaming
-        weight: 1.0
-
-  - name: Online Retail
-    description: Online shopping
-    display_order: 10
-    mappings:
-      - earn_category: Online Shopping
-        weight: 1.0
 
   - name: Health
     description: Drugstores, fitness, personal care
