@@ -184,7 +184,7 @@ export function WalletSummaryStats({
 
       {/* Middle: duration slider */}
       <div
-        className={`shrink-0 w-64 lg:w-72 bg-slate-900 border rounded-xl px-4 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
+        className={`shrink-0 w-72 lg:w-80 bg-slate-900 border rounded-xl px-4 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1">
@@ -286,15 +286,15 @@ export function WalletSummaryStats({
       {/* Right: timeline legend */}
       {roadmap && (
         <div
-          className={`shrink-0 w-52 bg-slate-900 border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
+          className={`shrink-0 w-45 bg-slate-900 border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
         >
-          <div className="grid grid-cols-[20px_1fr] gap-x-2 gap-y-1 items-center text-[10px] text-slate-500">
+          <div className="grid grid-cols-[26px_1fr] gap-x-2 gap-y-1.5 items-center text-[11px] text-slate-500">
             <span
               aria-hidden
               className="justify-self-center inline-block rounded-full"
               style={{
-                width: 18,
-                height: 7,
+                width: 24,
+                height: 9,
                 backgroundColor: '#fbbf2433',
                 border: '1px solid #fbbf24',
               }}
@@ -306,8 +306,8 @@ export function WalletSummaryStats({
               aria-hidden
               className="justify-self-center inline-block rounded-full"
               style={{
-                width: 18,
-                height: 7,
+                width: 24,
+                height: 9,
                 backgroundColor: '#818cf833',
                 border: '1px solid #818cf8',
               }}
@@ -317,12 +317,12 @@ export function WalletSummaryStats({
 
             <span
               aria-hidden
-              className="justify-self-center relative inline-block w-4 h-2 rounded-full bg-indigo-500"
+              className="justify-self-center relative inline-block w-5 h-2.5 rounded-full bg-indigo-500"
               title="Per-card toggle in the timeline includes the card in calculation"
             >
               <span
-                className="absolute top-0.5 w-1 h-1 rounded-full bg-white"
-                style={{ left: 9 }}
+                className="absolute top-0.5 w-1.5 h-1.5 rounded-full bg-white"
+                style={{ left: 11 }}
               />
             </span>
             <span className="whitespace-nowrap">Add Card to Calculation</span>
