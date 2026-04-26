@@ -1168,14 +1168,6 @@ function CardRow({
                   </svg>
                 </IconHoverLabel>
               )}
-              {wc.is_overlay_modified && (
-                <span
-                  className="text-[9px] uppercase tracking-wider font-semibold text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded px-1 py-[1px] shrink-0"
-                  title="Overlay applied — values modified for this scenario only"
-                >
-                  Overlay
-                </span>
-              )}
             </div>
             {incomeLabel && (
               <div
