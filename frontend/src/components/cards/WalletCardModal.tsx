@@ -832,6 +832,23 @@ export function WalletCardModal(props: WalletCardModalProps) {
                   When and how this card entered the wallet, and whether it's still active.
                 </p>
 
+                {/* Future PC edit mode: surface the source card the user
+                    previously selected. Read-only — to change it, delete and
+                    re-add the future card. */}
+                {!isAddFlow && isFuture && pcFromInstanceId !== '' && (() => {
+                  const fromCard = walletCards.find((c) => c.id === pcFromInstanceId)
+                  return (
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">
+                        Changed From
+                      </label>
+                      <div className="w-full bg-slate-800/60 border border-slate-700 text-slate-200 text-sm px-3 py-2 rounded-lg">
+                        {fromCard?.name ?? `Card #${pcFromInstanceId}`}
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 {/* Card pickers (add mode only). Owned-base only shows the
                     library card search; Future may also show a PC parent picker. */}
                 {isAddFlow && (

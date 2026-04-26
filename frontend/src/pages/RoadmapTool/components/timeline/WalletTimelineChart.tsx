@@ -1059,7 +1059,12 @@ function CardRow({
   onToggleEnabled,
   onEditCard,
 }: CardRowProps) {
-  const addedMs = parseDate(wc.added_date).getTime()
+  // For PC cards, the bar shows when THIS PRODUCT was active — starting at
+  // product_changed_date, not at the original account opening_date (which
+  // is preserved through the PC for 5/24 purposes but isn't when this card
+  // existed). Fresh opens fall through to added_date (= opening_date).
+  const productStartStr = wc.product_changed_date ?? wc.added_date
+  const addedMs = parseDate(productStartStr).getTime()
   const closedMs = wc.closed_date ? parseDate(wc.closed_date).getTime() : range.endMs
 
   const barStartPct = pctOf(range, Math.max(addedMs, range.startMs))
@@ -1105,7 +1110,9 @@ function CardRow({
       : null
 
   const tooltip = [
-    `Added: ${formatDate(wc.added_date)}`,
+    wc.product_changed_date
+      ? `Product change: ${formatDate(wc.product_changed_date)} (account opened ${formatDate(wc.added_date)})`
+      : `Added: ${formatDate(wc.added_date)}`,
     wc.closed_date ? `Closed: ${formatDate(wc.closed_date)}` : null,
     enabled
       ? subProjectedDate
@@ -1214,9 +1221,6 @@ function CardRow({
           const roundLeft = addedMs > range.startMs
           const roundRight = closedMs < range.endMs
           const roundedClass = `${roundLeft ? 'rounded-l-full' : ''} ${roundRight ? 'rounded-r-full' : ''}`.trim()
-          // Overlay-modified owned cards get a dashed border so they read as
-          // "scenario hypothesis layered over your real card".
-          const borderStyle = wc.is_overlay_modified ? 'dashed' : 'solid'
           return (
             <div
               className={`absolute ${roundedClass}`}
@@ -1226,7 +1230,7 @@ function CardRow({
                 top: (CARD_ROW_HEIGHT - barHeight) / 2,
                 height: barHeight,
                 backgroundColor: enabled ? `${color}33` : '#33415533',
-                border: `1px ${borderStyle} ${enabled ? color : '#475569'}`,
+                border: `1px solid ${enabled ? color : '#475569'}`,
                 opacity: enabled ? 1 : 0.55,
                 zIndex: 30,
               }}
