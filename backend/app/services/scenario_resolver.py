@@ -213,12 +213,17 @@ class ScenarioResolver:
                 )
             )
 
-        # 9. Compose all_cards = (library cards NOT covered by an active
-        #    instance) + (one CardData per active instance).
-        non_active_library: list[CardData] = [
-            cd for cd in all_library_card_data if cd.id not in active_library_card_ids
-        ]
-        all_cards: list[CardData] = non_active_library + per_instance_card_data
+        # 9. Compose all_cards = one CardData per active instance.
+        #
+        # Important: do NOT also include the rest of the library cards.
+        # ``CardData.id`` for a per-instance entry is the synthetic
+        # ``card_instance.id``; library card ids share the same numeric
+        # space, so adding library entries lets ``c.id in selected_ids``
+        # match library cards whose id happens to coincide with an
+        # instance id (e.g. library card 8 = Chase Freedom Flex collides
+        # with instance #8 = Discover IT Cash Back). The frontend never
+        # consumes ``c.selected = false`` rows, so dropping them is safe.
+        all_cards: list[CardData] = per_instance_card_data
         selected_ids: set[int] = {r.instance_id for r in active_resolved}
 
         # 10. Apply scenario-scoped multiplier overrides per instance.
