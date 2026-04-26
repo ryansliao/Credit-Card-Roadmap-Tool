@@ -182,6 +182,12 @@ export function walletFormToOverlayUpsertPayload(
     if (a == null || b == null) return false
     return Math.abs(a - b) < 1e-9
   }
+  // closed_date in an overlay can't express "force active" via null alone
+  // — null means "inherit from underlying instance", so a scenario can't
+  // override a closed owned card to be active without the explicit clear
+  // flag. When the user picks Active in overlay mode, send
+  // closed_date_clear=true; otherwise false.
+  const closedDateClear = closedDate === null
   return {
     sub_points: sameInt(built.sub_points, baseline.sub_points) ? null : built.sub_points,
     sub_min_spend: sameInt(built.sub_min_spend, baseline.sub_min_spend) ? null : built.sub_min_spend,
@@ -193,6 +199,7 @@ export function walletFormToOverlayUpsertPayload(
       ? null
       : secondaryCurrencyRate,
     closed_date: closedDate === baseline.closed_date ? null : closedDate,
+    closed_date_clear: closedDateClear,
     is_enabled: isEnabled,
   }
 }

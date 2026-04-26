@@ -209,10 +209,12 @@ class CardInstanceService(BaseService[CardInstance]):
         return instance
 
     async def update(self, instance: CardInstance, **updates) -> CardInstance:
-        """Partial update — None values are skipped."""
+        """Partial update. Callers pass `payload.model_dump(exclude_unset=True)`
+        so the dict only contains fields the client explicitly set; None is
+        meaningful here ("clear back to inherit / null"), e.g. flipping a
+        card's status from Closed → Active sends ``closed_date=None``."""
         for field, value in updates.items():
-            if value is not None:
-                setattr(instance, field, value)
+            setattr(instance, field, value)
         return instance
 
     async def delete_owned(self, instance: CardInstance) -> None:

@@ -129,19 +129,14 @@ export function SpendTabContent({
   // Closed / product-changed-away-from cards are excluded from earn allocation.
   // CardResult.card_id under the new model is the synthetic instance.id (=
   // ResolvedCard.id), so we exclude by instance id throughout. PC source
-  // instances are excluded when a future card carries pc_from_instance_id.
+  // instances arrive with a derived closed_date set by resolveScenarioCards
+  // (when an enabled future PC card points to them), so the closed_date
+  // check below catches them too.
   const excludedInstanceIds = useMemo(() => {
     const ids = new Set<number>()
     for (const wc of walletCards) {
       if (wc.panel !== 'in_wallet' && wc.panel !== 'future_cards') continue
       if (wc.closed_date) ids.add(wc.instance_id)
-    }
-    for (const pcCard of walletCards) {
-      if (!pcCard.is_future) continue
-      if (pcCard.acquisition_type !== 'product_change') continue
-      if (pcCard.pc_from_instance_id != null) {
-        ids.add(pcCard.pc_from_instance_id)
-      }
     }
     return ids
   }, [walletCards])

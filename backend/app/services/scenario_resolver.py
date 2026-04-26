@@ -176,6 +176,34 @@ class ScenarioResolver:
             r for r in resolved if bool(r.effective.get("is_enabled", True))
         ]
 
+        # PC-derived close on source instances: when an enabled future PC
+        # card carries pc_from_instance_id, treat the source as closed at
+        # the PC's product_change_date. Disabled PC cards are already
+        # filtered out above, so the source naturally stays open in that
+        # case ("only close the previous card if the PC card is enabled").
+        pc_close_by_source: dict[int, date] = {}
+        for r in active_resolved:
+            inst = r.instance
+            if inst.scenario_id is None:
+                continue
+            if inst.pc_from_instance_id is None:
+                continue
+            pc_date = r.effective.get("product_change_date")
+            if pc_date is None:
+                continue
+            src_id = inst.pc_from_instance_id
+            cur = pc_close_by_source.get(src_id)
+            if cur is None or pc_date < cur:
+                pc_close_by_source[src_id] = pc_date
+        if pc_close_by_source:
+            for r in active_resolved:
+                pc_close = pc_close_by_source.get(r.instance_id)
+                if pc_close is None:
+                    continue
+                cur_close = r.effective.get("closed_date")
+                if cur_close is None or pc_close < cur_close:
+                    r.effective["closed_date"] = pc_close
+
         # 5. Load CPP overrides (scenario-scoped) and library CardData.
         cpp_overrides = await self._load_cpp_overrides(scenario_id)
         all_library_card_data = await self.calc_data.load_card_data(
@@ -400,6 +428,12 @@ class ScenarioResolver:
         # opening_date is not overlay-able (an owned card's opening date
         # is a fact, not a hypothesis); always take it from the instance.
         effective["opening_date"] = instance.opening_date
+        # closed_date_clear forces the card active in this scenario even when
+        # the underlying instance is closed. Three-tier resolution can't
+        # express this via null alone (null means inherit), so the flag is
+        # applied last and short-circuits the inherited closed_date.
+        if overlay is not None and getattr(overlay, "closed_date_clear", False):
+            effective["closed_date"] = None
         return effective
 
     # ------------------------------------------------------------------

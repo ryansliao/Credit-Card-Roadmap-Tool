@@ -84,7 +84,12 @@ export function resolveCardInstance(
     _libValue(lib, 'secondary_currency_rate'),
   )
   const sub_earned_date = _coalesce(ov?.sub_earned_date, instance.sub_earned_date)
-  const closed_date = _coalesce(ov?.closed_date, instance.closed_date)
+  // closed_date_clear on the overlay forces the card active in this scenario
+  // even when the underlying instance is closed. Mirrors the backend's
+  // ScenarioResolver._resolve_effective.
+  const closed_date = ov?.closed_date_clear
+    ? null
+    : _coalesce(ov?.closed_date, instance.closed_date)
   const product_change_date = _coalesce(ov?.product_change_date, instance.product_change_date)
   // is_enabled is a boolean — cascade-coalesce against null sentinel only.
   const is_enabled =
@@ -164,6 +169,37 @@ export function resolveScenarioCards(
   for (const inst of futureInstances) {
     // Overlays don't target future cards.
     out.push(resolveCardInstance(inst, null, libraryCardsById.get(inst.card_id)))
+  }
+
+  // PC-derived close on source instances: when an enabled future PC card
+  // carries pc_from_instance_id, treat the source as closed at the PC's
+  // product_change_date for display (timeline bar end, spend allocation).
+  // Mirrors ScenarioResolver in the backend so the timeline / spend / calc
+  // all agree, and gives "only close if the PC card is enabled" for free
+  // (disabled rows are skipped). PC derivation runs after the standard
+  // overlay resolution, so it wins over closed_date_clear in the rare case
+  // of a force-open overlay competing with a PC pointing at the same card —
+  // matching the backend's resolution order.
+  const pcCloseBySource = new Map<number, string>()
+  for (const r of out) {
+    if (!r.is_future) continue
+    if (!r.is_enabled) continue
+    if (r.acquisition_type !== 'product_change') continue
+    if (r.pc_from_instance_id == null) continue
+    if (!r.product_changed_date) continue
+    const cur = pcCloseBySource.get(r.pc_from_instance_id)
+    if (cur == null || r.product_changed_date < cur) {
+      pcCloseBySource.set(r.pc_from_instance_id, r.product_changed_date)
+    }
+  }
+  if (pcCloseBySource.size > 0) {
+    for (const r of out) {
+      const pcClose = pcCloseBySource.get(r.instance_id)
+      if (pcClose == null) continue
+      if (r.closed_date == null || pcClose < r.closed_date) {
+        r.closed_date = pcClose
+      }
+    }
   }
   return out
 }

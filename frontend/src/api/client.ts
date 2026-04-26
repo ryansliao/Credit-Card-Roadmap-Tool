@@ -721,6 +721,11 @@ export interface ScenarioCardOverlay {
   scenario_id: number
   card_instance_id: number
   closed_date: string | null
+  /** When true, force closed_date to null in this scenario regardless of
+   * the underlying CardInstance.closed_date. Lets a scenario express
+   * "this owned card is active in this scenario" even when the user has
+   * closed the card in real life. */
+  closed_date_clear: boolean
   product_change_date: string | null
   sub_earned_date: string | null
   sub_points: number | null

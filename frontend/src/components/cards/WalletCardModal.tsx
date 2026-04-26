@@ -58,17 +58,23 @@ export interface WalletCardModalProps {
   ownedInstance?: CardInstance
   /** Library card_ids already in the wallet (excluded from add picker). */
   existingCardIds: number[]
-  /** Instance lookup for the PC picker + "Changed From" display.
+  /** Instance lookup for the PC picker + "Changed From" / "Changed To" display.
    * `pc_from_instance_id` references CardInstance.id (not library card_id),
    * so the picker stores instance ids and the read display resolves the
    * source via this list. `opening_date` is used so a PC add inherits the
    * source instance's account-open date (PCs preserve `opening_date`).
+   * `pc_from_instance_id` + `is_enabled` + `acquisition_type` let the
+   * overlay mode locate the future PC card pointing at the current source
+   * (so we can show "Changed To" and lock the Card Status toggle).
    * Required for scenario-future + overlay modes. */
   instanceLookup?: {
     instance_id: number
     card_id: number
     card_name: string
     opening_date?: string
+    pc_from_instance_id?: number | null
+    is_enabled?: boolean
+    acquisition_type?: 'opened' | 'product_change'
   }[]
   onClose: () => void
 
@@ -295,6 +301,30 @@ export function WalletCardModal(props: WalletCardModalProps) {
       return earnCatIds.length > 0 && earnCatIds.every((id) => priorityCategoryIds.has(id))
     }).length
   }, [walletSpendItems, priorityCategoryIds])
+
+  // PC destination of the current card: when the modal is on an owned source
+  // (overlay mode) that has an enabled future PC card pointing at it, this
+  // resolves to that destination's lookup row. Used to lock the Card Status
+  // toggle (PC closure can't be edited via overlay; disable the future PC
+  // card to "open" the source) and to render a "Changed To" display.
+  const pcDestination = useMemo(() => {
+    const sourceInstanceId = resolvedCard?.instance_id ?? ownedInstance?.id ?? null
+    if (sourceInstanceId == null || !instanceLookup) return null
+    return (
+      instanceLookup.find(
+        (i) =>
+          i.pc_from_instance_id === sourceInstanceId &&
+          i.is_enabled !== false &&
+          i.acquisition_type === 'product_change',
+      ) ?? null
+    )
+  }, [resolvedCard?.instance_id, ownedInstance?.id, instanceLookup])
+
+  // Card Status is locked to "Closed" (at the PC date) while an enabled PC
+  // future card targets this card. Applies to any edit mode that surfaces
+  // the source side of a PC chain (overlay on owned, or scenario-future on
+  // a card that's been chained off of).
+  const cardStatusLocked = !isAddFlow && pcDestination != null
 
   // "Changing to" candidates: same issuer as the selected from-card, not already in wallet.
   // Only relevant when adding a future card with PC acquisition.
@@ -1033,6 +1063,21 @@ export function WalletCardModal(props: WalletCardModalProps) {
                   )
                 })()}
 
+                {/* "Changed To" display on the source side: shown when an
+                    enabled future PC card in the scenario points at this
+                    owned card. Pairs with the disabled Card Status toggle
+                    below. */}
+                {pcDestination != null && (
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block">
+                      Changed To
+                    </label>
+                    <div className="w-full bg-slate-800/60 border border-slate-700 text-slate-200 text-sm px-3 py-2 rounded-lg">
+                      {pcDestination.card_name}
+                    </div>
+                  </div>
+                )}
+
                 {/* Card library search (add flow only). */}
                 {isAddFlow && (
                   <div ref={cardSearchRef} className="relative">
@@ -1089,7 +1134,17 @@ export function WalletCardModal(props: WalletCardModalProps) {
                   <div className="grid grid-cols-2 gap-3 items-start">
                     <div>
                       <label className="text-xs text-slate-400 mb-1 block">Card Status</label>
-                      <div role="radiogroup" className="flex flex-col bg-slate-700/30 border border-slate-600 rounded-lg overflow-hidden">
+                      <div
+                        role="radiogroup"
+                        className={`flex flex-col bg-slate-700/30 border border-slate-600 rounded-lg overflow-hidden ${
+                          cardStatusLocked ? 'opacity-60' : ''
+                        }`}
+                        title={
+                          cardStatusLocked
+                            ? `Closed by product change to ${pcDestination?.card_name}`
+                            : undefined
+                        }
+                      >
                         {([
                           { v: 'active' as const, label: 'Active' },
                           { v: 'closed' as const, label: 'Closed' },
@@ -1102,7 +1157,9 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               type="button"
                               role="radio"
                               aria-checked={selected}
+                              disabled={cardStatusLocked}
                               onClick={() => {
+                                if (cardStatusLocked) return
                                 if (v === 'active') setClosedDate('')
                                 else if (!closedDate) setClosedDate(today())
                               }}
@@ -1112,7 +1169,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                 selected
                                   ? 'bg-slate-700 text-white'
                                   : 'text-slate-300 hover:bg-slate-700/60'
-                              }`}
+                              } ${cardStatusLocked ? 'cursor-not-allowed' : ''}`}
                             >
                               <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
                                 selected ? 'border-indigo-500' : 'border-slate-500'
@@ -1124,6 +1181,11 @@ export function WalletCardModal(props: WalletCardModalProps) {
                           )
                         })}
                       </div>
+                      {cardStatusLocked && (
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Closed by product change. Disable the new card to keep this one open.
+                        </p>
+                      )}
                     </div>
                     {closedDate && (
                       <div>
@@ -1131,7 +1193,8 @@ export function WalletCardModal(props: WalletCardModalProps) {
                         <input
                           type="date"
                           min={openingDate}
-                          className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500"
+                          disabled={cardStatusLocked}
+                          className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
                           value={closedDate}
                           onChange={(e) => setClosedDate(e.target.value)}
                         />

@@ -51,6 +51,13 @@ class ScenarioCardOverlay(Base):
 
     # Hypothetical date overrides
     closed_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # When True, force effective.closed_date to None regardless of the
+    # underlying CardInstance.closed_date. Lets a scenario express "this
+    # owned card is active in this scenario" even when the user has closed
+    # the card in real life. Resolved AFTER the standard three-tier cascade.
+    closed_date_clear: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
     product_change_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     sub_earned_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 

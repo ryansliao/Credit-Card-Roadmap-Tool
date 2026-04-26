@@ -14,9 +14,15 @@ class ScenarioCardOverlayUpsert(BaseModel):
     """Upsert payload. Any field set to a non-None value will override the
     underlying CardInstance's value in this scenario only. Set a field to
     null in the request body to clear that field's overlay (and revert to
-    the underlying value)."""
+    the underlying value).
+
+    Note: ``closed_date`` cannot express "force open" via null alone (null
+    means inherit). Use ``closed_date_clear=True`` to explicitly force the
+    card active in this scenario regardless of the underlying close date.
+    """
 
     closed_date: Optional[date] = None
+    closed_date_clear: Optional[bool] = None
     product_change_date: Optional[date] = None
     sub_earned_date: Optional[date] = None
 
