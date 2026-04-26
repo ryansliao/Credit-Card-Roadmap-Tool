@@ -35,6 +35,7 @@ from ...schemas import (
     wallet_to_schema,
 )
 from ...services import (
+    CalculatorDataService,
     CardInstanceService,
     IssuerService,
     ScenarioResolver,
@@ -300,11 +301,18 @@ async def scenario_results(
         foreign_eligible_categories=inputs.foreign_eligible_categories,
     )
 
+    # photo_slug lives on the ORM ``Card``, not on ``CardData``, so resolve
+    # it via a separate lookup against the library Card table keyed by the
+    # active instances' library card_ids.
+    library_card_ids = {r.library_card_id for r in inputs.resolved_instances}
+    library_cards_orm = await CalculatorDataService(db).load_cards_by_ids(
+        library_card_ids
+    )
     photo_slugs: dict[int, str | None] = {}
     for r in inputs.resolved_instances:
-        lib_cd = inputs.library_cards_by_id.get(r.library_card_id)
+        card = library_cards_orm.get(r.library_card_id)
         photo_slugs[r.instance_id] = (
-            getattr(lib_cd, "photo_slug", None) if lib_cd else None
+            getattr(card, "photo_slug", None) if card else None
         )
 
     response = WalletResultResponseSchema(
