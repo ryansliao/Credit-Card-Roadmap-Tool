@@ -4,7 +4,7 @@
       "accelerator_activations": 0,
       "accelerator_bonus_points": 0.0,
       "accelerator_cost_points": 0.0,
-      "annual_bonus": 6000,
+      "annual_bonus": 2000,
       "annual_bonus_first_year_only": false,
       "annual_bonus_percent": 0.0,
       "annual_fee": 0.0,
@@ -22,15 +22,19 @@
           45000.0
         ],
         [
+          "Rent",
+          4000.0
+        ],
+        [
           "Annual Bonus",
-          6000.0
+          2000.0
         ]
       ],
       "category_multipliers": {
         "All Other": 1.0,
         "Dining": 3.0,
-        "Mortgage": 0.0,
-        "Rent": 0.0
+        "Mortgage": 1.0,
+        "Rent": 1.0
       },
       "cents_per_point": 1.5,
       "credit_valuation": 0,

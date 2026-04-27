@@ -18,28 +18,42 @@ Tier table (ratio = non_housing_allocated_to_card / total_housing_spend):
     <100% → 1.0x
     ≥100% → 1.25x
 
-**Bilt Cash mode** — non-housing spend earns the card's base category
-multiplier plus a three-tier Bilt Cash bonus, which is added as a lump-sum
-``annual_bonus``:
+**Bilt Cash mode** — housing spend earns 1 BP per dollar (locked) and
+non-housing spend earns the card's base multiplier plus 4% Bilt Cash. BC is
+then consumed at the housing-payment redemption (1 BC = $1; $30 BC unlocks
+1,000 locked BP) so the previously-locked housing BP convert to redeemable.
+Beyond what's needed to unlock all housing BP, excess BC funds the Point
+Accelerator.
 
-    Tier 1 (first 0.75 × housing dollars of non-housing):
-        + ``secondary_rate × (1000 / 30)`` BP per dollar
-        Palladium: 2x base + 1.333x bonus = 3.33x effective
-    Tier 2 (next 5 × accelerator_spend_limit dollars, when accelerator
-    configured):
-        + ``accelerator_bonus_multiplier`` BP per dollar
-        Palladium: 2x base + 1x bonus = 3x effective
-    Tier 3 (remaining non-housing dollars):
-        base category multiplier only
-        Palladium: 2x
+The locked → unlocked conversion is modeled by attributing the realized
+unlock value back to **housing** (not to non-housing): the patched housing
+multiplier is the per-dollar realized unlock rate, and the Point
+Accelerator bonus is the only piece kept as a lump-sum ``annual_bonus``.
 
-Housing is locked to 0x in Bilt Cash mode — the 1x base earn on housing
-exists only to "unlock" via the Bilt Cash redemption path, which is already
-captured in the Tier 1 effective rate.
+Three conceptual tiers of non-housing spend:
+
+    Tier 1 — first ``0.75 × housing`` non-housing dollars:
+        BC earned here is fully consumed by the housing redemption. Each
+        Tier 1 BC dollar unlocks ``1000/30 = 33.33`` locked housing BP.
+        At the cap, Tier 1 BC = ``housing × secondary_rate × cap_rate``
+        unlocks exactly ``housing × 1`` BP — the entire locked pool.
+    Tier 2 — next ``max_activations × spend_limit`` non-housing dollars:
+        Funds Point Accelerator activations. Each activation: pay
+        ``accelerator_cost`` BC, earn ``accelerator_bonus_multiplier × spend_limit``
+        bonus BP. (Palladium: $200 BC for +1,000 BP per $1,000 of spend.)
+    Tier 3 — remaining non-housing dollars:
+        Base category multiplier only. The 4% BC earned here has no
+        modeled redemption path beyond housing/accelerator and is held as
+        a tracked balance (no realized dollar value).
+
+Housing categories on the patched card are pinned to Bilt via
+``priority_categories`` so the user's housing spend actually flows to the
+Bilt card in allocation — the unlock mechanic only fires when housing is
+paid through the Bilt portal, so allocation must reflect that constraint.
 
 The non-housing estimate used by the tier math is the card's baseline
-category allocation *after* we've temporarily removed the secondary-currency
-scoring bonus, matching what the main compute pass will see after patching.
+category allocation under each candidate (Tiered / Bilt Cash) — neither
+path's parameters leak into the other's comparison.
 """
 from __future__ import annotations
 
@@ -105,18 +119,27 @@ def _bilt_cash_mode_bonus_bp(
     card: CardData,
     non_housing: float,
     housing_spend_total: float,
-) -> tuple[float, float, float, float, float]:
-    """Return (tier1_spend, tier2_spend, tier3_spend, total_bonus_bp,
-    bilt_cash_consumed).
+) -> tuple[float, float, float, float, float, float]:
+    """Compute the BP each tier of the Bilt Cash mode produces.
 
-    ``total_bonus_bp`` is the extra Bilt Points earned in Bilt Cash mode on
-    top of the card's base category multipliers — Tier 1 from converting
-    Bilt Cash via housing payments, Tier 2 from the Point Accelerator.
+    Returns ``(tier1_spend, tier2_spend, tier3_spend, tier1_bonus_bp,
+    tier2_bonus_bp, bilt_cash_consumed)``.
+
+    ``tier1_bonus_bp`` is the **unlocked housing BP** — locked housing
+    points (earned at 1x on Rent/Mortgage) that get redeemed via the
+    Bilt Cash → Bilt Points conversion at housing-payment time. At the cap
+    this equals ``housing_spend_total × 1`` (the full locked pool); below
+    the cap it's the partial unlock allowed by the BC the user earns. The
+    caller attributes this back to the housing categories.
+
+    ``tier2_bonus_bp`` is the Point Accelerator bonus — extra BP earned on
+    Tier 2 spend by activating the accelerator. The caller folds this into
+    ``annual_bonus`` since it isn't tied to a specific category.
 
     ``bilt_cash_consumed`` is the annual Bilt Cash spent to *unlock* those
-    BP bonuses: Tier 1 BC consumed at the housing-payment redemption, plus
-    BC spent on accelerator activations. Subtracted from the card's
-    displayed Bilt Cash balance so the UI shows what's actually left.
+    BP: Tier 1 BC consumed at the housing-payment redemption, plus BC
+    spent on accelerator activations. Subtracted from the card's displayed
+    Bilt Cash balance so the UI shows what's actually left.
     """
     rate = card.secondary_currency_rate or 0.0
     cap_rate = card.secondary_currency_cap_rate or 0.0
@@ -158,7 +181,9 @@ def _bilt_cash_mode_bonus_bp(
     activation_bc_consumed = activations * card.accelerator_cost
 
     # Tier 1 bonus: each Bilt Cash dollar converts to (1000/30) BP via the
-    # housing-payment redemption.
+    # housing-payment redemption — so ``tier1_spend × rate × (1000/30)`` is
+    # the count of locked housing BP that get unlocked. At the cap this
+    # equals ``housing_spend_total × 1``.
     tier1_bonus_per_dollar = rate * _BILT_CASH_DOLLARS_TO_POINTS
     tier1_bonus_bp = tier1_spend * tier1_bonus_per_dollar
 
@@ -167,10 +192,16 @@ def _bilt_cash_mode_bonus_bp(
     # this can't overstate the bonus relative to funded activations.
     tier2_bonus_bp = tier2_spend * card.accelerator_bonus_multiplier
 
-    total_bonus_bp = tier1_bonus_bp + tier2_bonus_bp
     bilt_cash_consumed = tier1_bc_consumed + activation_bc_consumed
 
-    return tier1_spend, tier2_spend, tier3_spend, total_bonus_bp, bilt_cash_consumed
+    return (
+        tier1_spend,
+        tier2_spend,
+        tier3_spend,
+        tier1_bonus_bp,
+        tier2_bonus_bp,
+        bilt_cash_consumed,
+    )
 
 
 def _build_tiered_mode_card(
@@ -204,25 +235,51 @@ def _build_tiered_mode_card(
 
 def _build_bilt_cash_mode_card(
     card: CardData,
-    bonus_bp: float,
+    tier1_bonus_bp: float,
+    tier2_bonus_bp: float,
     bilt_cash_consumed: float,
+    housing_spend_total: float,
     housing_category_names: set[str],
     foreign_prefix: str,
 ) -> CardData:
-    """Patch a card into Bilt Cash mode: Rent/Mortgage multipliers are 0
-    (housing 1x base is locked and already reflected in the Tier 1 effective
-    rate), the three-tier Bilt Cash → Bilt Points bonus is added as
-    ``annual_bonus``, and Bilt Cash is kept on the card as a **display-only
-    balance** — its per-point dollar value is forced to 0 so the flat-rate
-    secondary-currency pipeline doesn't double-count on top of the lump-sum
-    tiered bonus we just computed. The Bilt Cash gross earn still flows into
-    ``CardResult.secondary_currency_earn`` so the UI can show "$X earned in
-    Bilt Cash" as a tracker.
+    """Patch a card into Bilt Cash mode.
+
+    The locked → unlocked conversion is attributed to housing: each housing
+    dollar earns ``tier1_bonus_bp / housing_spend_total`` BP (the per-dollar
+    realized unlock rate, ≤ 1.0 — equals 1.0 when BC fully covers the
+    locked pool, fractional when BC runs out before all locked BP unlock).
+    Housing categories are pinned to Bilt via ``priority_categories`` so the
+    user's housing spend actually flows here in allocation — the unlock
+    mechanic only fires when housing is paid through the Bilt portal.
+
+    Only the **Point Accelerator** bonus (``tier2_bonus_bp``) is folded
+    into ``annual_bonus`` as a lump sum, since it isn't tied to a specific
+    category.
+
+    Bilt Cash is kept on the card as a **display-only balance** — its
+    per-point dollar value is forced to 0 so the flat-rate
+    secondary-currency pipeline doesn't double-count on top of the
+    re-attributed housing earn we just patched in. The Bilt Cash gross
+    earn still flows into ``CardResult.secondary_currency_earn`` so the UI
+    can show "$X earned in Bilt Cash" as a tracker; subtracting
+    ``secondary_consumption_pts`` from that gross gives the BC remaining
+    after Tier 1 unlock + accelerator activations.
     """
+    if housing_spend_total > 0:
+        unlock_per_housing_dollar = tier1_bonus_bp / housing_spend_total
+    else:
+        unlock_per_housing_dollar = 0.0
+
     new_mults = dict(card.multipliers)
     for name in housing_category_names:
-        new_mults[name] = 0.0
-        new_mults[f"{foreign_prefix}{name}"] = 0.0
+        new_mults[name] = unlock_per_housing_dollar
+        new_mults[f"{foreign_prefix}{name}"] = unlock_per_housing_dollar
+    # Pin housing to this card so allocation routes the housing dollars
+    # here. ``priority_categories`` is matched lowercase (with the foreign
+    # prefix stripped) — see ``_category_priority_cards``.
+    pinned = set(card.priority_categories)
+    for name in housing_category_names:
+        pinned.add(name.lower())
     ineligible = frozenset(
         v
         for name in housing_category_names
@@ -241,7 +298,7 @@ def _build_bilt_cash_mode_card(
     return replace(
         card,
         multipliers=new_mults,
-        annual_bonus=card.annual_bonus + int(round(bonus_bp)),
+        annual_bonus=card.annual_bonus + int(round(tier2_bonus_bp)),
         secondary_currency=display_currency,
         secondary_currency_cap_rate=0.0,
         accelerator_cost=0,
@@ -250,6 +307,7 @@ def _build_bilt_cash_mode_card(
         accelerator_max_activations=0,
         secondary_ineligible_categories=ineligible,
         secondary_consumption_pts=bilt_cash_consumed,
+        priority_categories=frozenset(pinned),
     )
 
 
@@ -270,13 +328,16 @@ def apply_bilt_2_housing_mode(
     * A **tiered candidate** card is built by patching Rent/Mortgage to the
       tier multiplier and adding the floor bonus — nothing about the
       Bilt Cash mechanics (secondary currency, accelerator) leaks in.
-    * A **bilt-cash candidate** card is built by zeroing housing multipliers
-      and adding the three-tier Bilt Cash bonus — nothing about the tiered
-      housing multiplier leaks in.
+    * A **bilt-cash candidate** card attributes the housing locked → unlocked
+      conversion back to housing categories (per-dollar realized unlock
+      rate) and folds only the Point Accelerator (Tier 2) bonus into
+      ``annual_bonus``. Housing categories are pinned to the candidate via
+      ``priority_categories`` so allocation routes them here.
 
     For each candidate we compute the card's own per-dollar earn value
-    (category earn × CPP + annual_bonus × CPP, scoped to the spend that
-    candidate card would actually win), and select whichever is larger.
+    (housing-attributed unlock + accelerator lump). The Tier 1 unlock and
+    Tier 2 accelerator are summed for the mode-selection comparison since
+    both contribute to total Bilt Cash mode value.
 
     The non-housing allocation estimate used by both candidates is drawn
     from the candidate's own view of the wallet (its own multipliers,
@@ -326,25 +387,38 @@ def apply_bilt_2_housing_mode(
         tiered_value_dollars = (tiered_housing_pts + floor_bonus_pts) * primary_cpp / 100.0
 
         # --- Bilt Cash mode candidate ---------------------------------
-        # Zero housing multipliers and disable secondary-currency mechanisms
-        # on a candidate card so its non-housing allocation reflects the
-        # base category multipliers only (no tiered-mode carryover).
-        bilt_cash_candidate = _build_bilt_cash_mode_card(
-            c, bonus_bp=0.0, bilt_cash_consumed=0.0,
+        # Build a provisional candidate to estimate the card's non-housing
+        # allocation. The provisional uses ``tier1_bonus_bp=0`` /
+        # ``tier2_bonus_bp=0`` so neither path's bonus value leaks into the
+        # other's competing-cards view; the housing pin and disabled
+        # secondary mechanics still apply.
+        provisional_bilt_cash = _build_bilt_cash_mode_card(
+            c,
+            tier1_bonus_bp=0.0,
+            tier2_bonus_bp=0.0,
+            bilt_cash_consumed=0.0,
+            housing_spend_total=housing_spend_total,
             housing_category_names=housing_category_names,
             foreign_prefix=foreign_prefix,
         )
         bilt_cash_selected = [
-            bilt_cash_candidate if sc.id == c.id else sc for sc in selected_cards
+            provisional_bilt_cash if sc.id == c.id else sc for sc in selected_cards
         ]
         bilt_cash_non_housing = _non_housing_allocated_to_card(
-            bilt_cash_candidate, bilt_cash_selected, spend, wallet_currency_ids,
+            provisional_bilt_cash, bilt_cash_selected, spend, wallet_currency_ids,
             housing_names_lower, foreign_prefix,
         )
-        _t1, _t2, _t3, bilt_cash_bonus_bp, bilt_cash_consumed = _bilt_cash_mode_bonus_bp(
-            c, bilt_cash_non_housing, housing_spend_total,
-        )
-        bilt_cash_value_dollars = bilt_cash_bonus_bp * primary_cpp / 100.0
+        (
+            _t1_spend,
+            _t2_spend,
+            _t3_spend,
+            tier1_bonus_bp,
+            tier2_bonus_bp,
+            bilt_cash_consumed,
+        ) = _bilt_cash_mode_bonus_bp(c, bilt_cash_non_housing, housing_spend_total)
+        # Mode-selection compares total Bilt Cash mode value (locked-housing
+        # unlock + accelerator) against the tiered mode's housing-direct earn.
+        bilt_cash_value_dollars = (tier1_bonus_bp + tier2_bonus_bp) * primary_cpp / 100.0
 
         if tiered_value_dollars >= bilt_cash_value_dollars and housing_spend_total > 0:
             out.append(_build_tiered_mode_card(
@@ -353,7 +427,12 @@ def apply_bilt_2_housing_mode(
             ))
         else:
             out.append(_build_bilt_cash_mode_card(
-                c, bilt_cash_bonus_bp, bilt_cash_consumed,
-                housing_category_names, foreign_prefix,
+                c,
+                tier1_bonus_bp=tier1_bonus_bp,
+                tier2_bonus_bp=tier2_bonus_bp,
+                bilt_cash_consumed=bilt_cash_consumed,
+                housing_spend_total=housing_spend_total,
+                housing_category_names=housing_category_names,
+                foreign_prefix=foreign_prefix,
             ))
     return out
