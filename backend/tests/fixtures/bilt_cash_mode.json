@@ -51,6 +51,7 @@
       "sub_opp_cost_dollars": 0.0,
       "sub_opp_cost_gross_dollars": 0.0,
       "sub_points": 0,
+      "sub_projected_earn_date": null,
       "sub_spend_earn": 0,
       "total_points": 102000.0
     },
@@ -100,6 +101,7 @@
       "sub_opp_cost_dollars": 0.0,
       "sub_opp_cost_gross_dollars": 0.0,
       "sub_points": 0,
+      "sub_projected_earn_date": null,
       "sub_spend_earn": 0,
       "total_points": 20000.0
     }

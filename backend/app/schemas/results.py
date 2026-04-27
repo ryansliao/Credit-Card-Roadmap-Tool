@@ -63,6 +63,11 @@ class CardResultSchema(BaseModel):
     secondary_currency_net_earn: float = 0.0
     secondary_currency_value_dollars: float = 0.0
     photo_slug: Optional[str] = None
+    # Projected SUB earn date computed alongside the calc. Sourced by the
+    # roadmap endpoint when the calc snapshot is fresh (input hash matches);
+    # null means "no SUB", "spend rate too low to hit min within window", or
+    # "no fresh calc available".
+    sub_projected_earn_date: Optional[date] = None
 
 
 class WalletResultSchema(BaseModel):

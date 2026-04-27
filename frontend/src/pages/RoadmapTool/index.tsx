@@ -658,6 +658,9 @@ export default function RoadmapToolPage() {
           queryKeys.scenarioLatestResults(scenarioIdForSnapshot),
           data,
         )
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.scenarioRoadmap(scenarioIdForSnapshot),
+        })
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.myWalletWithScenarios() })
     },

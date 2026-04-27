@@ -52,6 +52,8 @@ from .scenario_resolver import (
     ComputeInputs,
     ResolvedInstance,
     ScenarioResolver,
+    compute_inputs_hash,
+    compute_scenario_state_hash,
     get_scenario_resolver,
 )
 
@@ -99,5 +101,7 @@ __all__ = [
     "ComputeInputs",
     "ResolvedInstance",
     "ScenarioResolver",
+    "compute_inputs_hash",
+    "compute_scenario_state_hash",
     "get_scenario_resolver",
 ]

@@ -123,17 +123,17 @@ function pctOf(range: Range, ms: number): number {
   return clamp01((ms - range.startMs) / range.spanMs) * 100
 }
 
-/** Format a card's annual income. Cash cards: "$X /Year". Points/miles
- * cards: "X /Year" (unit label omitted to match the currency rows). */
+/** Format a card's annual income. Cash cards: "$X/yr". Points/miles
+ * cards: "X/yr" (unit label omitted to match the currency rows). */
 function formatCardIncome(c: CardResult | null, includeSubs: boolean): string | null {
   const pts = cardAnnualPointIncomeActive(c, includeSubs)
   if (pts == null || c == null) return null
   if (c.effective_reward_kind === 'cash') {
     const dollars = (pts * c.cents_per_point) / 100
-    return `${formatMoney(dollars)} /Year`
+    return `${formatMoney(dollars)}/yr`
   }
   const rounded = Math.round(pts)
-  return `${formatPoints(rounded)} /Year`
+  return `${formatPoints(rounded)}/yr`
 }
 
 /** Annual dollar value of a group, regardless of reward kind. Sums only
@@ -209,22 +209,22 @@ function formatGroupIncome(
       const pts = scaledPts(cr)
       return s + (pts * (cr?.cents_per_point ?? 1)) / 100
     }, 0)
-    return `${formatMoney(dollars)} /Year`
+    return `${formatMoney(dollars)}/yr`
   }
   const pts = included.reduce((s, { cr }) => s + scaledPts(cr), 0)
   const rounded = Math.round(pts)
-  return `${formatPoints(rounded)} /Year`
+  return `${formatPoints(rounded)}/yr`
 }
 
-/** Format a single secondary-currency annual total, e.g. "$25 Bilt Cash /Year".
+/** Format a single secondary-currency annual total, e.g. "$25 Bilt Cash/yr".
  * Group-level aggregates use summed per-card annualised rates (each
  * card's `secondary_currency_net_earn / card_active_years`). */
 function formatSecondaryAnnual(secondary: SecondaryAnnual): string {
   if (secondary.rewardKind === 'cash') {
-    return `${formatMoneyCompact(secondary.dollars)} ${secondary.name} /Year`
+    return `${formatMoneyCompact(secondary.dollars)} ${secondary.name}/yr`
   }
   const rounded = Math.round(secondary.units)
-  return `${formatPoints(rounded)} ${secondary.name} /Year`
+  return `${formatPoints(rounded)} ${secondary.name}/yr`
 }
 
 /** Format a currency's end-of-projection balance. Uses the same
@@ -243,10 +243,10 @@ function formatSecondaryBalance(
   secondary: { name: string; units: number; dollars: number; rewardKind: 'points' | 'cash' },
 ): string {
   if (secondary.rewardKind === 'cash') {
-    return `${formatMoneyCompact(secondary.dollars)} ${secondary.name} /Year`
+    return `${formatMoneyCompact(secondary.dollars)} ${secondary.name}/yr`
   }
   const rounded = Math.round(secondary.units)
-  return `${formatPoints(rounded)} ${secondary.name} /Year`
+  return `${formatPoints(rounded)} ${secondary.name}/yr`
 }
 
 function formatDate(s: string | null): string {
@@ -929,7 +929,7 @@ function GroupSection({
   const balanceLabel = formatGroupBalance(group) ?? '—'
   const incomeLabel =
     formatGroupIncome(group, includeSubs, walletWindowYears, currencyWindowYears) ??
-    '— /Year'
+    '—/yr'
 
   return (
     <>
@@ -1084,11 +1084,14 @@ function CardRow({
   const subProjectedMs = subProjectedDate ? parseDate(subProjectedDate).getTime() : null
 
   // SUB earning segment: anchored at opening_date and ending at the
-  // projected SUB-earn date. The segment is suppressed when the card
-  // cannot earn its SUB (backend returns a null projected earn date for
-  // expired or non-SUB cases).
+  // projected SUB-earn date. Rendered whenever a projected date exists,
+  // even when the card is disabled or the scenario is stale — those cases
+  // gray the segment via ``dimmed`` instead of removing it (mirrors the
+  // lifetime bar's disabled styling). The segment is suppressed only when
+  // the SUB has no projection at all (no SUB, expired, or no calc has
+  // been run yet).
   const subSegment = (() => {
-    if (!enabled || !subProjectedMs) return null
+    if (!subProjectedMs) return null
     const startMs = parseDate(wc.added_date).getTime()
     if (subProjectedMs <= startMs) return null
     if (subProjectedMs <= range.startMs || startMs >= range.endMs) return null
@@ -1119,7 +1122,7 @@ function CardRow({
   // toggle, so the numbers (and layout) stay stable when the user flips
   // `is_enabled` — only a recalc refreshes what's shown.
   //
-  // Show dashed placeholders ("--- /Year", "--- EAF") whenever the row has
+  // Show dashed placeholders ("---/yr", "--- EAF") whenever the row has
   // no real data to display: the card is currently disabled, OR it was added
   // since the last calc and isn't in `cr`. This is preferred over a bare
   // em-dash because it keeps the unit labels in place so the columns read
@@ -1127,7 +1130,7 @@ function CardRow({
   // recalc / re-enable.
   const showPlaceholders = !enabled || !cr
   const incomeLabel = showPlaceholders
-    ? '— /Year'
+    ? '—/yr'
     : formatCardIncome(cr, includeSubs)
   const eafValue = showPlaceholders ? null : cardEafActive(cr, includeSubs)
   const eafLabelText = showPlaceholders
@@ -1168,9 +1171,7 @@ function CardRow({
     .join('\n')
 
   const barHeight = 24
-  // Cards earning a secondary currency render an extra text line in the
-  // gutter; bump the row height so all three lines fit comfortably.
-  const rowHeight = secondary ? CARD_ROW_HEIGHT + 14 : CARD_ROW_HEIGHT
+  const rowHeight = CARD_ROW_HEIGHT
 
   // display: contents on the wrapper lets the two children act as direct grid
   // cells while sharing a hover state so the entire row highlights together.
@@ -1200,6 +1201,12 @@ function CardRow({
                 title={isStale ? 'Out of date' : undefined}
               >
                 {incomeLabel}
+                {secondary && (
+                  <>
+                    <span className="mx-1 text-slate-700">·</span>
+                    {formatSecondaryAnnual(secondary)}
+                  </>
+                )}
                 {wc.credit_totals
                   .filter((t) => t.value > 0)
                   .map((t) => (
@@ -1210,14 +1217,6 @@ function CardRow({
                         : `${formatPoints(t.value)} ${pointsUnitLabel(t.currency_name)} Credits`}
                     </span>
                   ))}
-              </div>
-            )}
-            {secondary && (
-              <div
-                className={`text-xs text-slate-500 truncate transition-opacity ${isStale ? 'opacity-50' : ''}`}
-                title={isStale ? 'Out of date' : undefined}
-              >
-                {formatSecondaryAnnual(secondary)}
               </div>
             )}
           </div>

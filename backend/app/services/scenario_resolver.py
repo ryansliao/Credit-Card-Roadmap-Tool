@@ -22,9 +22,11 @@ The calculator (``app.calculator``) is unchanged.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
+import json
 from dataclasses import dataclass
-from datetime import date
-from typing import TYPE_CHECKING, Optional
+from datetime import date, datetime
+from typing import TYPE_CHECKING, Any, Optional
 
 from fastapi import Depends
 from sqlalchemy import select
@@ -676,6 +678,101 @@ class ScenarioResolver:
                 )
             )
         return out
+
+
+def _normalize_for_hash(value: Any) -> Any:
+    """Recursively coerce a value into a JSON-serialisable, deterministic form.
+
+    Order matters for the hash, so collections that are conceptually
+    unordered (sets, frozensets, dict keys) are emitted in sorted order.
+    Non-trivial leaves (date, datetime, custom objects) are stringified.
+    """
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return _normalize_for_hash(dataclasses.asdict(value))
+    if isinstance(value, dict):
+        return {
+            str(k): _normalize_for_hash(v)
+            for k, v in sorted(value.items(), key=lambda kv: str(kv[0]))
+        }
+    if isinstance(value, (set, frozenset)):
+        return sorted((_normalize_for_hash(v) for v in value), key=repr)
+    if isinstance(value, (list, tuple)):
+        return [_normalize_for_hash(v) for v in value]
+    return repr(value)
+
+
+async def compute_scenario_state_hash(
+    resolver: "ScenarioResolver",
+    scenario: Scenario,
+) -> str:
+    """Build a wide-window ComputeInputs (no time filtering) and hash it.
+
+    Use this from both the calc endpoint (when persisting the snapshot's
+    input hash) and the roadmap endpoint (when validating an existing
+    snapshot is still fresh). Calling with a fixed wide window guarantees
+    the same `inputs.all_cards` is hashed on both sides — date drift in
+    ``today``/``window_end`` doesn't move the resolved-instance set.
+    """
+    wide_inputs = await resolver.build_compute_inputs(
+        scenario, ref_date=date.min, window_end=date.max
+    )
+    return compute_inputs_hash(wide_inputs, scenario)
+
+
+def compute_inputs_hash(
+    inputs: ComputeInputs,
+    scenario: Scenario,
+) -> str:
+    """SHA-256 hex of the user-meaningful calc state that produces a
+    snapshot. Used by the roadmap endpoint to decide whether a previously
+    saved ``Scenario.last_calc_snapshot`` is still valid.
+
+    Deliberately excludes time-derived externalities (the calc's ``ref_date``
+    and ``window_end``) so natural drift — calc on Monday, roadmap loaded
+    Tuesday — does NOT invalidate a snapshot. The caller is expected to
+    pass an ``inputs`` built with a fixed wide window
+    (``date.min``..``date.max``) so the resolved instance set is also
+    drift-free; otherwise the calc's own window filter would tick the
+    set forward as `closed_date` boundaries pass and the hash would
+    invalidate even when the user changed nothing.
+
+    User-meaningful changes that DO flip the hash: any instance / overlay
+    / override edit, wallet spend tweak, foreign-spend % change, scenario
+    calc-config edit (start/end/duration/window_mode/include_subs).
+    """
+    payload = {
+        "scenario_config": {
+            "start_date": (
+                scenario.start_date.isoformat() if scenario.start_date else None
+            ),
+            "end_date": (
+                scenario.end_date.isoformat() if scenario.end_date else None
+            ),
+            "duration_years": scenario.duration_years,
+            "duration_months": scenario.duration_months,
+            "window_mode": scenario.window_mode,
+            "include_subs": scenario.include_subs,
+        },
+        "spend": _normalize_for_hash(inputs.spend),
+        "foreign_spend_pct": float(inputs.foreign_spend_pct or 0.0),
+        "foreign_eligible_categories": _normalize_for_hash(
+            inputs.foreign_eligible_categories
+        ),
+        "housing_category_names": _normalize_for_hash(
+            inputs.housing_category_names
+        ),
+        "selected_ids": sorted(inputs.selected_ids),
+        "all_cards": [
+            _normalize_for_hash(cd)
+            for cd in sorted(inputs.all_cards, key=lambda c: c.id)
+        ],
+    }
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def get_scenario_resolver(

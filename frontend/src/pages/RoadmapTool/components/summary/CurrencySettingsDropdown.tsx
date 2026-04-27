@@ -68,7 +68,7 @@ export function CurrencySettingsDropdown({ scenarioId, walletCards, currencyId, 
 
   return (
     <div
-      className="relative z-20 bg-slate-800/70 border-b border-slate-700 px-5 py-4"
+      className="relative z-20 bg-slate-800/70 border-b border-slate-700 px-5 pt-2 pb-4"
       style={{ gridColumn: '1 / -1', width: leftGutterPx }}
     >
       {isLoading || !currency ? (

@@ -231,6 +231,7 @@ def wallet_to_schema(
             secondary_currency_net_earn=cr.secondary_currency_net_earn,
             secondary_currency_value_dollars=cr.secondary_currency_value_dollars,
             photo_slug=photo_slugs.get(cr.card_id) if photo_slugs else None,
+            sub_projected_earn_date=cr.sub_projected_earn_date,
         )
         for cr in wallet.card_results
     ]

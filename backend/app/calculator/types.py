@@ -286,6 +286,14 @@ class CardResult:
     secondary_currency_net_earn: float = 0.0    # gross secondary pts minus accelerator cost
     secondary_currency_value_dollars: float = 0.0  # annualized dollar value of net secondary earn
 
+    # The projected SUB earn date used for this card's allocation (post-LP /
+    # plan_sub_targeting). The calculator does not write this field —
+    # ``compute_wallet`` only reads ``CardData.sub_projected_earn_date`` for
+    # segment boundaries. The scenario-results endpoint mirrors the
+    # pre-compute projection it built into ``CardData`` here so the
+    # snapshot carries it forward to the roadmap.
+    sub_projected_earn_date: Optional[date] = None
+
 
 @dataclass
 class WalletResult:

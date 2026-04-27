@@ -71,6 +71,13 @@ class Scenario(Base):
     last_calc_timestamp: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # SHA-256 hex of the calc inputs that produced ``last_calc_snapshot``.
+    # The roadmap recomputes this hash from current state and only consumes
+    # the snapshot's per-instance projected SUB earn dates when they match;
+    # otherwise it treats the snapshot as stale (empty-state for projections).
+    last_calc_input_hash: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

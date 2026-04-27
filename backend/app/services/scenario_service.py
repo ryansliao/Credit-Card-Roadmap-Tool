@@ -396,10 +396,20 @@ class ScenarioService(BaseService[Scenario]):
         scenario.window_mode = window_mode
 
     async def save_last_calc_snapshot(
-        self, scenario: Scenario, snapshot_json: str
+        self,
+        scenario: Scenario,
+        snapshot_json: str,
+        *,
+        input_hash: Optional[str] = None,
     ) -> None:
-        """Cache the last results-payload JSON and stamp the time."""
+        """Cache the last results-payload JSON, its input-hash, and the time.
+
+        ``input_hash`` is a SHA-256 hex of the calc inputs; the roadmap
+        endpoint compares it against a fresh hash to decide whether the
+        snapshot's per-instance projected SUB earn dates are still valid.
+        """
         scenario.last_calc_snapshot = snapshot_json
+        scenario.last_calc_input_hash = input_hash
         scenario.last_calc_timestamp = datetime.now(timezone.utc)
 
 

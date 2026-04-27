@@ -41,6 +41,7 @@ from ...services import (
     IssuerService,
     ScenarioResolver,
     ScenarioService,
+    compute_scenario_state_hash,
     get_card_instance_service,
     get_issuer_service,
     get_scenario_resolver,
@@ -166,8 +167,9 @@ async def scenario_results(
                 total_reward_value_usd=0,
             ),
         )
+        empty_hash = await compute_scenario_state_hash(resolver, scenario)
         await scenario_service.save_last_calc_snapshot(
-            scenario, empty_response.model_dump_json()
+            scenario, empty_response.model_dump_json(), input_hash=empty_hash
         )
         await db.commit()
         return empty_response
@@ -286,36 +288,40 @@ async def scenario_results(
     plan_earn_dates: dict[int, date] = {
         s.card_id: s.projected_earn_date for s in sub_plan.schedules
     }
+    # Project a real date for *every* instance — even owned cards already in
+    # the wallet whose SUB doesn't affect forward EAF. The roadmap consumes
+    # these via the calc snapshot to render "earned" (projection in the past)
+    # vs "pending" / "expired" (window-relative); a None here forces the
+    # roadmap to fall back to its no-projection path. Already-earned and
+    # expired cards are still excluded from forward SUB earn via
+    # ``sub_earnable=False`` below — independent of the projection field,
+    # which the segmented calc only consults for in-window boundaries.
     projected_dates: dict[int, Optional[date]] = {}
     for r in inputs.resolved_instances:
         opening = r.effective.get("opening_date") or r.instance.opening_date
-        is_owned_active_sub = r.instance_id in owned_sub_active_ids
-        if opening <= ref_date and not is_owned_active_sub:
+        lib_cd = inputs.library_cards_by_id.get(r.library_card_id)
+        eff_min = r.effective.get("sub_min_spend")
+        if eff_min is None and lib_cd is not None:
+            eff_min = lib_cd.sub_min_spend
+        eff_months = r.effective.get("sub_months")
+        if eff_months is None and lib_cd is not None:
+            eff_months = lib_cd.sub_months
+        eff_sub = r.effective.get("sub_points")
+        if eff_sub is None and lib_cd is not None:
+            eff_sub = lib_cd.sub_points
+        if not eff_sub or not eff_min:
             proj: Optional[date] = None
+        elif r.instance_id in sub_priority_card_ids:
+            proj = projected_sub_earn_date(
+                opening, eff_min, eff_months, total_daily_spend
+            )
+        elif r.instance_id in plan_earn_dates:
+            proj = plan_earn_dates[r.instance_id]
         else:
-            lib_cd = inputs.library_cards_by_id.get(r.library_card_id)
-            eff_min = r.effective.get("sub_min_spend")
-            if eff_min is None and lib_cd is not None:
-                eff_min = lib_cd.sub_min_spend
-            eff_months = r.effective.get("sub_months")
-            if eff_months is None and lib_cd is not None:
-                eff_months = lib_cd.sub_months
-            eff_sub = r.effective.get("sub_points")
-            if eff_sub is None and lib_cd is not None:
-                eff_sub = lib_cd.sub_points
-            if not eff_sub or not eff_min:
-                proj = None
-            elif r.instance_id in sub_priority_card_ids:
-                proj = projected_sub_earn_date(
-                    opening, eff_min, eff_months, total_daily_spend
-                )
-            elif r.instance_id in plan_earn_dates:
-                proj = plan_earn_dates[r.instance_id]
-            else:
-                daily_rate = card_daily_rates.get(r.instance_id, 0.0)
-                proj = projected_sub_earn_date(
-                    opening, eff_min, eff_months, daily_rate
-                )
+            daily_rate = card_daily_rates.get(r.instance_id, 0.0)
+            proj = projected_sub_earn_date(
+                opening, eff_min, eff_months, daily_rate
+            )
         projected_dates[r.instance_id] = proj
 
     modified_cards = [
@@ -361,6 +367,12 @@ async def scenario_results(
         enabler_model_currency_ids=enabler_model_currency_ids,
     )
 
+    # Surface per-instance projected SUB earn dates on each ``CardResult``
+    # so they ride along in the snapshot. The roadmap consumes them on
+    # subsequent fetches; the calculator itself does not write this field.
+    for cr in wallet_result.card_results:
+        cr.sub_projected_earn_date = projected_dates.get(cr.card_id)
+
     # photo_slug lives on the ORM ``Card``, not on ``CardData``, so resolve
     # it via a separate lookup against the library Card table keyed by the
     # active instances' library card_ids.
@@ -391,8 +403,9 @@ async def scenario_results(
         years_counted=wallet_result.years_counted,
         wallet=wallet_to_schema(wallet_result, photo_slugs=photo_slugs),
     )
+    input_hash = await compute_scenario_state_hash(resolver, scenario)
     await scenario_service.save_last_calc_snapshot(
-        scenario, response.model_dump_json()
+        scenario, response.model_dump_json(), input_hash=input_hash
     )
     await db.commit()
     return response
@@ -457,13 +470,26 @@ async def scenario_roadmap(
 
     rules = await issuer_service.list_application_rules()
 
-    # Spend dict for SUB-projection rate calculation.
-    inputs = await resolver.build_compute_inputs(
-        scenario,
-        ref_date=today,
-        window_end=add_months(today, 24),
-    )
-    daily_rate = sum(inputs.spend.values()) / 365.0
+    # Projected SUB earn dates are sourced from the calc snapshot — they're
+    # the allocation-aware dates the calculator produced on the user's last
+    # explicit "Calculate" press. We always read the snapshot when it
+    # exists, even when ``last_calc_input_hash`` no longer matches current
+    # state: the frontend treats stale projections as "grayed out" rather
+    # than "missing", so the SUB bar stays visible (just dimmed) after a
+    # state change until the user re-runs Calculate. Empty state (no
+    # snapshot at all) still yields ``sub_projected = None`` and a
+    # suppressed bar.
+    snapshot_projected_dates: dict[int, Optional[date]] = {}
+    if scenario.last_calc_snapshot:
+        try:
+            snapshot = WalletResultResponseSchema.model_validate_json(
+                scenario.last_calc_snapshot
+            )
+        except Exception:
+            snapshot = None
+        if snapshot is not None:
+            for cr in snapshot.wallet.card_results:
+                snapshot_projected_dates[cr.card_id] = cr.sub_projected_earn_date
 
     card_statuses: list[RoadmapCardStatus] = []
     personal_cards_24mo: list[str] = []
@@ -493,16 +519,12 @@ async def scenario_roadmap(
             inst.sub_min_spend if inst.sub_min_spend is not None else card.sub_min_spend
         )
 
-        # Project the SUB earn date from opening_date + the wallet's daily
-        # spend rate. Always live-computed (with the sub_months window cap
-        # applied) — never read from inst.sub_projected_earn_date, which is
-        # a vestigial column with no current writer and may hold stale data
-        # from a removed pre-refactor writeback path.
-        sub_projected: Optional[date] = None
-        if eff_sub and eff_sub_min:
-            sub_projected = projected_sub_earn_date(
-                inst.opening_date, eff_sub_min, eff_sub_months, daily_rate
-            )
+        # When the snapshot is fresh, ``inst.id`` keys into ``card_id`` on
+        # CardResultSchema (the calculator uses instance ids in scenario
+        # context). Stale snapshot → no key → ``sub_projected`` stays None,
+        # the "earned" path is unreachable, and the roadmap falls back to
+        # window-only status (``pending`` / ``expired``).
+        sub_projected: Optional[date] = snapshot_projected_dates.get(inst.id)
 
         sub_window_end: Optional[date] = None
         sub_days_remaining: Optional[int] = None
