@@ -14,6 +14,7 @@ from ..models import CardInstance, Scenario, Wallet
 from .card_instance import (
     CardInstanceRead,
     CreditTotalByCurrency,
+    WalletCardCreditValue,
 )
 from .results import CardResultSchema, CategoryEarnItem, WalletResultSchema
 from .scenario import ScenarioRead, ScenarioSummary
@@ -23,17 +24,41 @@ from .wallet import WalletWithScenariosRead
 def _build_instance_credit_totals(
     inst: CardInstance,
 ) -> list[CreditTotalByCurrency]:
-    """Aggregate scenario-scoped credit override values for a card instance
-    by the credit's native currency. Cash credits bucket under
-    ``kind="cash"`` (currency_id=None); points credits bucket per currency
-    so the UI can render ``pts`` alongside ``$``.
+    """Aggregate credit values for a card instance by the credit's native
+    currency. Cash credits bucket under ``kind="cash"`` (currency_id=None);
+    points credits bucket per currency so the UI can render ``pts``
+    alongside ``$``.
+
+    Owned cards (``scenario_id IS NULL``) merge library defaults from
+    ``card.card_credit_links`` with wallet-level overrides from
+    ``wallet_credit_overrides``. Per-scenario overrides don't apply at the
+    wallet view (it's scenario-agnostic). Scenario-scoped instances use
+    ``credit_overrides_rows`` directly (rows are necessarily scoped to
+    that one scenario since the instance itself is scenario-scoped).
     """
-    rows = getattr(inst, "credit_overrides_rows", None) or []
-    if not rows:
+    sources: list[tuple[float | None, object]] = []
+    if inst.scenario_id is None:
+        # library defaults keyed by credit id, then overlay wallet overrides
+        merged: dict[int, tuple[float | None, object]] = {}
+        for link in getattr(inst.card, "card_credit_links", None) or []:
+            lib = link.credit
+            if lib is None:
+                continue
+            raw = link.value if link.value is not None else lib.value
+            merged[lib.id] = (raw, lib)
+        for row in getattr(inst, "wallet_credit_overrides", None) or []:
+            lib = row.library_credit
+            if lib is None:
+                continue
+            merged[lib.id] = (row.value, lib)
+        sources = list(merged.values())
+    else:
+        for row in getattr(inst, "credit_overrides_rows", None) or []:
+            sources.append((row.value, row.library_credit))
+    if not sources:
         return []
     buckets: dict[tuple[str, int | None], CreditTotalByCurrency] = {}
-    for row in rows:
-        lib = row.library_credit
+    for value, lib in sources:
         currency = lib.credit_currency if lib is not None else None
         if currency is not None and currency.reward_kind == "points":
             key = ("points", currency.id)
@@ -51,10 +76,10 @@ def _build_instance_credit_totals(
                 kind=kind,
                 currency_id=cur_id,
                 currency_name=name,
-                value=float(row.value or 0),
+                value=float(value or 0),
             )
         else:
-            existing.value += float(row.value or 0)
+            existing.value += float(value or 0)
     return sorted(
         buckets.values(),
         key=lambda e: (0 if e.kind == "cash" else 1, e.currency_name or ""),
@@ -63,7 +88,14 @@ def _build_instance_credit_totals(
 
 def card_instance_read(inst: CardInstance) -> CardInstanceRead:
     """Build a CardInstanceRead. Library Card must be eager-loaded on the
-    instance (CardInstanceService.instance_load_opts() handles this)."""
+    instance (CardInstanceService.instance_load_opts() handles this).
+
+    Override fields (sub_*, annual_*, first_year_fee, secondary_currency_rate)
+    fall back to the library card's value when null on the row, so consumers
+    that don't carry library data (e.g. WalletTab) display the effective
+    value. Diff-against-library still happens at write time in the modal's
+    update-payload builder.
+    """
     card = inst.card
     return CardInstanceRead(
         id=inst.id,
@@ -82,17 +114,33 @@ def card_instance_read(inst: CardInstance) -> CardInstanceRead:
         opening_date=inst.opening_date,
         product_change_date=inst.product_change_date,
         closed_date=inst.closed_date,
-        sub_points=inst.sub_points,
-        sub_min_spend=inst.sub_min_spend,
-        sub_months=inst.sub_months,
+        sub_points=inst.sub_points if inst.sub_points is not None else card.sub_points,
+        sub_min_spend=inst.sub_min_spend if inst.sub_min_spend is not None else card.sub_min_spend,
+        sub_months=inst.sub_months if inst.sub_months is not None else card.sub_months,
         sub_spend_earn=inst.sub_spend_earn,
-        annual_bonus=inst.annual_bonus,
-        annual_bonus_percent=inst.annual_bonus_percent,
-        annual_bonus_first_year_only=inst.annual_bonus_first_year_only,
+        annual_bonus=inst.annual_bonus if inst.annual_bonus is not None else card.annual_bonus,
+        annual_bonus_percent=(
+            inst.annual_bonus_percent
+            if inst.annual_bonus_percent is not None
+            else getattr(card, "annual_bonus_percent", None)
+        ),
+        annual_bonus_first_year_only=(
+            inst.annual_bonus_first_year_only
+            if inst.annual_bonus_first_year_only is not None
+            else getattr(card, "annual_bonus_first_year_only", None)
+        ),
         years_counted=inst.years_counted,
-        annual_fee=inst.annual_fee,
-        first_year_fee=inst.first_year_fee,
-        secondary_currency_rate=inst.secondary_currency_rate,
+        annual_fee=inst.annual_fee if inst.annual_fee is not None else card.annual_fee,
+        first_year_fee=(
+            inst.first_year_fee
+            if inst.first_year_fee is not None
+            else card.first_year_fee
+        ),
+        secondary_currency_rate=(
+            inst.secondary_currency_rate
+            if inst.secondary_currency_rate is not None
+            else getattr(card, "secondary_currency_rate", None)
+        ),
         sub_earned_date=inst.sub_earned_date,
         pc_from_instance_id=inst.pc_from_instance_id,
         panel=cast(
@@ -101,6 +149,14 @@ def card_instance_read(inst: CardInstance) -> CardInstanceRead:
         ),
         is_enabled=bool(inst.is_enabled),
         credit_totals=_build_instance_credit_totals(inst),
+        credit_overrides=[
+            WalletCardCreditValue(
+                library_credit_id=row.library_credit_id, value=float(row.value)
+            )
+            for row in (
+                getattr(inst, "wallet_credit_overrides", None) or []
+            )
+        ] if inst.scenario_id is None else [],
     )
 
 

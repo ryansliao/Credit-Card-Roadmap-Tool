@@ -46,17 +46,56 @@ class CardInstanceBase(BaseModel):
     is_enabled: bool = True
 
 
+class WalletCardCreditValue(BaseModel):
+    """Per-instance per-credit valuation override at the wallet level."""
+
+    library_credit_id: int
+    value: float
+
+
 class OwnedCardCreate(BaseModel):
     """Payload for adding an owned card to the user's wallet from
-    Profile/WalletTab. Intentionally minimal — acquisition type is encoded
-    by date columns rather than an enum, and is not asked at add-time."""
+    Profile/WalletTab. Mirrors ``FutureCardCreate`` minus the scenario-only
+    fields (``pc_from_instance_id``, ``panel``, ``is_enabled``).
+
+    ``credit_overrides`` carries wallet-level credit valuations
+    (per-card-instance) — only entries whose value differs from the library
+    default need to be sent. Absence means "inherit the library default".
+    """
 
     card_id: int
     opening_date: date
+    product_change_date: Optional[date] = None
+    closed_date: Optional[date] = None
+
+    sub_points: Optional[int] = None
+    sub_min_spend: Optional[int] = None
+    sub_months: Optional[int] = None
+    sub_spend_earn: Optional[int] = None
+    years_counted: int = Field(default=2, ge=1, le=20)
+
+    annual_bonus: Optional[int] = Field(default=None, ge=0)
+    annual_bonus_percent: Optional[float] = Field(default=None, ge=0)
+    annual_bonus_first_year_only: Optional[bool] = None
+
+    annual_fee: Optional[float] = Field(default=None, ge=0)
+    first_year_fee: Optional[float] = Field(default=None, ge=0)
+    secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
+
+    sub_earned_date: Optional[date] = None
+
+    credit_overrides: Optional[list[WalletCardCreditValue]] = None
 
 
 class OwnedCardUpdate(BaseModel):
-    """Partial update for an owned CardInstance from Profile/WalletTab."""
+    """Partial update for an owned CardInstance from Profile/WalletTab.
+
+    ``credit_overrides`` (when present) replaces the entire wallet credit
+    override set for the instance — pass only entries whose value differs
+    from the library default; missing credits revert to library defaults.
+    Pass ``None`` (or omit) to leave existing wallet credit overrides
+    unchanged.
+    """
 
     opening_date: Optional[date] = None
     closed_date: Optional[date] = None
@@ -75,6 +114,8 @@ class OwnedCardUpdate(BaseModel):
     secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
 
     sub_earned_date: Optional[date] = None
+
+    credit_overrides: Optional[list[WalletCardCreditValue]] = None
 
 
 class FutureCardCreate(CardInstanceBase):
@@ -130,3 +171,7 @@ class CardInstanceRead(CardInstanceBase):
     issuer_name: Optional[str]
     network_tier_name: Optional[str]
     credit_totals: list[CreditTotalByCurrency] = []
+    # Wallet-level credit override raw rows. Only populated for owned cards
+    # (scenario_id IS NULL). Empty list = inherit library defaults for all
+    # of this card's library credits.
+    credit_overrides: list[WalletCardCreditValue] = []

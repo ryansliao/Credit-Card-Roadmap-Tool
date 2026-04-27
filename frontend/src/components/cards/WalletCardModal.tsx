@@ -8,6 +8,7 @@ import {
   type OwnedCardCreatePayload,
   type OwnedCardUpdatePayload,
   type UpsertOverlayPayload,
+  type WalletCardCreditValue,
   creditsApi,
   currenciesApi,
   scenarioCardCreditApi,
@@ -44,6 +45,51 @@ import { queryKeys } from '../../lib/queryKeys'
 // `scenario-future`— Roadmap clicking a FUTURE card or hitting "Add card".
 //                    Full edit access. Acquisition is set by the
 //                    product_change_date / pc_from_instance_id pair.
+
+/** Library default credit values for a card, keyed by library_credit_id.
+ *  Walks the credit library for entries that natively offer this card and
+ *  picks the card-specific value (``card_values[cardId]``) or the credit's
+ *  global default (``c.value``) — same logic the future-add hydration uses. */
+function ownedCardCreditDefaults(
+  creditLibrary: CardCredit[] | undefined,
+  cardId: number,
+): Record<number, number> {
+  const defaults: Record<number, number> = {}
+  if (!creditLibrary) return defaults
+  for (const c of creditLibrary) {
+    if (c.card_ids.includes(cardId)) {
+      defaults[c.id] = c.card_values[cardId] ?? c.value ?? 0
+    }
+  }
+  return defaults
+}
+
+/** Diff selected credits against library defaults to produce the wallet
+ *  override set. Only entries whose value differs from the library default
+ *  are included; library credits the user removed (not in selected) are
+ *  emitted as ``value=0`` overrides so the calculator treats them as
+ *  zeroed-out (not inherited). Custom credits not in the library are
+ *  always included. */
+function diffWalletCreditOverrides(
+  selected: Record<number, number>,
+  libraryDefaults: Record<number, number>,
+): WalletCardCreditValue[] {
+  const out: WalletCardCreditValue[] = []
+  for (const [idStr, value] of Object.entries(selected)) {
+    const libId = Number(idStr)
+    const libDefault = libraryDefaults[libId]
+    if (libDefault === undefined || Math.abs(value - libDefault) > 1e-6) {
+      out.push({ library_credit_id: libId, value })
+    }
+  }
+  for (const libIdStr of Object.keys(libraryDefaults)) {
+    const libId = Number(libIdStr)
+    if (!(libId in selected)) {
+      out.push({ library_credit_id: libId, value: 0 })
+    }
+  }
+  return out
+}
 
 export type WalletCardModalMode = 'owned-base' | 'overlay' | 'scenario-future'
 
@@ -381,17 +427,24 @@ export function WalletCardModal(props: WalletCardModalProps) {
       const key = `add:${cardId}:${acquisitionMode}`
       if (hydratedKey.current === key) return
       hydratedKey.current = key
-      // Owned-base add flow: only opening_date + card_id are asked.
+      // Owned-base add seeds the same defaults as the future-add flow —
+      // SUB/fee fields plus library credits in the picker.
       if (isOwnedBase) {
         setOpeningDate(today())
-        setSubPoints('')
-        setSubMinSpend('')
-        setSubMonths('')
-        setAnnualBonus('')
-        setAnnualFee('')
-        setFirstYearFee('')
-        setSecondaryCurrencyRate('')
-        setSelectedCredits({})
+        setSubPoints(lib.sub_points != null ? String(lib.sub_points) : '')
+        setSubMinSpend(lib.sub_min_spend != null ? String(lib.sub_min_spend) : '')
+        setSubMonths(lib.sub_months != null ? String(lib.sub_months) : '')
+        setAnnualBonus(lib.annual_bonus != null ? String(lib.annual_bonus) : '')
+        setAnnualFee(String(lib.annual_fee))
+        setFirstYearFee(lib.first_year_fee != null ? String(lib.first_year_fee) : '')
+        setSecondaryCurrencyRate(lib.secondary_currency_rate != null ? String(lib.secondary_currency_rate) : '')
+        const ownedDefaults: Record<number, number> = {}
+        for (const c of creditLibrary) {
+          if (c.card_ids.includes(cardId)) {
+            ownedDefaults[c.id] = c.card_values[cardId] ?? c.value ?? 0
+          }
+        }
+        setSelectedCredits(ownedDefaults)
         setCreditFlagEdits({})
         setFormError(null)
         return
@@ -418,7 +471,10 @@ export function WalletCardModal(props: WalletCardModalProps) {
     } else {
       // Edit flow.
       if (!lib) return
-      // For scenario modes, wait for credit overrides too.
+      // Wait for the credit library so the owned-base credits tab can
+      // seed library defaults; for scenario modes also wait for the
+      // existing scenario credit overrides.
+      if (!creditLibrary) return
       if ((isFuture || isOverlay) && existingCreditOverrides === undefined) return
       const editKey = `edit:${mode}:${
         resolvedCard?.instance_id ?? ownedInstance?.id ?? '?'
@@ -444,8 +500,21 @@ export function WalletCardModal(props: WalletCardModalProps) {
         setFirstYearFee(effFy != null ? String(effFy) : '')
         const effSecRate = ownedInstance.secondary_currency_rate ?? lib.secondary_currency_rate
         setSecondaryCurrencyRate(effSecRate != null ? String(effSecRate) : '')
-        // No scenario context → no credits to hydrate from scenario API.
-        setSelectedCredits({})
+        // Seed library defaults, then overlay wallet-level overrides so
+        // the credits tab reflects the user's actual valuation. Library
+        // credits not overridden flow through with their issuer-stated
+        // value; wallet overrides (including value=0 to "remove") win.
+        const ownedDefaults: Record<number, number> = {}
+        for (const c of creditLibrary ?? []) {
+          if (c.card_ids.includes(ownedInstance.card_id)) {
+            ownedDefaults[c.id] = c.card_values[ownedInstance.card_id] ?? c.value ?? 0
+          }
+        }
+        const merged: Record<number, number> = { ...ownedDefaults }
+        for (const o of ownedInstance.credit_overrides ?? []) {
+          merged[o.library_credit_id] = o.value
+        }
+        setSelectedCredits(merged)
         setCreditFlagEdits({})
         setFormError(null)
         return
@@ -464,11 +533,21 @@ export function WalletCardModal(props: WalletCardModalProps) {
         setSecondaryCurrencyRate(
           resolvedCard.secondary_currency_rate != null ? String(resolvedCard.secondary_currency_rate) : '',
         )
-        if (existingCreditOverrides) {
-          const m: Record<number, number> = {}
-          for (const o of existingCreditOverrides) m[o.library_credit_id] = o.value
-          setSelectedCredits(m)
+        // Credits tab inheritance chain (display):
+        //   library defaults → wallet overrides → scenario overrides
+        // Each later layer wins by library_credit_id. Wallet rows only
+        // exist for owned cards (overlay mode); future cards skip that
+        // tier. Save-time diffing against (library+wallet) makes scenario
+        // overrides sparse — see ``reconcileScenarioOverrides``.
+        const baseline = ownedCardCreditDefaults(creditLibrary, resolvedCard.card_id)
+        for (const o of resolvedCard.wallet_credit_overrides) {
+          baseline[o.library_credit_id] = o.value
         }
+        const merged: Record<number, number> = { ...baseline }
+        for (const o of existingCreditOverrides ?? []) {
+          merged[o.library_credit_id] = o.value
+        }
+        setSelectedCredits(merged)
         setCreditFlagEdits({})
         setFormError(null)
       }
@@ -564,19 +643,9 @@ export function WalletCardModal(props: WalletCardModalProps) {
   async function handlePrimary() {
     setFormError(null)
 
-    // Owned-base ADD: simplest path — just card_id + opening_date
-    if (isOwnedBase && isAddFlow) {
-      if (typeof cardId !== 'number') return
-      try {
-        await flushCreditFlagEdits()
-      } catch {
-        return
-      }
-      onAddOwned?.({ card_id: cardId, opening_date: openingDate })
-      return
-    }
-
-    // All other paths require building the form fields.
+    // All paths build the same form fields. Credits & priority tabs are
+    // hidden for owned-base; only lifecycle + bonuses inputs feed the
+    // owned-base payload.
     const built = buildWalletCardFields(
       subPoints,
       subMinSpend,
@@ -594,6 +663,38 @@ export function WalletCardModal(props: WalletCardModalProps) {
       return
     }
 
+    // Owned-base ADD: card_id + opening_date plus the same SUB/bonus/fee
+    // override fields the future-add flow sends, plus wallet-level credit
+    // overrides (only entries whose value differs from the library
+    // default — library updates flow through unchanged credits). Priority
+    // pins are scenario-only and stay scenario-only.
+    if (isOwnedBase && isAddFlow) {
+      if (typeof cardId !== 'number') return
+      const secRate = secondaryCurrencyRate.trim() ? Number(secondaryCurrencyRate) : null
+      try {
+        await flushCreditFlagEdits()
+      } catch {
+        return
+      }
+      const overrides = diffWalletCreditOverrides(
+        selectedCredits,
+        ownedCardCreditDefaults(creditLibrary, cardId),
+      )
+      onAddOwned?.({
+        card_id: cardId,
+        opening_date: openingDate,
+        sub_points: built.sub_points,
+        sub_min_spend: built.sub_min_spend,
+        sub_months: built.sub_months,
+        annual_bonus: built.annual_bonus,
+        annual_fee: built.annual_fee,
+        first_year_fee: built.first_year_fee,
+        secondary_currency_rate: secRate,
+        credit_overrides: overrides,
+      })
+      return
+    }
+
     // Owned-base EDIT
     if (isOwnedBase && !isAddFlow && ownedInstance && lib) {
       const secRate = secondaryCurrencyRate.trim() ? Number(secondaryCurrencyRate) : null
@@ -603,8 +704,12 @@ export function WalletCardModal(props: WalletCardModalProps) {
       } catch {
         return
       }
-      onSaveOwned?.(
-        walletFormToOwnedUpdatePayload(
+      const overrides = diffWalletCreditOverrides(
+        selectedCredits,
+        ownedCardCreditDefaults(creditLibrary, ownedInstance.card_id),
+      )
+      onSaveOwned?.({
+        ...walletFormToOwnedUpdatePayload(
           built,
           lib,
           openingDate,
@@ -612,7 +717,8 @@ export function WalletCardModal(props: WalletCardModalProps) {
           isPc ? (productChangeDate || null) : null,
           secRate,
         ),
-      )
+        credit_overrides: overrides,
+      })
       return
     }
 
@@ -678,6 +784,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
         resolvedCard.instance_id,
         existingCreditOverrides ?? [],
         selectedCredits,
+        scenarioCreditBaseline(resolvedCard),
         Array.from(priorityCategoryIds),
       )
       onSaveFuture?.(payload)
@@ -718,6 +825,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
         resolvedCard.instance_id,
         existingCreditOverrides ?? [],
         selectedCredits,
+        scenarioCreditBaseline(resolvedCard),
         Array.from(priorityCategoryIds),
       )
       onSaveOverlay?.(payload)
@@ -726,25 +834,34 @@ export function WalletCardModal(props: WalletCardModalProps) {
   }
 
   /** Diff selected credits + category priorities against existing scenario
-   * rows and apply via the per-instance scenario APIs. */
+   * rows and apply via the per-instance scenario APIs.
+   *
+   * ``baseline`` is the inherited credit set the scenario would see
+   * without any ScenarioCardCredit rows: library defaults for future
+   * cards, library + wallet overrides for owned cards in overlay mode.
+   * Selected values matching the baseline don't generate scenario rows
+   * (and any existing override matching the baseline is deleted), so
+   * library/wallet updates flow through unchanged credits. */
   async function reconcileScenarioOverrides(
     sid: number,
     instanceId: number,
     existing: { library_credit_id: number; value: number }[],
     selected: Record<number, number>,
+    baseline: Record<number, number>,
     priorityIds: number[],
   ) {
-    const creditOps: Promise<unknown>[] = []
+    const desired = diffWalletCreditOverrides(selected, baseline)
+    const desiredByLibId = new Map(desired.map((d) => [d.library_credit_id, d.value]))
     const existingByLibId = new Map(existing.map((o) => [o.library_credit_id, o]))
-    for (const [idStr, value] of Object.entries(selected)) {
-      const libId = Number(idStr)
+    const creditOps: Promise<unknown>[] = []
+    for (const [libId, value] of desiredByLibId) {
       const ex = existingByLibId.get(libId)
       if (!ex || Math.abs(ex.value - value) > 1e-6) {
         creditOps.push(scenarioCardCreditApi.upsert(sid, instanceId, libId, { value }))
       }
     }
     for (const [libId] of existingByLibId) {
-      if (!(libId in selected)) {
+      if (!desiredByLibId.has(libId)) {
         creditOps.push(scenarioCardCreditApi.delete(sid, instanceId, libId))
       }
     }
@@ -768,6 +885,19 @@ export function WalletCardModal(props: WalletCardModalProps) {
     })
   }
 
+  /** Build the credit baseline a scenario would see without explicit
+   *  ScenarioCardCredit rows — library defaults plus wallet overrides
+   *  for owned cards. Future cards skip the wallet tier. */
+  function scenarioCreditBaseline(rc: ResolvedCard): Record<number, number> {
+    const baseline = ownedCardCreditDefaults(creditLibrary, rc.card_id)
+    if (!rc.is_future) {
+      for (const o of rc.wallet_credit_overrides) {
+        baseline[o.library_credit_id] = o.value
+      }
+    }
+    return baseline
+  }
+
   const formDisabled = !lib
 
   // Title
@@ -782,8 +912,6 @@ export function WalletCardModal(props: WalletCardModalProps) {
 
   // Tabs visible
   const cardSelected = !isAddFlow || cardId !== ''
-  // Owned-base add flow: only the lifecycle (which is just a date picker) is meaningful.
-  const showOnlyLifecycle = isOwnedBase && isAddFlow
 
   // If the user deselects a card while on a card-dependent tab, snap back to Lifecycle.
   useEffect(() => {
@@ -792,9 +920,10 @@ export function WalletCardModal(props: WalletCardModalProps) {
     }
   }, [cardSelected, activeTab])
 
-  const tabOrder: readonly typeof activeTab[] = showOnlyLifecycle
-    ? (['lifecycle'] as const)
-    : ([
+  // Priority tab is gated by ``categoryTabEnabled`` (false for owned-base
+  // since priority pins are scenario-scoped).
+  const tabOrder: readonly typeof activeTab[] = (
+      [
         'lifecycle',
         ...(cardSelected ? (['bonuses', 'credits'] as const) : []),
         ...(cardSelected && categoryTabEnabled ? (['priority'] as const) : []),
@@ -900,7 +1029,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
       )}
 
       {/* ── Tab bar ── */}
-      {(isAddFlow || lib) && !showOnlyLifecycle && (
+      {(isAddFlow || lib) && (
         <div className="flex-shrink-0 flex gap-1 px-6 border-b border-slate-700">
           {([
             { id: 'lifecycle' as const, label: 'Lifecycle', badge: 0 },

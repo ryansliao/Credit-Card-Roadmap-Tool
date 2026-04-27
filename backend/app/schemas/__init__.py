@@ -79,6 +79,7 @@ from .card_instance import (
     FutureCardUpdate,
     OwnedCardCreate,
     OwnedCardUpdate,
+    WalletCardCreditValue,
 )
 from .scenario import (
     ScenarioBase,
@@ -178,6 +179,7 @@ __all__ = [
     "FutureCardUpdate",
     "OwnedCardCreate",
     "OwnedCardUpdate",
+    "WalletCardCreditValue",
     # Scenario
     "ScenarioBase",
     "ScenarioCreate",

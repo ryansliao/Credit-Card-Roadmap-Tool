@@ -71,12 +71,12 @@ export function WalletSummaryStats({
   const showStaleHint = isStale && hasStats && !resultsError
 
   const durationTicks = [
-    { months: 1, label: '1M' },
+    { months: 6, label: '0.5Y' },
     { months: 12, label: '1Y' },
+    { months: 18, label: '1.5Y' },
     { months: 24, label: '2Y' },
+    { months: 30, label: '2.5Y' },
     { months: 36, label: '3Y' },
-    { months: 48, label: '4Y' },
-    { months: 60, label: '5Y' },
   ]
 
   const panelBorder = showStaleHint ? 'border-amber-700/60' : 'border-slate-700'
@@ -206,8 +206,8 @@ export function WalletSummaryStats({
         </div>
         <input
           type="range"
-          min={1}
-          max={60}
+          min={6}
+          max={36}
           value={durationYears * 12 + durationMonths}
           onChange={(e) => {
             const total = Number(e.target.value)
@@ -217,11 +217,21 @@ export function WalletSummaryStats({
         />
         <div className="relative h-4 mt-2">
           {durationTicks.map((t) => {
-            const pct = ((t.months - 1) / 59) * 100
+            const pct = ((t.months - 6) / 30) * 100
+            // Anchor end ticks to the bar edges so the row width matches
+            // the slider — leftmost left-aligns, rightmost right-aligns,
+            // interior ticks are center-aligned on their position.
+            const isFirst = pct <= 0
+            const isLast = pct >= 100
+            const translate = isFirst
+              ? 'translate-x-0'
+              : isLast
+              ? '-translate-x-full'
+              : '-translate-x-1/2'
             return (
               <span
                 key={t.label}
-                className="absolute text-[10px] text-slate-500 -translate-x-1/2 tabular-nums"
+                className={`absolute text-[10px] text-slate-500 tabular-nums ${translate}`}
                 style={{ left: `${pct}%` }}
               >
                 {t.label}

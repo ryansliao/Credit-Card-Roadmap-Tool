@@ -34,6 +34,7 @@ from sqlalchemy.orm import selectinload
 from ..calculator import CardData, CreditLine
 from ..database import get_db
 from ..models import (
+    CardCredit,
     CardInstance,
     Scenario,
     ScenarioCardCategoryPriority,
@@ -44,6 +45,7 @@ from ..models import (
     ScenarioCurrencyCpp,
     ScenarioPortalShare,
     Wallet,
+    WalletCardCredit,
 )
 from .calculator_data_service import (
     CalculatorDataService,
@@ -217,23 +219,39 @@ class ScenarioResolver:
         currency_defaults = await self.calc_data.load_currency_defaults()
         currency_kinds = await self.calc_data.load_currency_kinds()
 
-        # 7. Load scenario-scoped credit rows keyed by card_instance_id.
+        # 7. Load credit baselines.
+        #   - Library credit links per card_id (issuer-stated values)
+        #   - Wallet-level overrides per OWNED instance (user's wallet edits)
+        #   - Scenario-scoped overrides per instance (per-scenario hypothesis)
+        # Chain at synth time: library → wallet → scenario.
         credits_by_instance = await self._load_credits_by_instance(scenario_id)
+        active_library_card_ids: set[int] = {
+            r.library_card_id for r in active_resolved
+        }
+        library_credits_by_card_id = await self._load_library_credits_by_card_id(
+            active_library_card_ids
+        )
+        owned_instance_ids: set[int] = {
+            r.instance_id for r in active_resolved if r.instance.scenario_id is None
+        }
+        wallet_credits_by_instance = await self._load_wallet_credits_by_instance(
+            owned_instance_ids
+        )
 
         # 8. Build per-instance CardData. For each active instance, clone
         #    the library CardData and patch with effective field values.
         per_instance_card_data: list[CardData] = []
-        active_library_card_ids: set[int] = set()
         for r in active_resolved:
             lib_cd = library_cards_by_id.get(r.library_card_id)
             if lib_cd is None:
                 continue
-            active_library_card_ids.add(r.library_card_id)
             per_instance_card_data.append(
                 self._build_instance_card_data(
                     r,
                     lib_cd,
                     credits_by_instance.get(r.instance_id, []),
+                    library_credits_by_card_id.get(r.library_card_id, []),
+                    wallet_credits_by_instance.get(r.instance_id, []),
                     cpp_overrides,
                     currency_defaults,
                     currency_kinds,
@@ -371,6 +389,51 @@ class ScenarioResolver:
             out.setdefault(row.card_instance_id, []).append(row)
         return out
 
+    async def _load_library_credits_by_card_id(
+        self, card_ids: set[int]
+    ) -> dict[int, list[CardCredit]]:
+        """Library credit links per card_id, eager-loaded with the Credit
+        row and its currency. Used as the inheritance baseline for owned
+        cards in a scenario when no wallet/scenario override exists for a
+        given library credit.
+        """
+        if not card_ids:
+            return {}
+        from ..models import Credit
+        result = await self.db.execute(
+            select(CardCredit)
+            .options(selectinload(CardCredit.credit).selectinload(Credit.credit_currency))
+            .where(CardCredit.card_id.in_(card_ids))
+        )
+        out: dict[int, list[CardCredit]] = {}
+        for row in result.scalars().all():
+            out.setdefault(row.card_id, []).append(row)
+        return out
+
+    async def _load_wallet_credits_by_instance(
+        self, instance_ids: set[int]
+    ) -> dict[int, list[WalletCardCredit]]:
+        """Wallet-level credit overrides for owned instances. Future-card
+        instances are scenario-scoped and don't carry wallet overrides;
+        callers should only pass owned instance ids.
+        """
+        if not instance_ids:
+            return {}
+        from ..models import Credit
+        result = await self.db.execute(
+            select(WalletCardCredit)
+            .options(
+                selectinload(WalletCardCredit.library_credit).selectinload(
+                    Credit.credit_currency
+                )
+            )
+            .where(WalletCardCredit.card_instance_id.in_(instance_ids))
+        )
+        out: dict[int, list[WalletCardCredit]] = {}
+        for row in result.scalars().all():
+            out.setdefault(row.card_instance_id, []).append(row)
+        return out
+
     async def _load_multipliers(
         self, scenario_id: int
     ) -> list[ScenarioCardMultiplier]:
@@ -445,6 +508,8 @@ class ScenarioResolver:
         resolved: ResolvedInstance,
         lib_cd: CardData,
         credit_rows: list[ScenarioCardCredit],
+        library_credit_links: list[CardCredit],
+        wallet_credit_rows: list[WalletCardCredit],
         cpp_overrides: dict[int, float],
         currency_defaults: dict[int, float],
         currency_kinds: dict[int, str],
@@ -459,26 +524,57 @@ class ScenarioResolver:
         annual_fee = _coalesce("annual_fee", lib_cd.annual_fee)
         first_year_fee = _coalesce("first_year_fee", lib_cd.first_year_fee)
 
-        # Build credit lines from the scenario-scoped credit rows.
-        credit_lines: list[CreditLine] = []
+        def _to_dollars(raw_value: float, currency_id: Optional[int]) -> float:
+            if currency_id is None or currency_kinds.get(currency_id) == "cash":
+                return raw_value
+            cpp = cpp_overrides.get(currency_id) or currency_defaults.get(
+                currency_id, 1.0
+            )
+            return raw_value * cpp / 100.0
+
+        # Build credit lines via the inheritance chain:
+        #     library CardCredit → WalletCardCredit → ScenarioCardCredit
+        # Each later layer replaces the previous by library_credit_id.
+        # Wallet rows only apply to owned instances (future cards skip the
+        # wallet tier since they're already scenario-scoped).
+        merged: dict[int, CreditLine] = {}
+        for link in library_credit_links:
+            lib_credit = link.credit
+            if lib_credit is None:
+                continue
+            raw_value = link.value if link.value is not None else lib_credit.value
+            if raw_value is None:
+                continue
+            merged[lib_credit.id] = CreditLine(
+                library_credit_id=lib_credit.id,
+                name=lib_credit.credit_name,
+                value=_to_dollars(float(raw_value), lib_credit.credit_currency_id),
+                excludes_first_year=lib_credit.excludes_first_year,
+                is_one_time=lib_credit.is_one_time,
+            )
+        for wrow in wallet_credit_rows:
+            lib_credit = wrow.library_credit
+            if lib_credit is None:
+                continue
+            merged[wrow.library_credit_id] = CreditLine(
+                library_credit_id=wrow.library_credit_id,
+                name=lib_credit.credit_name,
+                value=_to_dollars(float(wrow.value), lib_credit.credit_currency_id),
+                excludes_first_year=lib_credit.excludes_first_year,
+                is_one_time=lib_credit.is_one_time,
+            )
         for row in credit_rows:
             lib_credit = row.library_credit
             if lib_credit is None:
                 continue
-            dollar_value = row.value
-            cur_id = lib_credit.credit_currency_id
-            if cur_id is not None and currency_kinds.get(cur_id) != "cash":
-                cpp = cpp_overrides.get(cur_id) or currency_defaults.get(cur_id, 1.0)
-                dollar_value = row.value * cpp / 100.0
-            credit_lines.append(
-                CreditLine(
-                    library_credit_id=row.library_credit_id,
-                    name=lib_credit.credit_name,
-                    value=dollar_value,
-                    excludes_first_year=lib_credit.excludes_first_year,
-                    is_one_time=lib_credit.is_one_time,
-                )
+            merged[row.library_credit_id] = CreditLine(
+                library_credit_id=row.library_credit_id,
+                name=lib_credit.credit_name,
+                value=_to_dollars(float(row.value), lib_credit.credit_currency_id),
+                excludes_first_year=lib_credit.excludes_first_year,
+                is_one_time=lib_credit.is_one_time,
             )
+        credit_lines: list[CreditLine] = list(merged.values())
 
         return dataclasses.replace(
             lib_cd,

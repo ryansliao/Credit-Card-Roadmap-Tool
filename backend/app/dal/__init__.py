@@ -39,6 +39,7 @@ from .scenario_currency import (
     ScenarioCurrencyBalance,
     ScenarioPortalShare,
 )
+from .wallet_overrides import WalletCardCredit
 
 __all__ = [
     "User",
@@ -71,4 +72,5 @@ __all__ = [
     "WalletSpendItem",
     "UserSpendCategory",
     "UserSpendCategoryMapping",
+    "WalletCardCredit",
 ]

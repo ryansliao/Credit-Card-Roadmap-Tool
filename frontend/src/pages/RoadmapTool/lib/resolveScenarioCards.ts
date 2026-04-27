@@ -38,6 +38,11 @@ export interface ResolvedCard extends WalletCard {
    * model — consumers wanting the "from" library card_id should look it up via
    * this id in the resolved card list. */
   pc_from_instance_id: number | null
+  /** Wallet-level credit overrides on the source instance. Empty for future
+   * cards (which have no owned/wallet context). Used to seed the credits
+   * tab in the scenario modal so users see the inherited values rather
+   * than an empty list. */
+  wallet_credit_overrides: { library_credit_id: number; value: number }[]
 }
 
 function _coalesce<T>(...values: (T | null | undefined)[]): T | null {
@@ -141,6 +146,7 @@ export function resolveCardInstance(
     issuer_name: instance.issuer_name,
     network_tier_name: instance.network_tier_name,
     credit_totals: instance.credit_totals,
+    wallet_credit_overrides: instance.credit_overrides ?? [],
   }
 }
 

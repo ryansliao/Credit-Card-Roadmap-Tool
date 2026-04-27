@@ -74,9 +74,16 @@ class ScenarioCardMultiplier(Base):
 
 class ScenarioCardCredit(Base):
     """
-    Per-scenario, per-instance attached credit with user-set value. Replaces
-    WalletCardCredit. Lets two duplicates of the same library card hold
-    different valuations, and lets the same instance valuate a credit
+    Per-scenario, per-instance attached credit with user-set value — the
+    top tier of the credit-inheritance chain:
+
+        library CardCredit  →  WalletCardCredit  →  ScenarioCardCredit
+
+    Owned cards inherit through all three tiers (wallet override stored on
+    the CardInstance via :class:`WalletCardCredit`); future cards skip the
+    wallet tier (they're already scenario-scoped, so wallet-level rows
+    don't apply). Lets two duplicates of the same library card hold
+    different valuations and lets the same instance valuate a credit
     differently per scenario.
     """
 

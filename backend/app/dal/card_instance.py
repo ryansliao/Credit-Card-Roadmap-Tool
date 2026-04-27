@@ -29,6 +29,7 @@ if TYPE_CHECKING:
         ScenarioCardMultiplier,
     )
     from .wallet import Wallet
+    from .wallet_overrides import WalletCardCredit
 
 
 class CardInstance(Base):
@@ -151,6 +152,9 @@ class CardInstance(Base):
         back_populates="card_instance", cascade="all, delete-orphan"
     )
     credit_overrides_rows: Mapped[list["ScenarioCardCredit"]] = relationship(
+        back_populates="card_instance", cascade="all, delete-orphan"
+    )
+    wallet_credit_overrides: Mapped[list["WalletCardCredit"]] = relationship(
         back_populates="card_instance", cascade="all, delete-orphan"
     )
     group_selections: Mapped[list["ScenarioCardGroupSelection"]] = relationship(

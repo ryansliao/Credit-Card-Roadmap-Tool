@@ -629,11 +629,37 @@ export interface CardInstance {
   panel: CardInstancePanel
   is_enabled: boolean
   credit_totals: CreditTotalByCurrency[]
+  /** Wallet-level credit override raw rows. Only populated for owned cards
+   * (scenario_id IS NULL). Empty list = inherit library defaults for all
+   * of this card's library credits. */
+  credit_overrides: WalletCardCreditValue[]
+}
+
+export interface WalletCardCreditValue {
+  library_credit_id: number
+  value: number
 }
 
 export interface OwnedCardCreatePayload {
   card_id: number
   opening_date: string
+  product_change_date?: string | null
+  closed_date?: string | null
+  sub_points?: number | null
+  sub_min_spend?: number | null
+  sub_months?: number | null
+  sub_spend_earn?: number | null
+  years_counted?: number
+  annual_bonus?: number | null
+  annual_bonus_percent?: number | null
+  annual_bonus_first_year_only?: boolean | null
+  annual_fee?: number | null
+  first_year_fee?: number | null
+  secondary_currency_rate?: number | null
+  sub_earned_date?: string | null
+  /** Optional wallet-level credit overrides — only entries whose value
+   * differs from the library default need to be sent. */
+  credit_overrides?: WalletCardCreditValue[]
 }
 
 export interface OwnedCardUpdatePayload {
@@ -652,23 +678,12 @@ export interface OwnedCardUpdatePayload {
   first_year_fee?: number | null
   secondary_currency_rate?: number | null
   sub_earned_date?: string | null
+  /** When provided (even as []), replaces the wallet credit override set
+   * for this instance. Omit to leave overrides unchanged. */
+  credit_overrides?: WalletCardCreditValue[]
 }
 
 export interface FutureCardCreatePayload extends OwnedCardCreatePayload {
-  product_change_date?: string | null
-  closed_date?: string | null
-  sub_points?: number | null
-  sub_min_spend?: number | null
-  sub_months?: number | null
-  sub_spend_earn?: number | null
-  years_counted?: number
-  annual_bonus?: number | null
-  annual_bonus_percent?: number | null
-  annual_bonus_first_year_only?: boolean | null
-  annual_fee?: number | null
-  first_year_fee?: number | null
-  secondary_currency_rate?: number | null
-  sub_earned_date?: string | null
   pc_from_instance_id?: number | null
   panel?: CardInstancePanel
   is_enabled?: boolean
