@@ -53,6 +53,9 @@ Thumbs.db
 *.sln
 *.sw?
 
+# Brainstorming (visual companion)
+.superpowers/
+
 # Alembic
 alembic/__pycache__/
 
