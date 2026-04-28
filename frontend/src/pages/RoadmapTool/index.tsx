@@ -42,7 +42,6 @@ import { ScenarioPicker } from './components/ScenarioPicker'
 import { InfoIconButton } from '../../components/InfoPopover'
 import { useCardLibrary } from './hooks/useCardLibrary'
 import { useCreditLibrary } from '../../hooks/useCreditLibrary'
-import { useToday } from '../../hooks/useToday'
 import { useTravelPortals } from '../../hooks/useTravelPortals'
 import { queryKeys } from '../../lib/queryKeys'
 import { resolveScenarioCards, type ResolvedCard } from './lib/resolveScenarioCards'
@@ -78,13 +77,9 @@ function writeStoredSnapshotSig(scenarioId: number, sig: string) {
  * comparing against the snapshot from the last successful calc lets us
  * distinguish "truly out of date" from "edited and then reverted".
  *
- * Includes ``today`` because owned-card SUB earnability is derived from
- * ``opening_date + spend_rate`` against the current date — when the calendar
- * day rolls over, results computed on the prior day are stale. ``useToday``
- * re-renders the consumer just past midnight, which flips the signature
- * here and trips the "out of date" indicator. */
+ * ``today`` is intentionally excluded so a calendar boundary alone does not
+ * mark a stored snapshot as stale. */
 function scenarioCalcSignature(
-  today: string,
   resolvedCards: ResolvedCard[],
   foreignSpendPercent: number,
   durationYears: number,
@@ -96,6 +91,11 @@ function scenarioCalcSignature(
   creditOverridesByInstanceId: Map<number, ScenarioCardCreditOverride[]>,
   creditLibraryById: Map<number, CardCredit>,
 ): string {
+  // ``today`` is intentionally excluded from this signature. The calc uses
+  // ``start_date = today()`` so calendar advancement does shift segment
+  // boundaries, but baking ``today`` in caused the snapshot to read as stale
+  // every calendar boundary even when nothing the user touched had changed.
+  // Day-over-day staleness is not worth nagging the user about.
   // Only serialize cards that would participate in the calc. Disabled cards
   // are filtered by the backend's active-instance predicate, so edits to
   // them can't change results — leave them out of the signature so those
@@ -113,10 +113,11 @@ function scenarioCalcSignature(
       sub_months: wc.sub_months,
       sub_spend_earn: wc.sub_spend_earn,
       annual_bonus: wc.annual_bonus,
+      annual_bonus_percent: wc.annual_bonus_percent,
+      annual_bonus_first_year_only: wc.annual_bonus_first_year_only,
       annual_fee: wc.annual_fee,
       first_year_fee: wc.first_year_fee,
       secondary_currency_rate: wc.secondary_currency_rate,
-      sub_earned_date: wc.sub_earned_date,
       product_changed_date: wc.product_changed_date,
       transfer_enabler: wc.transfer_enabler,
       acquisition_type: wc.acquisition_type,
@@ -191,7 +192,6 @@ function scenarioCalcSignature(
   }
   credits.sort((a, b) => a.instance_id - b.instance_id)
   return JSON.stringify({
-    today,
     durationYears,
     durationMonths,
     foreign_spend_percent: foreignSpendPercent,
@@ -364,7 +364,6 @@ export default function RoadmapToolPage() {
   }, [creditQueries, enabledInstanceIds])
 
   const foreignSpendPercent = wallet?.foreign_spend_percent ?? 0
-  const todayStr = useToday()
 
   // Credit library is also a calc input via per-credit currency / year-1
   // exclusion / one-time flags, so we read its data here (not just warm
@@ -379,7 +378,6 @@ export default function RoadmapToolPage() {
   const currentSignature = useMemo(
     () =>
       scenarioCalcSignature(
-        todayStr,
         resolvedCards,
         foreignSpendPercent,
         durationYears,
@@ -392,7 +390,6 @@ export default function RoadmapToolPage() {
         creditLibraryById,
       ),
     [
-      todayStr,
       resolvedCards,
       foreignSpendPercent,
       durationYears,
@@ -595,6 +592,8 @@ export default function RoadmapToolPage() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.scenarioCardCredits(scenarioId, instanceId),
       })
+      // Overlay edits change SUB statuses + rule violations on the roadmap.
+      queryClient.invalidateQueries({ queryKey: queryKeys.scenarioRoadmap(scenarioId) })
       if (wasRelevant) setInSigDirty(true)
     },
   })
@@ -613,6 +612,7 @@ export default function RoadmapToolPage() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.scenarioOverlays(scenarioId),
       })
+      queryClient.invalidateQueries({ queryKey: queryKeys.scenarioRoadmap(scenarioId) })
       if (wasRelevant) setInSigDirty(true)
     },
   })
@@ -698,7 +698,6 @@ export default function RoadmapToolPage() {
       setSnapshotSignature(
         stored ??
           scenarioCalcSignature(
-            todayStr,
             resolvedCards,
             foreignSpendPercent,
             latestResult.duration_years,

@@ -32,7 +32,6 @@ CARD_LIBRARY_PATCH_FIELDS = frozenset({
     "accelerator_cost", "accelerator_spend_limit", "accelerator_bonus_multiplier",
     "accelerator_max_activations", "housing_tiered_enabled",
     "foreign_transaction_fee", "housing_fee_waived", "sub_secondary_points",
-    "takeoff15_enabled",
 })
 
 
@@ -212,7 +211,6 @@ class CardService(BaseService[Card]):
             accelerator_max_activations=payload.accelerator_max_activations,
             housing_tiered_enabled=payload.housing_tiered_enabled,
             housing_fee_waived=getattr(payload, "housing_fee_waived", False),
-            takeoff15_enabled=getattr(payload, "takeoff15_enabled", False),
             sub_recurrence_months=payload.sub_recurrence_months,
             sub_family=payload.sub_family,
         )

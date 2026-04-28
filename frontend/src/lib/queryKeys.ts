@@ -30,6 +30,6 @@ export const queryKeys = {
   cards: () => ['cards'] as const,
   credits: () => ['credits'] as const,
   currencies: () => ['currencies'] as const,
-  travelPortals: ['travel-portals'] as const,
+  travelPortals: () => ['travel-portals'] as const,
   issuerApplicationRules: () => ['issuer-application-rules'] as const,
 } as const

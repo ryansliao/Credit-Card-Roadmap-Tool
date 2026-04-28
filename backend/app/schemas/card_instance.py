@@ -38,8 +38,6 @@ class CardInstanceBase(BaseModel):
     first_year_fee: Optional[float] = Field(default=None, ge=0)
     secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
 
-    sub_earned_date: Optional[date] = None
-
     pc_from_instance_id: Optional[int] = None
 
     panel: Literal["in_wallet", "future_cards", "considering"] = "considering"
@@ -82,8 +80,6 @@ class OwnedCardCreate(BaseModel):
     first_year_fee: Optional[float] = Field(default=None, ge=0)
     secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
 
-    sub_earned_date: Optional[date] = None
-
     credit_overrides: Optional[list[WalletCardCreditValue]] = None
 
 
@@ -113,8 +109,6 @@ class OwnedCardUpdate(BaseModel):
     first_year_fee: Optional[float] = Field(default=None, ge=0)
     secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
 
-    sub_earned_date: Optional[date] = None
-
     credit_overrides: Optional[list[WalletCardCreditValue]] = None
 
 
@@ -140,8 +134,6 @@ class FutureCardUpdate(BaseModel):
     annual_fee: Optional[float] = Field(default=None, ge=0)
     first_year_fee: Optional[float] = Field(default=None, ge=0)
     secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
-
-    sub_earned_date: Optional[date] = None
 
     pc_from_instance_id: Optional[int] = None
     panel: Optional[Literal["in_wallet", "future_cards", "considering"]] = None

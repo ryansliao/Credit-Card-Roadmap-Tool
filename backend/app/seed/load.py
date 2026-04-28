@@ -363,7 +363,6 @@ def _card_fields(
         "photo_slug": cd.get("photo_slug"),
         "foreign_transaction_fee": cd.get("foreign_transaction_fee", False),
         "housing_fee_waived": cd.get("housing_fee_waived", False),
-        "takeoff15_enabled": cd.get("takeoff15_enabled", False),
     }
 
 

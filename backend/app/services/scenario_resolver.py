@@ -72,7 +72,6 @@ _RESOLVABLE_FIELDS: tuple[str, ...] = (
     "annual_fee",
     "first_year_fee",
     "secondary_currency_rate",
-    "sub_earned_date",
     "closed_date",
     "product_change_date",
     "is_enabled",

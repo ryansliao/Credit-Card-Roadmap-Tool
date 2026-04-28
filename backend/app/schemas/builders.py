@@ -141,7 +141,6 @@ def card_instance_read(inst: CardInstance) -> CardInstanceRead:
             if inst.secondary_currency_rate is not None
             else getattr(card, "secondary_currency_rate", None)
         ),
-        sub_earned_date=inst.sub_earned_date,
         pc_from_instance_id=inst.pc_from_instance_id,
         panel=cast(
             Literal["in_wallet", "future_cards", "considering"],

@@ -1,36 +1,11 @@
 import { Component, type ErrorInfo, type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes, Navigate, NavLink, Link } from 'react-router-dom'
 import RoadmapTool from './pages/RoadmapTool/index'
 import Home from './pages/Home'
 import Profile from './pages/Profile'
 import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
-import { walletApi } from './api/client'
-import { queryKeys } from './lib/queryKeys'
-
-/**
- * Legacy URL redirect: /roadmap-tool/wallets/:walletId →
- * /roadmap-tool/scenarios/{defaultScenarioId}. Bookmarked links from before
- * the scenarios refactor land here. Resolves the user's wallet, picks the
- * default scenario, and replaces the URL.
- */
-function LegacyWalletRedirect() {
-  const { isAuthenticated } = useAuth()
-  const { data: wallet, isLoading } = useQuery({
-    queryKey: queryKeys.myWalletWithScenarios(),
-    queryFn: () => walletApi.get(),
-    enabled: isAuthenticated,
-  })
-  if (!isAuthenticated || isLoading) {
-    return <div className="text-center text-slate-400 py-20">Loading...</div>
-  }
-  const defaultScenario = wallet?.scenarios.find((s) => s.is_default) ?? wallet?.scenarios[0]
-  if (defaultScenario) {
-    return <Navigate to={`/roadmap-tool/scenarios/${defaultScenario.id}`} replace />
-  }
-  return <Navigate to="/roadmap-tool" replace />
-}
 
 declare global {
   interface Window {
@@ -437,14 +412,6 @@ export default function App() {
                       element={
                         <AuthGate>
                           <RoadmapTool />
-                        </AuthGate>
-                      }
-                    />
-                    <Route
-                      path="/roadmap-tool/wallets/:walletId"
-                      element={
-                        <AuthGate>
-                          <LegacyWalletRedirect />
                         </AuthGate>
                       }
                     />

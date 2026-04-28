@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...auth import get_current_user
+from ...auth import get_current_user, require_admin_user
 from ...database import get_db
 from ...models import User
 from ...schemas import CardCreditRead, CreateCreditPayload, UpdateCreditPayload
@@ -115,6 +115,7 @@ async def delete_user_credit(
 )
 async def admin_create_credit(
     payload: CreateCreditPayload,
+    _admin: User = Depends(require_admin_user),
     db: AsyncSession = Depends(get_db),
     credit_service: CreditService = Depends(get_credit_service),
 ):
@@ -141,6 +142,7 @@ async def admin_create_credit(
 async def admin_update_credit(
     credit_id: int,
     payload: UpdateCreditPayload,
+    _admin: User = Depends(require_admin_user),
     db: AsyncSession = Depends(get_db),
     credit_service: CreditService = Depends(get_credit_service),
 ):
@@ -170,6 +172,7 @@ async def admin_update_credit(
 )
 async def admin_delete_credit(
     credit_id: int,
+    _admin: User = Depends(require_admin_user),
     db: AsyncSession = Depends(get_db),
     credit_service: CreditService = Depends(get_credit_service),
 ):

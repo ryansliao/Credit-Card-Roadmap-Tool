@@ -34,7 +34,6 @@ class UpdateCardLibraryPayload(BaseModel):
     housing_tiered_enabled: Optional[bool] = None
     foreign_transaction_fee: Optional[bool] = None
     housing_fee_waived: Optional[bool] = None
-    takeoff15_enabled: Optional[bool] = None
     photo_slug: Optional[str] = None
 
 
@@ -263,7 +262,6 @@ class CardRead(BaseModel):
     photo_slug: Optional[str] = None
     foreign_transaction_fee: bool = False
     housing_fee_waived: bool = False
-    takeoff15_enabled: bool = False
     sub_recurrence_months: Optional[int] = None
     sub_family: Optional[str] = None
 

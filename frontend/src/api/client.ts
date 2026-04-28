@@ -219,6 +219,8 @@ export interface Card {
   sub_cash: number | null
   sub_secondary_points: number | null
   annual_bonus: number | null
+  annual_bonus_percent: number | null
+  annual_bonus_first_year_only: boolean | null
   transfer_enabler: boolean
   secondary_currency_id: number | null
   secondary_currency_rate: number | null
@@ -393,11 +395,12 @@ export interface WalletCard {
   sub_months: number | null
   sub_spend_earn: number | null
   annual_bonus: number | null
+  annual_bonus_percent: number | null
+  annual_bonus_first_year_only: boolean | null
   years_counted: number
   annual_fee: number | null
   first_year_fee: number | null
   secondary_currency_rate: number | null
-  sub_earned_date: string | null
   closed_date: string | null
   product_changed_date: string | null
   transfer_enabler: boolean
@@ -447,7 +450,6 @@ export interface RoadmapCardStatus {
   added_date: string
   closed_date: string | null
   is_active: boolean
-  sub_earned_date: string | null
   /** Auto-calculated projected SUB earn date based on wallet spend profile */
   sub_projected_earn_date: string | null
   /** "no_sub" | "pending" | "earned" | "expired" */
@@ -624,7 +626,6 @@ export interface CardInstance {
   annual_fee: number | null
   first_year_fee: number | null
   secondary_currency_rate: number | null
-  sub_earned_date: string | null
   pc_from_instance_id: number | null
   panel: CardInstancePanel
   is_enabled: boolean
@@ -656,7 +657,6 @@ export interface OwnedCardCreatePayload {
   annual_fee?: number | null
   first_year_fee?: number | null
   secondary_currency_rate?: number | null
-  sub_earned_date?: string | null
   /** Optional wallet-level credit overrides — only entries whose value
    * differs from the library default need to be sent. */
   credit_overrides?: WalletCardCreditValue[]
@@ -677,7 +677,6 @@ export interface OwnedCardUpdatePayload {
   annual_fee?: number | null
   first_year_fee?: number | null
   secondary_currency_rate?: number | null
-  sub_earned_date?: string | null
   /** When provided (even as []), replaces the wallet credit override set
    * for this instance. Omit to leave overrides unchanged. */
   credit_overrides?: WalletCardCreditValue[]
@@ -751,7 +750,6 @@ export interface ScenarioCardOverlay {
    * closed the card in real life. */
   closed_date_clear: boolean
   product_change_date: string | null
-  sub_earned_date: string | null
   sub_points: number | null
   sub_min_spend: number | null
   sub_months: number | null

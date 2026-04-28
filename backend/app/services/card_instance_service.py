@@ -176,7 +176,6 @@ class CardInstanceService(BaseService[CardInstance]):
             annual_fee=payload.annual_fee,
             first_year_fee=payload.first_year_fee,
             secondary_currency_rate=payload.secondary_currency_rate,
-            sub_earned_date=payload.sub_earned_date,
             panel="in_wallet",
             is_enabled=True,
         )
@@ -237,7 +236,6 @@ class CardInstanceService(BaseService[CardInstance]):
             annual_fee=payload.annual_fee,
             first_year_fee=payload.first_year_fee,
             secondary_currency_rate=payload.secondary_currency_rate,
-            sub_earned_date=payload.sub_earned_date,
             pc_from_instance_id=payload.pc_from_instance_id,
             panel=payload.panel,
             is_enabled=payload.is_enabled,

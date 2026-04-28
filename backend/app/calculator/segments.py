@@ -40,6 +40,8 @@ def _cap_period_bounds(d: date, cap_months: int) -> tuple[date, date]:
     so 12=calendar year, 6=semi-annual (Jan/Jul), 3=calendar quarters, 1=calendar months.
     period_end is the start of the next period (exclusive).
     """
+    if cap_months <= 0:
+        raise ValueError(f"cap_months must be positive, got {cap_months}")
     months_since_anchor = (d.year - 1) * 12 + (d.month - 1)
     period_idx = months_since_anchor // cap_months
     start_total_months = period_idx * cap_months

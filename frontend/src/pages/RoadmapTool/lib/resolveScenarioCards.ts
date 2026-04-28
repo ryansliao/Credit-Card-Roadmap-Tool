@@ -81,6 +81,16 @@ export function resolveCardInstance(
   const sub_months = _coalesce(ov?.sub_months, instance.sub_months, _libValue(lib, 'sub_months'))
   const sub_spend_earn = _coalesce(ov?.sub_spend_earn, instance.sub_spend_earn, _libValue(lib, 'sub_spend_earn'))
   const annual_bonus = _coalesce(ov?.annual_bonus, instance.annual_bonus, _libValue(lib, 'annual_bonus'))
+  const annual_bonus_percent = _coalesce(
+    ov?.annual_bonus_percent,
+    instance.annual_bonus_percent,
+    _libValue(lib, 'annual_bonus_percent'),
+  )
+  const annual_bonus_first_year_only = _coalesce(
+    ov?.annual_bonus_first_year_only,
+    instance.annual_bonus_first_year_only,
+    _libValue(lib, 'annual_bonus_first_year_only'),
+  )
   const annual_fee = _coalesce(ov?.annual_fee, instance.annual_fee, _libValue(lib, 'annual_fee'))
   const first_year_fee = _coalesce(ov?.first_year_fee, instance.first_year_fee, _libValue(lib, 'first_year_fee'))
   const secondary_currency_rate = _coalesce(
@@ -88,7 +98,6 @@ export function resolveCardInstance(
     instance.secondary_currency_rate,
     _libValue(lib, 'secondary_currency_rate'),
   )
-  const sub_earned_date = _coalesce(ov?.sub_earned_date, instance.sub_earned_date)
   // closed_date_clear on the overlay forces the card active in this scenario
   // even when the underlying instance is closed. Mirrors the backend's
   // ScenarioResolver._resolve_effective.
@@ -130,11 +139,12 @@ export function resolveCardInstance(
     sub_months,
     sub_spend_earn,
     annual_bonus,
+    annual_bonus_percent,
+    annual_bonus_first_year_only,
     years_counted: instance.years_counted,
     annual_fee,
     first_year_fee,
     secondary_currency_rate,
-    sub_earned_date,
     closed_date,
     product_changed_date: product_change_date,
     transfer_enabler: instance.transfer_enabler,

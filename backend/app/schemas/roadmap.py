@@ -17,7 +17,6 @@ class RoadmapCardStatus(BaseModel):
     added_date: date
     closed_date: Optional[date] = None
     is_active: bool
-    sub_earned_date: Optional[date] = None
     sub_projected_earn_date: Optional[date] = None
     # "no_sub" | "pending" | "earned" | "expired"
     sub_status: str

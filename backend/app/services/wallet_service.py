@@ -6,7 +6,6 @@ intentionally minimal: get-or-create the wallet, fetch by id, partial
 update.
 """
 
-from datetime import date
 from typing import Optional
 
 from fastapi import Depends, HTTPException
@@ -56,7 +55,6 @@ class WalletService(BaseService[Wallet]):
         user_id: int,
         name: str,
         description: Optional[str] = None,
-        as_of_date: Optional[date] = None,
     ) -> Wallet:
         """Create a new wallet for the user. Routers should use the
         get-or-create pattern (see ``routers/wallet/wallets.py``) rather
@@ -66,8 +64,6 @@ class WalletService(BaseService[Wallet]):
             name=name,
             description=description,
         )
-        if as_of_date is not None and hasattr(wallet, "as_of_date"):
-            wallet.as_of_date = as_of_date
         self.db.add(wallet)
         await self.db.flush()
         return wallet

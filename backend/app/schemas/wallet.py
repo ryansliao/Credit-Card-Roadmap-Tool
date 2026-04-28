@@ -7,16 +7,17 @@ Stage 5 of the scenarios refactor. The remaining types support
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from .card_instance import CardInstanceRead
+from .scenario import ScenarioSummary
 
 
 class WalletBase(BaseModel):
     name: str
     description: Optional[str] = None
-    as_of_date: Optional[date] = None
 
 
 class WalletUpdate(BaseModel):
@@ -35,5 +36,5 @@ class WalletWithScenariosRead(BaseModel):
     name: str
     description: Optional[str] = None
     foreign_spend_percent: float = 0.0
-    card_instances: list = []
-    scenarios: list = []
+    card_instances: list[CardInstanceRead] = []
+    scenarios: list[ScenarioSummary] = []

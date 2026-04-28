@@ -209,6 +209,22 @@ class CardData:
     # sub_earnable: False when spend rate is too low to hit the SUB min within the SUB window
     sub_earnable: bool = True
 
+    def __post_init__(self) -> None:
+        # Guard against admin-data slips: negative values propagate as silent
+        # zero-divides and weird allocations downstream. ``None`` or ``0``
+        # are the standard "no SUB" sentinels (see ``is_sub_earnable``);
+        # only strict negatives are rejected.
+        if self.sub_min_spend is not None and self.sub_min_spend < 0:
+            raise ValueError(
+                f"CardData(id={self.id}): sub_min_spend must be >= 0 or None, "
+                f"got {self.sub_min_spend}"
+            )
+        if self.sub_months is not None and self.sub_months < 0:
+            raise ValueError(
+                f"CardData(id={self.id}): sub_months must be >= 0 or None, "
+                f"got {self.sub_months}"
+            )
+
 
 # ---------------------------------------------------------------------------
 # Calculator outputs

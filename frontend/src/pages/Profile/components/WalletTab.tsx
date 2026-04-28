@@ -35,6 +35,21 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
   const invalidateWallet = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.myWalletWithScenarios() })
     queryClient.invalidateQueries({ queryKey: queryKeys.ownedCardInstances() })
+    // Owned-card edits feed every scenario via three-tier resolution, so any
+    // cached results / roadmap / overlays are now stale. Predicate-invalidate
+    // across all scenario ids rather than threading the active id in here.
+    queryClient.invalidateQueries({
+      predicate: (q) => {
+        const k = q.queryKey[0]
+        return (
+          k === 'scenario-results' ||
+          k === 'scenario-latest-results' ||
+          k === 'scenario-roadmap' ||
+          k === 'scenario-overlays' ||
+          k === 'scenario-card-credits'
+        )
+      },
+    })
   }
 
   const addCardMutation = useMutation({

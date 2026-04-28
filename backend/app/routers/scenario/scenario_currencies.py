@@ -7,14 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...auth import get_current_user
 from ...database import get_db
-from ...models import Currency, User
+from ...models import User
 from ...schemas import (
     CurrencyRead,
     ScenarioCurrencyCppSet,
 )
 from ...services import (
+    CurrencyService,
     ScenarioCurrencyService,
     ScenarioService,
+    get_currency_service,
     get_scenario_currency_service,
     get_scenario_service,
 )
@@ -29,11 +31,11 @@ router = APIRouter(tags=["scenario-cpp"])
 async def list_scenario_currencies_with_cpp(
     scenario_id: int,
     user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
     scenario_service: ScenarioService = Depends(get_scenario_service),
     currency_service: ScenarioCurrencyService = Depends(
         get_scenario_currency_service
     ),
+    currency_catalog: CurrencyService = Depends(get_currency_service),
 ):
     """Return all currencies with the scenario's CPP overrides applied."""
     await scenario_service.get_user_scenario(scenario_id, user)
@@ -41,11 +43,8 @@ async def list_scenario_currencies_with_cpp(
     cpp_by_currency: dict[int, float] = {
         r.currency_id: r.cents_per_point for r in cpp_rows
     }
-    from sqlalchemy import select
-
-    result = await db.execute(select(Currency))
     out = []
-    for currency in result.scalars().all():
+    for currency in await currency_catalog.list_all():
         schema = CurrencyRead.model_validate(currency)
         override = cpp_by_currency.get(currency.id)
         schema.user_cents_per_point = (

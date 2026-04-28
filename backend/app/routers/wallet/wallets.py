@@ -8,12 +8,12 @@ items at ``/wallet/spend-items/*`` (see :mod:`wallet_spend`).
 """
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...auth import get_current_user
 from ...database import get_db
-from ...models import User, Wallet
+from ...models import User
 from ...schemas import (
     WalletUpdate,
     WalletWithScenariosRead,
@@ -41,9 +41,17 @@ async def _get_or_create_wallet(
     scenario_service: ScenarioService,
 ) -> int:
     """Return the user's wallet id, creating wallet + default scenario +
-    spend rows on first call."""
+    spend rows on first call.
+
+    Two concurrent first-time GETs would both observe ``None`` and race to
+    insert; ``UQ_wallets_user_id`` blocks the second insert with an
+    IntegrityError. We catch that, roll back, and re-read — at most one of
+    the racers wins, both eventually return the same wallet id.
+    """
     wallet = await wallet_service.get_for_user(user.id)
-    if wallet is None:
+    if wallet is not None:
+        return wallet.id
+    try:
         wallet = await wallet_service.create(
             user_id=user.id,
             name="My Wallet",
@@ -54,7 +62,13 @@ async def _get_or_create_wallet(
         if existing_default is None:
             await scenario_service.create_default(wallet.id)
         await db.commit()
-    return wallet.id
+        return wallet.id
+    except IntegrityError:
+        await db.rollback()
+        wallet = await wallet_service.get_for_user(user.id)
+        if wallet is None:
+            raise
+        return wallet.id
 
 
 @router.get("/wallet", response_model=WalletWithScenariosRead)
@@ -72,8 +86,7 @@ async def get_my_wallet(
     wallet_id = await _get_or_create_wallet(
         user, db, wallet_service, spend_service, scenario_service
     )
-    result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    wallet = result.scalar_one()
+    wallet = await wallet_service.get_or_404(wallet_id)
     owned = await instance_service.list_owned(wallet_id)
     scenarios = await scenario_service.list_for_wallet(wallet_id)
     return wallet_with_scenarios_read(wallet, owned, scenarios)
@@ -105,6 +118,5 @@ async def update_my_wallet(
 
     owned = await instance_service.list_owned(wallet_id)
     scenarios = await scenario_service.list_for_wallet(wallet_id)
-    result = await db.execute(select(Wallet).where(Wallet.id == wallet_id))
-    wallet_refreshed = result.scalar_one()
+    wallet_refreshed = await wallet_service.get_or_404(wallet_id)
     return wallet_with_scenarios_read(wallet_refreshed, owned, scenarios)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Integer, String
+from sqlalchemy import Boolean, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base
@@ -29,6 +29,8 @@ class User(Base):
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     picture: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # Gates the /admin/* reference-data routers. Flip via DB only.
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     wallets: Mapped[list["Wallet"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

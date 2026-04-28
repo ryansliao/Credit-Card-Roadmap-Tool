@@ -441,6 +441,10 @@ def compute_wallet(
     # income, SUB contribution). Segmented path uses the actual date span;
     # simple path falls back to the integer ``years`` parameter.
     if use_segmentation and window_start is not None and window_end is not None:
+        if window_end <= window_start:
+            raise ValueError(
+                f"window_end ({window_end}) must be after window_start ({window_start})"
+            )
         wallet_window_years = (window_end - window_start).days / 365.25
     else:
         wallet_window_years = float(years)

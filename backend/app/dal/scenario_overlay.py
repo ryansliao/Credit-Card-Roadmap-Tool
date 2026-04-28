@@ -59,7 +59,6 @@ class ScenarioCardOverlay(Base):
         Boolean, nullable=False, default=False, server_default="0"
     )
     product_change_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    sub_earned_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     # Hypothetical SUB / fee / bonus overrides
     sub_points: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

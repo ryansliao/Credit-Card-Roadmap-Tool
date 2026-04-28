@@ -11,6 +11,7 @@ from typing import Optional
 
 from fastapi import Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -166,7 +167,6 @@ class ScenarioService(BaseService[Scenario]):
                 opening_date=src.opening_date,
                 product_change_date=src.product_change_date,
                 closed_date=src.closed_date,
-                sub_earned_date=src.sub_earned_date,
                 # pc_from_instance_id intentionally not copied — would
                 # require a second pass and is rarely meaningful across a
                 # scenario clone. Future cards in the new scenario start
@@ -205,7 +205,6 @@ class ScenarioService(BaseService[Scenario]):
                     card_instance_id=o.card_instance_id,
                     closed_date=o.closed_date,
                     product_change_date=o.product_change_date,
-                    sub_earned_date=o.sub_earned_date,
                     sub_points=o.sub_points,
                     sub_min_spend=o.sub_min_spend,
                     sub_months=o.sub_months,
@@ -357,7 +356,12 @@ class ScenarioService(BaseService[Scenario]):
         """Delete a scenario. If this was the default and other scenarios
         exist, promote the next-most-recent to default. If this was the
         last scenario, auto-spawn a fresh empty default to satisfy the
-        invariant that every wallet has at least one scenario."""
+        invariant that every wallet has at least one scenario.
+
+        Concurrent last-scenario deletes could each race to spawn a fresh
+        default; ``UX_scenarios_default_per_wallet`` blocks the second
+        insert with an IntegrityError. We catch it, flush nothing, and
+        let the winner stand."""
         wallet_id = scenario.wallet_id
         was_default = scenario.is_default
         await self.db.delete(scenario)
@@ -376,7 +380,10 @@ class ScenarioService(BaseService[Scenario]):
             if promote is not None:
                 promote.is_default = True
             else:
-                await self.create_default(wallet_id)
+                try:
+                    await self.create_default(wallet_id)
+                except IntegrityError:
+                    await self.db.rollback()
         return scenario
 
     async def save_calc_window(

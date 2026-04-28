@@ -567,7 +567,6 @@ async def scenario_roadmap(
                 added_date=inst.opening_date,
                 closed_date=inst.closed_date,
                 is_active=is_active,
-                sub_earned_date=None,
                 sub_projected_earn_date=sub_projected,
                 sub_status=sub_status,
                 sub_window_end=sub_window_end,

@@ -88,9 +88,6 @@ class CardInstance(Base):
     product_change_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     closed_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
-    # SUB tracking
-    sub_earned_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-
     # PC chain link (instance-to-instance). NO ACTION to avoid self-cycle
     # cascade and to avoid blocking deletion of the chain root.
     pc_from_instance_id: Mapped[Optional[int]] = mapped_column(

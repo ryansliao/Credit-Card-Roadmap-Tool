@@ -1075,11 +1075,9 @@ function CardRow({
 
   const enabled = wc.is_enabled
 
-  // sub_earned_date is deprecated and ignored — the projected earn date
-  // (auto-computed by the backend from spend rate, with the SUB-window cap
-  // applied) is the single source of truth for the SUB earn marker. Read
-  // only from roadmapStatus; instance.sub_projected_earn_date is a
-  // vestigial column with no current writer and may hold stale data.
+  // The projected SUB earn date (auto-computed by the backend from spend
+  // rate, with the SUB-window cap applied) is the single source of truth
+  // for the SUB earn marker.
   const subProjectedDate = roadmapStatus?.sub_projected_earn_date ?? null
   const subProjectedMs = subProjectedDate ? parseDate(subProjectedDate).getTime() : null
 
