@@ -232,6 +232,8 @@ export interface Card {
   accelerator_max_activations: number | null
   photo_slug: string | null
   foreign_transaction_fee: boolean
+  /** True when the card waives the 3% rent/mortgage payment processing fee. */
+  housing_fee_waived: boolean
   sub_recurrence_months: number | null
   sub_family: string | null
   multipliers: CardMultiplier[]
@@ -346,6 +348,8 @@ export interface CardResult {
   accelerator_cost_points: number
   secondary_currency_net_earn: number
   secondary_currency_value_dollars: number
+  /** Annual housing processing fee ($/yr) already deducted from EAF. 0 for waived cards. */
+  housing_fee_dollars?: number
   photo_slug: string | null
 }
 
@@ -789,12 +793,15 @@ export interface ScenarioCardCreditOverride {
   value: number
 }
 
+export type HousingType = 'rent' | 'mortgage'
+
 export interface WalletWithScenarios {
   id: number
   user_id: number
   name: string
   description: string | null
   foreign_spend_percent: number
+  housing_type: HousingType | null
   card_instances: CardInstance[]
   scenarios: ScenarioSummary[]
 }
@@ -804,7 +811,12 @@ export interface WalletWithScenarios {
 export const walletApi = {
   /** Get the user's single wallet (auto-creates on first call). */
   get: () => request<WalletWithScenarios>('/wallet'),
-  update: (payload: { name?: string; description?: string | null; foreign_spend_percent?: number }) =>
+  update: (payload: {
+    name?: string
+    description?: string | null
+    foreign_spend_percent?: number
+    housing_type?: HousingType
+  }) =>
     request<WalletWithScenarios>('/wallet', {
       method: 'PATCH',
       body: JSON.stringify(payload),

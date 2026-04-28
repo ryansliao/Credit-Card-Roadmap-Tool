@@ -25,6 +25,7 @@ from ..models import (
     SpendCategory,
     UserSpendCategory,
     UserSpendCategoryMapping,
+    Wallet,
     WalletSpendItem,
     travel_portal_cards,
 )
@@ -144,8 +145,22 @@ class CalculatorDataService:
           Groceries -> Groceries (75%), Wholesale Clubs (20%), Online Groceries (5%)
         The result will be:
           {"Groceries": 750, "Wholesale Clubs": 200, "Online Groceries": 50}
+
+        The "Housing" user category is special: the wallet's ``housing_type``
+        ('rent' or 'mortgage'; default 'rent') replaces the YAML 50/50 split,
+        so 100% of housing $ flows to the chosen earn category.
         """
-        # Load wallet spend items with user category
+        # Load wallet (for housing_type) and spend items in parallel.
+        wallet_row = (
+            await self.db.execute(select(Wallet).where(Wallet.id == wallet_id))
+        ).scalar_one_or_none()
+        housing_choice = (
+            (wallet_row.housing_type or "rent").lower()
+            if wallet_row is not None
+            else "rent"
+        )
+        housing_target = "Mortgage" if housing_choice == "mortgage" else "Rent"
+
         result = await self.db.execute(
             select(WalletSpendItem)
             .options(
@@ -164,10 +179,14 @@ class CalculatorDataService:
 
         # Load mappings for all user categories in one query
         mappings_by_user_cat: dict[int, list[tuple[str, float]]] = {}
+        housing_user_cat_ids: set[int] = set()
         if user_cat_ids:
             mapping_result = await self.db.execute(
                 select(UserSpendCategoryMapping)
-                .options(selectinload(UserSpendCategoryMapping.earn_category))
+                .options(
+                    selectinload(UserSpendCategoryMapping.earn_category),
+                    selectinload(UserSpendCategoryMapping.user_category),
+                )
                 .where(UserSpendCategoryMapping.user_category_id.in_(user_cat_ids))
             )
             for mapping in mapping_result.scalars().all():
@@ -175,6 +194,15 @@ class CalculatorDataService:
                 mappings_by_user_cat.setdefault(mapping.user_category_id, []).append(
                     (earn_cat_name, mapping.default_weight)
                 )
+                if (
+                    mapping.user_category is not None
+                    and mapping.user_category.name.strip().lower() == "housing"
+                ):
+                    housing_user_cat_ids.add(mapping.user_category_id)
+        # Override the Housing USC's mappings with a 100% weight on the
+        # user's chosen earn category. Other USCs are unchanged.
+        for housing_uc_id in housing_user_cat_ids:
+            mappings_by_user_cat[housing_uc_id] = [(housing_target, 1.0)]
 
         spend: dict[str, float] = {}
         for item in items:
@@ -440,6 +468,7 @@ class CalculatorDataService:
                 if card.secondary_currency_cap_rate
                 else 0.0
             ),
+            secondary_currency_annual_bonus=card.secondary_currency_annual_bonus or 0,
             accelerator_cost=card.accelerator_cost or 0,
             accelerator_spend_limit=(
                 float(card.accelerator_spend_limit)

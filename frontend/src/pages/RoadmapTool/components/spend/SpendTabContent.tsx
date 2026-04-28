@@ -3,10 +3,12 @@ import { useQuery } from '@tanstack/react-query'
 import type {
   Card,
   CardResult,
+  HousingType,
   ScenarioCardCategoryPriority,
   UserSpendCategory,
+  WalletWithScenarios,
 } from '../../../../api/client'
-import { walletSpendApi } from '../../../../api/client'
+import { walletApi, walletSpendApi } from '../../../../api/client'
 import type { ResolvedCard } from '../../lib/resolveScenarioCards'
 import { InfoQuoteBox } from '../../../../components/InfoPopover'
 import { formatMoneyExact, formatPointsExact } from '../../../../utils/format'
@@ -57,6 +59,31 @@ export function SpendTabContent({
     queryKey: queryKeys.walletSpendItemsSingular(),
     queryFn: () => walletSpendApi.list(),
   })
+
+  const { data: wallet } = useQuery<WalletWithScenarios>({
+    queryKey: queryKeys.myWalletWithScenarios(),
+    queryFn: () => walletApi.get(),
+  })
+  const housingType: HousingType = wallet?.housing_type ?? 'rent'
+  const housingTargetEarn = housingType === 'mortgage' ? 'Mortgage' : 'Rent'
+
+  // The "Housing" UserSpendCategory's YAML mappings are 50/50 Rent/Mortgage;
+  // the backend overrides this at calc time so 100% of Housing $ flows to
+  // the user-selected ``housing_type``. Mirror that override in the UI so
+  // ROS, coverage checks, pin matching, info popover, and aggregated earn
+  // all read the user's actual housing target instead of the YAML default.
+  function effectiveMappings(uc: UserSpendCategory): UserSpendCategory['mappings'] {
+    if (uc.name.trim().toLowerCase() !== 'housing') return uc.mappings
+    const target = housingTargetEarn.toLowerCase()
+    return uc.mappings.map((m) => ({
+      ...m,
+      default_weight:
+        m.earn_category.category.trim().toLowerCase() === target ? 1 : 0,
+    }))
+  }
+  function activeMappings(uc: UserSpendCategory): UserSpendCategory['mappings'] {
+    return effectiveMappings(uc).filter((m) => m.default_weight > 0)
+  }
 
   const { data: cardLibrary = [] } = useCardLibrary()
 
@@ -213,7 +240,7 @@ export function SpendTabContent({
   function userCategoryHasPortalCoverage(card: CardResult, userCategory: UserSpendCategory): boolean {
     const portals = getPortalMultsForInstanceId(card.card_id)
     if (portals.size === 0) return false
-    for (const m of userCategory.mappings) {
+    for (const m of activeMappings(userCategory)) {
       if (portals.has(m.earn_category.category.trim().toLowerCase())) return true
     }
     return false
@@ -237,13 +264,26 @@ export function SpendTabContent({
   function userCategoryHasRotatingCoverage(card: CardResult, userCategory: UserSpendCategory): boolean {
     const rotating = getRotatingCategoriesForInstanceId(card.card_id)
     if (rotating.size === 0) return false
-    for (const m of userCategory.mappings) {
+    for (const m of activeMappings(userCategory)) {
       if (rotating.has(m.earn_category.category.trim().toLowerCase())) return true
     }
     return false
   }
 
   type RosMode = 'baseline' | 'rotating' | 'portal'
+
+  // 3% housing payment processing fee (in cents/$) — same constant the
+  // backend uses. Subtracted from a non-waived card's housing-category ROS
+  // so the Top ROS Card column reflects the actual post-fee winner (the
+  // backend already nets it out of EAF and allocation scoring).
+  const HOUSING_FEE_PCT = 3
+  function housingFeePenaltyForCard(card: CardResult, earnCatName: string): number {
+    const lib = libCardForInstanceId(card.card_id)
+    if (lib?.housing_fee_waived) return 0
+    const lower = earnCatName.trim().toLowerCase()
+    if (lower !== 'rent' && lower !== 'mortgage') return 0
+    return HOUSING_FEE_PCT
+  }
 
   function getWeightedRosForCard(
     card: CardResult,
@@ -253,6 +293,7 @@ export function SpendTabContent({
     if (!userCategory || userCategory.mappings.length === 0) {
       return 0
     }
+    const mappings = effectiveMappings(userCategory)
     // Recurring percentage bonus factor (e.g., CSP 10% → 1.1)
     const earnBonusFactor =
       card.annual_bonus_percent && !card.annual_bonus_first_year_only
@@ -261,29 +302,41 @@ export function SpendTabContent({
 
     // Rotating mode: the card earns its rotating rate on whatever category
     // rotates that quarter, so take the max rotating rate across the user
-    // category's mappings that fall in the rotating group — don't blend with
-    // baseline for non-rotating mappings. This makes uniform-rate rotating
-    // cards (e.g. original Chase Freedom at 5x on every rotating category)
-    // produce the same rotating ROS across all user categories that have
-    // any rotating coverage.
+    // category's active mappings (post-housing-type override) that fall in
+    // the rotating group — don't blend with baseline for non-rotating
+    // mappings. This makes uniform-rate rotating cards (e.g. original Chase
+    // Freedom at 5x on every rotating category) produce the same rotating
+    // ROS across all user categories that have any rotating coverage.
     if (mode === 'rotating') {
       let maxRotRate = 0
-      for (const mapping of userCategory.mappings) {
+      let rotEarnCat: string | null = null
+      for (const mapping of mappings) {
+        if (mapping.default_weight <= 0) continue
         const rotMult = getRotatingMultForEarnCategory(card, mapping.earn_category.category)
-        if (rotMult !== null && rotMult > maxRotRate) maxRotRate = rotMult
+        if (rotMult !== null && rotMult > maxRotRate) {
+          maxRotRate = rotMult
+          rotEarnCat = mapping.earn_category.category
+        }
       }
-      return maxRotRate * card.cents_per_point * earnBonusFactor
+      const rotPenalty = rotEarnCat ? housingFeePenaltyForCard(card, rotEarnCat) : 0
+      return Math.max(0, maxRotRate * card.cents_per_point * earnBonusFactor - rotPenalty)
     }
 
     let weightedRos = 0
-    for (const mapping of userCategory.mappings) {
+    for (const mapping of mappings) {
+      if (mapping.default_weight <= 0) continue
       const baseline = getBaselineMultForEarnCategory(card, mapping.earn_category.category)
       let mult = baseline
       if (mode === 'portal') {
         const portalMult = getPortalMultForEarnCategory(card, mapping.earn_category.category)
         if (portalMult !== null && portalMult > mult) mult = portalMult
       }
-      weightedRos += mapping.default_weight * mult * card.cents_per_point * earnBonusFactor
+      const grossPct = mult * card.cents_per_point * earnBonusFactor
+      const netPct = Math.max(
+        0,
+        grossPct - housingFeePenaltyForCard(card, mapping.earn_category.category),
+      )
+      weightedRos += mapping.default_weight * netPct
     }
     return weightedRos
   }
@@ -302,8 +355,10 @@ export function SpendTabContent({
     // mapped earn categories. Pinned cards always surface with an OVERRIDE
     // badge — they take precedence over baseline/rotating/portal tags so
     // the user sees the manual pin, not the auto-pick that would have won.
+    // Use ``activeMappings`` so a Mortgage pin doesn't surface as OVERRIDE on
+    // Housing when the user picked 'rent' (and vice versa).
     const userMappedEarnIds = new Set(
-      userCategory.mappings.map((m) => m.earn_category.id),
+      activeMappings(userCategory).map((m) => m.earn_category.id),
     )
     const overrideInstanceIds = new Set<number>()
     for (const card of topRosCards) {
@@ -413,7 +468,7 @@ export function SpendTabContent({
   ): number {
     if (!userCategory) return 0
     let total = 0
-    for (const m of userCategory.mappings) {
+    for (const m of activeMappings(userCategory)) {
       total += earnByCategoryByCard.get(m.earn_category.category)?.get(card.card_id) ?? 0
     }
     return total
@@ -644,30 +699,40 @@ export function SpendTabContent({
         </div>
       )}
 
-      {infoCategory && (
-        <InfoQuoteBox
-          anchorEl={infoCategory.anchor}
-          title={infoCategory.cat.name}
-          onClose={() => setInfoCategory(null)}
-        >
-          {infoCategory.cat.description && <p>{infoCategory.cat.description}</p>}
-          <div>
-            <p className="text-slate-300 font-medium mb-1.5">Includes spend on:</p>
-            <ul className="space-y-1">
-              {infoCategory.cat.mappings
-                .sort((a, b) => b.default_weight - a.default_weight)
-                .map((mapping) => (
-                  <li key={mapping.id} className="flex items-center justify-between">
-                    <span className="text-slate-300">{mapping.earn_category.category}</span>
-                    <span className="text-slate-500 tabular-nums">
-                      {Math.round(mapping.default_weight * 100)}%
-                    </span>
-                  </li>
-                ))}
-            </ul>
-          </div>
-        </InfoQuoteBox>
-      )}
+      {infoCategory && (() => {
+        const isHousing = infoCategory.cat.name.trim().toLowerCase() === 'housing'
+        const displayMappings = effectiveMappings(infoCategory.cat)
+        return (
+          <InfoQuoteBox
+            anchorEl={infoCategory.anchor}
+            title={infoCategory.cat.name}
+            onClose={() => setInfoCategory(null)}
+          >
+            {infoCategory.cat.description && <p>{infoCategory.cat.description}</p>}
+            <div>
+              <p className="text-slate-300 font-medium mb-1.5">Includes spend on:</p>
+              <ul className="space-y-1">
+                {displayMappings
+                  .slice()
+                  .sort((a, b) => b.default_weight - a.default_weight)
+                  .map((mapping) => (
+                    <li key={mapping.id} className="flex items-center justify-between">
+                      <span className="text-slate-300">{mapping.earn_category.category}</span>
+                      <span className="text-slate-500 tabular-nums">
+                        {Math.round(mapping.default_weight * 100)}%
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+              {isHousing && (
+                <p className="text-xs text-slate-500 mt-2">
+                  Set by Housing Type in the Profile / Spending tab.
+                </p>
+              )}
+            </div>
+          </InfoQuoteBox>
+        )
+      })()}
     </div>
   )
 }

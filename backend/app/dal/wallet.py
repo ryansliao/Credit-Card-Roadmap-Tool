@@ -45,6 +45,12 @@ class Wallet(Base):
         Float, default=0, server_default="0"
     )
 
+    # Where the user's "Housing" spend lands: 'rent' or 'mortgage'. The
+    # Housing UserSpendCategory's 50/50 default gets overridden at calc
+    # time so 100% of housing $ flows to the chosen earn category. NULL
+    # is treated as 'rent'.
+    housing_type: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

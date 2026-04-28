@@ -284,6 +284,8 @@ def _card_to_dict(c: Card) -> dict[str, Any]:
             d["secondary_currency_rate"] = c.secondary_currency_rate
         if c.secondary_currency_cap_rate is not None:
             d["secondary_currency_cap_rate"] = c.secondary_currency_cap_rate
+        if c.secondary_currency_annual_bonus:
+            d["secondary_currency_annual_bonus"] = c.secondary_currency_annual_bonus
 
     for f in (
         "accelerator_cost",

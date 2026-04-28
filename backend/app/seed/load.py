@@ -355,6 +355,7 @@ def _card_fields(
         ),
         "secondary_currency_rate": cd.get("secondary_currency_rate"),
         "secondary_currency_cap_rate": cd.get("secondary_currency_cap_rate"),
+        "secondary_currency_annual_bonus": cd.get("secondary_currency_annual_bonus"),
         "accelerator_cost": cd.get("accelerator_cost"),
         "accelerator_spend_limit": cd.get("accelerator_spend_limit"),
         "accelerator_bonus_multiplier": cd.get("accelerator_bonus_multiplier"),

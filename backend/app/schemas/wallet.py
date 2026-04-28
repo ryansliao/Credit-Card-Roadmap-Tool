@@ -7,7 +7,7 @@ Stage 5 of the scenarios refactor. The remaining types support
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -24,6 +24,7 @@ class WalletUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     foreign_spend_percent: Optional[float] = Field(default=None, ge=0, le=100)
+    housing_type: Optional[Literal["rent", "mortgage"]] = None
 
 
 class WalletWithScenariosRead(BaseModel):
@@ -36,5 +37,6 @@ class WalletWithScenariosRead(BaseModel):
     name: str
     description: Optional[str] = None
     foreign_spend_percent: float = 0.0
+    housing_type: Optional[Literal["rent", "mortgage"]] = None
     card_instances: list[CardInstanceRead] = []
     scenarios: list[ScenarioSummary] = []

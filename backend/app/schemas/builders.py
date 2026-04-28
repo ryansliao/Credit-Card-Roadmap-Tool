@@ -178,6 +178,7 @@ def wallet_with_scenarios_read(
         name=wallet.name,
         description=wallet.description,
         foreign_spend_percent=wallet.foreign_spend_percent or 0.0,
+        housing_type=wallet.housing_type,
         card_instances=[card_instance_read(i) for i in owned_instances],
         scenarios=[scenario_summary(s) for s in scenarios],
     )
@@ -229,6 +230,7 @@ def wallet_to_schema(
             accelerator_cost_points=cr.accelerator_cost_points,
             secondary_currency_net_earn=cr.secondary_currency_net_earn,
             secondary_currency_value_dollars=cr.secondary_currency_value_dollars,
+            housing_fee_dollars=cr.housing_fee_dollars,
             photo_slug=photo_slugs.get(cr.card_id) if photo_slugs else None,
             sub_projected_earn_date=cr.sub_projected_earn_date,
         )

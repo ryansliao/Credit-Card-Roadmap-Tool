@@ -27,6 +27,7 @@ class UpdateCardLibraryPayload(BaseModel):
     secondary_currency_id: Optional[int] = None
     secondary_currency_rate: Optional[float] = Field(default=None, ge=0, le=1)
     secondary_currency_cap_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    secondary_currency_annual_bonus: Optional[int] = Field(default=None, ge=0)
     accelerator_cost: Optional[int] = Field(default=None, ge=0)
     accelerator_spend_limit: Optional[float] = Field(default=None, ge=0)
     accelerator_bonus_multiplier: Optional[float] = Field(default=None, ge=0)
@@ -254,6 +255,7 @@ class CardRead(BaseModel):
     secondary_currency_id: Optional[int] = None
     secondary_currency_rate: Optional[float] = None
     secondary_currency_cap_rate: Optional[float] = None
+    secondary_currency_annual_bonus: Optional[int] = None
     accelerator_cost: Optional[int] = None
     accelerator_spend_limit: Optional[float] = None
     accelerator_bonus_multiplier: Optional[float] = None

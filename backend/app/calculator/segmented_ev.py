@@ -245,7 +245,22 @@ def _segmented_card_net_per_year(
         eff_currency_sec = _effective_currency(card, active_wallet_currency_ids)
         total_earn_dollars += sec.bonus_pts_annual * eff_currency_sec.cents_per_point / 100.0 * active_years
 
-    total_net = total_earn_dollars + total_credits - total_fee
+    # Housing processing fee: 3% × allocated housing $, prorated to active days.
+    # Waived cards have empty ``housing_fee_categories`` so the helper returns 0.
+    from ..constants import HOUSING_PROCESSING_FEE_PERCENT
+    from .allocation import calc_housing_spend_allocated
+    if card_ever_active and card.housing_fee_categories:
+        active_years_for_fee = active_days / 365.25 if active_days > 0 else 0.0
+        housing_alloc = calc_housing_spend_allocated(
+            card, selected_cards, spend, active_wallet_currency_ids,
+        )
+        total_housing_fee = (
+            housing_alloc * HOUSING_PROCESSING_FEE_PERCENT / 100.0 * active_years_for_fee
+        )
+    else:
+        total_housing_fee = 0.0
+
+    total_net = total_earn_dollars + total_credits - total_fee - total_housing_fee
     sub_total_dollars = sub_bonus_dollars + sub_cash_dollars + sub_secondary_dollars
     sub_contribution_per_year = sub_total_dollars / total_years
     return (

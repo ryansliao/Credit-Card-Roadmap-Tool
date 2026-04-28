@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from .allocation import FOREIGN_CAT_PREFIX as _FOREIGN_CAT_PREFIX
+from .allocation import _housing_fee_score_penalty
 from .currency import _comparison_cpp, _secondary_currency_comparison_bonus
 from .multipliers import _all_other_multiplier, _build_effective_multipliers
 from .segments import _cap_period_bounds, _segment_card_earn_pts_per_cat
@@ -334,9 +335,11 @@ def _solve_segment_allocation_lp(
                 mult = card_mult[k_idx].get(cat_lower, card_all_other[k_idx])
         else:
             mult = bonus_mult.get((k_idx, cat_lower), card_all_other[k_idx])
-        # Effective $ earned per $ spent (primary earn + secondary currency bonus).
+        # Effective $ earned per $ spent (primary earn + secondary currency bonus,
+        # minus the housing processing fee on non-waived cards).
         sec_bonus = _secondary_currency_comparison_bonus(competing[k_idx], category=cat_name, for_balance=for_balance)
-        rate = mult * cpp / 100.0 + sec_bonus / 100.0
+        fee_penalty = _housing_fee_score_penalty(competing[k_idx], cat_name)
+        rate = mult * cpp / 100.0 + sec_bonus / 100.0 - fee_penalty / 100.0
         obj_c[i] = -rate
 
     # Equality constraints: per category, Σ_k (e + b) = d_C
@@ -504,7 +507,10 @@ def _solve_segment_allocation_lp(
             sec_bonus = _secondary_currency_comparison_bonus(
                 competing[k_idx], category=cat_name, for_balance=for_balance
             )
-            card_rates.append((k_idx, mult * cpp / 100.0 + sec_bonus / 100.0))
+            fee_penalty = _housing_fee_score_penalty(competing[k_idx], cat_name)
+            card_rates.append(
+                (k_idx, mult * cpp / 100.0 + sec_bonus / 100.0 - fee_penalty / 100.0)
+            )
         if not card_rates:
             continue
         best_rate = max(r for _, r in card_rates)

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import math
 
+from ..constants import HOUSING_PROCESSING_FEE_PERCENT
 from .currency import (
     _comparison_cpp,
     _conversion_rate,
@@ -30,6 +31,27 @@ from .types import CardData
 # Duplicated here to avoid importing from compute.py (which imports from this
 # module). Must match the value in compute.py exactly.
 FOREIGN_CAT_PREFIX = "__foreign__"
+
+
+def _housing_fee_score_penalty(card: CardData, category: str) -> float:
+    """Cents/$ to subtract from a card's allocation score on a housing
+    category. Returns 0 for waived cards or non-housing categories.
+
+    The penalty is the housing processing fee (3%) expressed in the same
+    cents/$ units as the score (mult × cpp + sec_bonus). Subtracting it
+    lets the LP/tied-winner pick the post-fee best card without mutating
+    the gross multiplier, so ``category_multipliers`` and ROS stay clean.
+    """
+    if not card.housing_fee_categories:
+        return 0.0
+    base = (
+        category[len(FOREIGN_CAT_PREFIX):]
+        if category.startswith(FOREIGN_CAT_PREFIX)
+        else category
+    )
+    if base.strip().lower() in card.housing_fee_categories:
+        return HOUSING_PROCESSING_FEE_PERCENT
+    return 0.0
 
 
 def _rotating_cap_info(
@@ -214,7 +236,7 @@ def _compute_category_shares(
         freq = _get_category_appearance_rate(c, category)
         cpp = _comparison_cpp(c, wallet_currency_ids, for_balance=for_balance)
         sec_bonus = _secondary_currency_comparison_bonus(c, category=category, for_balance=for_balance)
-        score = m * cpp * c.earn_bonus_factor + sec_bonus
+        score = m * cpp * c.earn_bonus_factor + sec_bonus - _housing_fee_score_penalty(c, category)
         scored.append((score, c, m, freq))
 
     if not scored:
@@ -292,7 +314,8 @@ def _tied_cards_for_category(
         # This ensures cards earning a secondary currency (e.g. Bilt Cash → Bilt Points)
         # compete at their true effective value, not just the primary multiplier.
         sec_bonus = _secondary_currency_comparison_bonus(c, category=category, for_balance=for_balance)
-        scored.append((m * cpp * c.earn_bonus_factor + sec_bonus, c))
+        score = m * cpp * c.earn_bonus_factor + sec_bonus - _housing_fee_score_penalty(c, category)
+        scored.append((score, c))
     if not scored:
         return []
     best = max(t[0] for t in scored)
@@ -359,6 +382,41 @@ def calc_annual_point_earn_allocated(
     for cat, captured, mult in per_cat:
         cat_pts += captured * blends.get(cat, mult)
     return float(card.annual_bonus) + cat_pts + _pct_bonus(card, cat_pts)
+
+
+def calc_housing_spend_allocated(
+    card: CardData,
+    selected_cards: list[CardData],
+    spend: dict[str, float],
+    wallet_currency_ids: set[int],
+    sub_priority_card_ids: set[int] | None = None,
+) -> float:
+    """Annual housing-category spend dollars allocated to this card under
+    the standard allocation logic. Used to compute the per-card housing
+    processing fee — only categories in ``card.housing_fee_categories``
+    contribute, so waived cards always return 0. Foreign-eligible variants
+    (``__foreign__Rent``) count too if their base category is in the set.
+    """
+    if not card.housing_fee_categories:
+        return 0.0
+    def _is_housing(cat: str) -> bool:
+        base = cat[len(FOREIGN_CAT_PREFIX):] if cat.startswith(FOREIGN_CAT_PREFIX) else cat
+        return base.strip().lower() in card.housing_fee_categories
+
+    if len(selected_cards) <= 1:
+        return sum(s for cat, s in spend.items() if s > 0 and _is_housing(cat))
+    total = 0.0
+    for cat, s in spend.items():
+        if s <= 0 or not _is_housing(cat):
+            continue
+        shares = _compute_category_shares(
+            selected_cards, spend, cat, wallet_currency_ids, sub_priority_card_ids,
+        )
+        for c, share, _mult in shares:
+            if c.id == card.id:
+                total += s * share
+                break
+    return total
 
 
 def calc_annual_allocated_spend(

@@ -110,6 +110,9 @@ class Card(Base):
     # Conversion cap: secondary currency can only convert to points when non-housing
     # spend on this card stays below cap_rate × housing spend. 0 = no cap. (e.g. 0.75 for Bilt)
     secondary_currency_cap_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Recurring annual bonus paid in the secondary currency (e.g. Bilt
+    # Palladium: 200 BC/yr). Feeds the BC budget alongside spend-derived BC.
+    secondary_currency_annual_bonus: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # Point accelerator: spend secondary currency to earn bonus primary points
     # (e.g. Bilt: $200 Bilt Cash for +1x on next $5,000, up to 5x/year)

@@ -1215,6 +1215,14 @@ function CardRow({
                         : `${formatPoints(t.value)} ${pointsUnitLabel(t.currency_name)} Credits`}
                     </span>
                   ))}
+                {cr && (cr.housing_fee_dollars ?? 0) > 0 && (
+                  <span title="3% rent/mortgage payment processing fee, deducted from EAF">
+                    <span className="mx-1 text-slate-700">·</span>
+                    <span className="text-rose-400">
+                      −{formatMoney(cr.housing_fee_dollars ?? 0)} Housing Fee
+                    </span>
+                  </span>
+                )}
               </div>
             )}
           </div>

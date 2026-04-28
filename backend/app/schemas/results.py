@@ -62,6 +62,8 @@ class CardResultSchema(BaseModel):
     accelerator_cost_points: float = 0.0
     secondary_currency_net_earn: float = 0.0
     secondary_currency_value_dollars: float = 0.0
+    # Annual housing processing fee in dollars (already deducted from EAF).
+    housing_fee_dollars: float = 0.0
     photo_slug: Optional[str] = None
     # Projected SUB earn date computed alongside the calc. Sourced by the
     # roadmap endpoint when the calc snapshot is fresh (input hash matches);

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import {
   walletApi,
   walletSpendApi,
+  type HousingType,
   type UserSpendCategory,
   type WalletSpendItem,
 } from '../../../api/client'
@@ -36,6 +37,14 @@ export function SpendingTab() {
     mutationFn: (pct: number) => walletApi.update({ foreign_spend_percent: pct }),
     onSuccess: () => {
       setDraftForeignPct(null)
+      queryClient.invalidateQueries({ queryKey: queryKeys.myWalletWithScenarios() })
+    },
+  })
+
+  const housingType: HousingType = wallet?.housing_type ?? 'rent'
+  const housingTypeMutation = useMutation({
+    mutationFn: (h: HousingType) => walletApi.update({ housing_type: h }),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.myWalletWithScenarios() })
     },
   })
@@ -91,6 +100,31 @@ export function SpendingTab() {
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center w-48 shrink-0 flex flex-col justify-center">
           <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Annual Spend</p>
           <p className="text-xl font-bold text-white mt-0.5 tabular-nums">${totalSpend.toLocaleString()}</p>
+        </div>
+        <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 w-56 shrink-0 flex flex-col justify-center">
+          <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-2">Housing Type</p>
+          <div className="grid grid-cols-2 gap-1 bg-slate-900/60 rounded-md p-0.5">
+            {(['rent', 'mortgage'] as const).map((opt) => {
+              const active = housingType === opt
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  disabled={!walletReady || housingTypeMutation.isPending}
+                  onClick={() => {
+                    if (housingType !== opt) housingTypeMutation.mutate(opt)
+                  }}
+                  className={`text-xs font-medium py-1.5 rounded transition-colors capitalize ${
+                    active
+                      ? 'bg-indigo-500 text-white'
+                      : 'text-slate-300 hover:bg-slate-700/60'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {opt}
+                </button>
+              )
+            })}
+          </div>
         </div>
         <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 flex-1 min-w-0 flex flex-col justify-center">
           <div className="flex items-center justify-between mb-2">
@@ -286,30 +320,48 @@ export function SpendingTab() {
         )}
       </div>
 
-      {infoCategory && (
-        <InfoQuoteBox
-          anchorEl={infoCategory.anchor}
-          title={infoCategory.cat.name}
-          onClose={() => setInfoCategory(null)}
-        >
-          {infoCategory.cat.description && <p>{infoCategory.cat.description}</p>}
-          <div>
-            <p className="text-slate-300 font-medium mb-1.5">Includes spend on:</p>
-            <ul className="space-y-1">
-              {infoCategory.cat.mappings
-                .sort((a, b) => b.default_weight - a.default_weight)
-                .map((mapping) => (
-                  <li key={mapping.id} className="flex items-center justify-between">
-                    <span className="text-slate-300">{mapping.earn_category.category}</span>
-                    <span className="text-slate-500 tabular-nums">
-                      {Math.round(mapping.default_weight * 100)}%
-                    </span>
-                  </li>
-                ))}
-            </ul>
-          </div>
-        </InfoQuoteBox>
-      )}
+      {infoCategory && (() => {
+        const isHousing = infoCategory.cat.name.trim().toLowerCase() === 'housing'
+        const housingTarget = housingType === 'mortgage' ? 'Mortgage' : 'Rent'
+        const displayMappings = isHousing
+          ? infoCategory.cat.mappings.map((m) => ({
+              ...m,
+              default_weight:
+                m.earn_category.category.trim().toLowerCase() === housingTarget.toLowerCase()
+                  ? 1
+                  : 0,
+            }))
+          : infoCategory.cat.mappings
+        return (
+          <InfoQuoteBox
+            anchorEl={infoCategory.anchor}
+            title={infoCategory.cat.name}
+            onClose={() => setInfoCategory(null)}
+          >
+            {infoCategory.cat.description && <p>{infoCategory.cat.description}</p>}
+            <div>
+              <p className="text-slate-300 font-medium mb-1.5">Includes spend on:</p>
+              <ul className="space-y-1">
+                {displayMappings
+                  .sort((a, b) => b.default_weight - a.default_weight)
+                  .map((mapping) => (
+                    <li key={mapping.id} className="flex items-center justify-between">
+                      <span className="text-slate-300">{mapping.earn_category.category}</span>
+                      <span className="text-slate-500 tabular-nums">
+                        {Math.round(mapping.default_weight * 100)}%
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+              {isHousing && (
+                <p className="text-xs text-slate-500 mt-2">
+                  Set by your Housing Type above. Switch to {housingTarget === 'Rent' ? 'Mortgage' : 'Rent'} to flip.
+                </p>
+              )}
+            </div>
+          </InfoQuoteBox>
+        )
+      })()}
     </div>
   )
 }

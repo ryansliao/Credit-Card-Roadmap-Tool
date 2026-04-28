@@ -18,6 +18,7 @@ from .allocation import (
     _effective_annual_earn_allocated,
     calc_annual_allocated_spend,
     calc_category_earn_breakdown,
+    calc_housing_spend_allocated,
 )
 from .credits import (
     calc_avg_spend_multiplier,
@@ -302,45 +303,22 @@ def compute_wallet(
     selected_cards = [c for c in all_cards if c.id in selected_ids]
 
     # Housing processing fee: cards without housing_fee_waived incur a ~3%
-    # payment platform fee when used for rent/mortgage.  Reduce their housing
-    # category multipliers so allocation and earn reflect the net value after
-    # the fee.  The penalty in multiplier units is fee% / (CPP/100) — e.g. at
-    # 2.0 cpp the 3% fee costs 1.5x worth of points per dollar.
-    if housing_spend_total > 0 and _housing_names:
-        fee_rate = HOUSING_PROCESSING_FEE_PERCENT / 100.0  # 0.03
-        any_waived = any(
-            c.housing_fee_waived for c in selected_cards
-        )
-        if any_waived:
-            new_cards: list[CardData] = []
-            for c in all_cards:
-                if c.housing_fee_waived or c.id not in selected_ids:
-                    new_cards.append(c)
-                    continue
-                eff_cur = _effective_currency(c, active_wallet_currency_ids)
-                cpp = eff_cur.cents_per_point
-                if cpp <= 0:
-                    new_cards.append(c)
-                    continue
-                fee_mult_penalty = fee_rate / (cpp / 100.0)
-                new_mults = dict(c.multipliers)
-                changed = False
-                for name in _housing_names:
-                    for key in (name, f"{FOREIGN_CAT_PREFIX}{name}"):
-                        if key in new_mults:
-                            new_mults[key] = max(0.0, new_mults[key] - fee_mult_penalty)
-                            changed = True
-                        else:
-                            # Category falls through to All Other; apply penalty
-                            ao = _all_other_multiplier(new_mults)
-                            new_mults[key] = max(0.0, ao - fee_mult_penalty)
-                            changed = True
-                if changed:
-                    new_cards.append(replace(c, multipliers=new_mults))
-                else:
-                    new_cards.append(c)
-            all_cards = new_cards
-            selected_cards = [c for c in all_cards if c.id in selected_ids]
+    # payment platform fee when used for rent/mortgage. The fee is *not*
+    # baked into the multiplier (that would conflate points-earn with
+    # dollar-cost). Instead, the wallet's housing category names are
+    # attached to each non-waived card as ``housing_fee_categories``;
+    # allocation/LP scoring subtracts ``HOUSING_PROCESSING_FEE_PERCENT``
+    # from their dollar-equivalent score on those categories, and the
+    # per-card net annual deducts ``fee × allocated_housing_spend`` so the
+    # cost shows up in EAF without distorting the displayed multiplier.
+    if housing_spend_total > 0 and _housing_lower:
+        housing_fee_keys = frozenset(_housing_lower)
+        all_cards = [
+            c if c.housing_fee_waived
+            else replace(c, housing_fee_categories=housing_fee_keys)
+            for c in all_cards
+        ]
+        selected_cards = [c for c in all_cards if c.id in selected_ids]
 
     # Secondary-currency scoring adjustment for cards with a cap_rate > 0.
     # Without this the LP sees e.g. Bilt's full 4% Bilt Cash bonus on every
@@ -639,9 +617,14 @@ def compute_wallet(
         sec = _calc_secondary_currency(card, sec_alloc, active_wallet_currency_ids, housing_spend=housing_spend_total)
         sec_cur_name = card.secondary_currency.name if card.secondary_currency else ""
         sec_cur_id = card.secondary_currency.id if card.secondary_currency else 0
-        # Total secondary pts over the projection window
-        sec_gross_total = sec.gross_annual_pts * years
-        sec_net_total = sec.net_annual_pts * years
+        # Total secondary pts over the projection window. The recurring
+        # ``secondary_currency_annual_bonus`` is added to gross/net so it
+        # surfaces in the displayed balance; whatever portion gets consumed
+        # by the housing-unlock or accelerator pipeline is then subtracted
+        # via ``secondary_consumption_pts`` below.
+        sec_annual_bonus_pts = float(card.secondary_currency_annual_bonus or 0)
+        sec_gross_total = (sec.gross_annual_pts + sec_annual_bonus_pts) * years
+        sec_net_total = (sec.net_annual_pts + sec_annual_bonus_pts) * years
         sec_cost_total = sec.cost_pts_annual * years
         sec_bonus_total = sec.bonus_pts_annual * years
         # Off-band redemptions (set by ``apply_bilt_2_housing_mode`` in Bilt
@@ -661,6 +644,15 @@ def compute_wallet(
         if card.sub_earnable and card.sub_secondary_points > 0 and card.secondary_currency is not None:
             sec_gross_total += card.sub_secondary_points
             sec_net_total += card.sub_secondary_points
+
+        # Per-card annual housing processing fee for display. Already
+        # deducted from ``effective_annual_fee`` by the secondary/segmented
+        # net path; surface as a separate $/yr line for the UI.
+        housing_fee_dollars = (
+            calc_housing_spend_allocated(
+                card, selected_cards, spend, active_wallet_currency_ids,
+            ) * HOUSING_PROCESSING_FEE_PERCENT / 100.0
+        )
 
         card_results.append(
             CardResult(
@@ -702,6 +694,7 @@ def compute_wallet(
                 accelerator_cost_points=round(sec_cost_total, 2),
                 secondary_currency_net_earn=round(sec_net_total, 2),
                 secondary_currency_value_dollars=round(sec.dollar_value_annual * years, 2),
+                housing_fee_dollars=round(housing_fee_dollars, 2),
             )
         )
 

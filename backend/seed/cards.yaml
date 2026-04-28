@@ -199,6 +199,8 @@ cards:
     multiplier: 3.0
   - category: Foreign Transactions
     multiplier: 3.0
+  - category: Rent
+    multiplier: 3.0
   travel_portals:
   - Alaska Atmos
 - name: Bank of America Customized Cash Rewards
@@ -359,6 +361,7 @@ cards:
   secondary_currency: Bilt Cash
   secondary_currency_rate: 0.04
   secondary_currency_cap_rate: 0.75
+  secondary_currency_annual_bonus: 200
   accelerator_cost: 200
   accelerator_spend_limit: 1000.0
   accelerator_bonus_multiplier: 1.0

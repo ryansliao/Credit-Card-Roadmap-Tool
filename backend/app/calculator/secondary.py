@@ -214,6 +214,15 @@ def _average_annual_net_dollars(
     # Accelerator bonus points are primary currency points; value them at primary CPP.
     accel_bonus_dollars_annual = sec.bonus_pts_annual * cpp / 100.0
 
+    # Housing processing fee: 3% × housing $ allocated to this card. Waived
+    # cards (Bilt) have no fee categories so the helper returns 0.
+    from ..constants import HOUSING_PROCESSING_FEE_PERCENT
+    from .allocation import calc_housing_spend_allocated
+    housing_fee_dollars_annual = (
+        calc_housing_spend_allocated(card, selected_cards, spend, wallet_currency_ids)
+        * HOUSING_PROCESSING_FEE_PERCENT / 100.0
+    )
+
     value = (
         (effective_earn / 100 * cpp) * years
         + effective_sub / 100 * cpp
@@ -226,6 +235,7 @@ def _average_annual_net_dollars(
         + one_time_credits
         + sec.dollar_value_annual * years
         + accel_bonus_dollars_annual * years
+        - housing_fee_dollars_annual * years
         - total_fees
     ) / years
     sub_contribution_per_year = (

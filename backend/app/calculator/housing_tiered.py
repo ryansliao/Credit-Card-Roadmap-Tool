@@ -143,21 +143,31 @@ def _bilt_cash_mode_bonus_bp(
     """
     rate = card.secondary_currency_rate or 0.0
     cap_rate = card.secondary_currency_cap_rate or 0.0
+    bonus_bc = float(card.secondary_currency_annual_bonus or 0)
 
     # Tier 1: first ``cap_rate × housing_spend`` dollars of non-housing spend
-    # redeemed via the housing-payment path. The Bilt Cash earned on this
-    # spend is fully consumed by the redemption.
+    # redeemed via the housing-payment path. BC earned on this spend, plus any
+    # annual BC bonus, is consumed by the redemption — capped at the locked
+    # housing pool (``housing_spend_total`` BP @ 33.33 BP/BC). Once the pool
+    # is fully unlocked, leftover bonus BC flows to the accelerator budget
+    # rather than overflowing the unlock.
     tier1_cap = cap_rate * housing_spend_total if cap_rate > 0 else 0.0
     tier1_spend = min(non_housing, tier1_cap)
-    tier1_bc_consumed = rate * tier1_spend
+    tier1_bc_from_spend = rate * tier1_spend
+    locked_pool_bc = housing_spend_total / _BILT_CASH_DOLLARS_TO_POINTS
+    bonus_bc_for_unlock = max(
+        0.0, min(bonus_bc, locked_pool_bc - tier1_bc_from_spend)
+    )
+    tier1_bc_consumed = tier1_bc_from_spend + bonus_bc_for_unlock
+    bonus_bc_remaining = bonus_bc - bonus_bc_for_unlock
 
     # Tier 2: Point Accelerator activations. Each activation costs
     # ``accelerator_cost`` BC for a bonus on ``accelerator_spend_limit``
     # dollars of spend. Activations are capped by three independent limits:
     # max/year, spend available (after Tier 1), and *BC budget* — the BC
-    # earned on Tier 2 + Tier 3 spend (Tier 1 BC is already consumed). The
-    # BC budget cap prevents assuming more activations than the user's
-    # spend actually funds.
+    # earned on Tier 2 + Tier 3 spend plus any annual BC bonus left over
+    # after Tier 1 unlock. The BC budget cap prevents assuming more
+    # activations than the user's BC inflow funds.
     accelerator_available = (
         card.accelerator_cost > 0
         and card.accelerator_spend_limit > 0
@@ -168,9 +178,9 @@ def _bilt_cash_mode_bonus_bp(
     if accelerator_available:
         max_by_year = card.accelerator_max_activations
         max_by_spend = int(remaining_spend / card.accelerator_spend_limit)
-        # BC available for activations = BC earned on non-Tier-1 spend.
-        # Each activation costs ``accelerator_cost`` BC.
-        available_bc = rate * remaining_spend
+        # BC available for activations = BC earned on non-Tier-1 spend
+        # + leftover annual bonus BC. Each activation costs ``accelerator_cost`` BC.
+        available_bc = rate * remaining_spend + bonus_bc_remaining
         max_by_bc = int(available_bc / card.accelerator_cost)
         activations = min(max_by_year, max_by_spend, max_by_bc)
     else:
@@ -181,11 +191,10 @@ def _bilt_cash_mode_bonus_bp(
     activation_bc_consumed = activations * card.accelerator_cost
 
     # Tier 1 bonus: each Bilt Cash dollar converts to (1000/30) BP via the
-    # housing-payment redemption — so ``tier1_spend × rate × (1000/30)`` is
-    # the count of locked housing BP that get unlocked. At the cap this
-    # equals ``housing_spend_total × 1``.
-    tier1_bonus_per_dollar = rate * _BILT_CASH_DOLLARS_TO_POINTS
-    tier1_bonus_bp = tier1_spend * tier1_bonus_per_dollar
+    # housing-payment redemption — so ``tier1_bc_consumed × (1000/30)`` is
+    # the count of locked housing BP that get unlocked. At the unlock cap
+    # this equals ``housing_spend_total × 1``.
+    tier1_bonus_bp = tier1_bc_consumed * _BILT_CASH_DOLLARS_TO_POINTS
 
     # Tier 2 bonus: accelerator adds ``bonus_multiplier`` BP per dollar on the
     # covered spend. ``tier2_spend`` already reflects the BC-budget cap, so
@@ -265,15 +274,17 @@ def _build_bilt_cash_mode_card(
     ``secondary_consumption_pts`` from that gross gives the BC remaining
     after Tier 1 unlock + accelerator activations.
     """
-    if housing_spend_total > 0:
-        unlock_per_housing_dollar = tier1_bonus_bp / housing_spend_total
-    else:
-        unlock_per_housing_dollar = 0.0
-
     new_mults = dict(card.multipliers)
-    for name in housing_category_names:
-        new_mults[name] = unlock_per_housing_dollar
-        new_mults[f"{foreign_prefix}{name}"] = unlock_per_housing_dollar
+    if housing_spend_total > 0:
+        # Re-attribute the unlock value to housing categories. With no
+        # housing spend, leave the native multipliers in place so the card
+        # still shows its library Rent/Mortgage rate (e.g. 1× BP for
+        # Palladium) — there's nothing to unlock, but Top-ROS / display
+        # logic shouldn't see a 0× housing rate that doesn't exist.
+        unlock_per_housing_dollar = tier1_bonus_bp / housing_spend_total
+        for name in housing_category_names:
+            new_mults[name] = unlock_per_housing_dollar
+            new_mults[f"{foreign_prefix}{name}"] = unlock_per_housing_dollar
     # Pin housing to this card so allocation routes the housing dollars
     # here. ``priority_categories`` is matched lowercase (with the foreign
     # prefix stripped) — see ``_category_priority_cards``.

@@ -149,6 +149,12 @@ class CardData:
     # True when the card waives the ~3% housing payment processing fee
     # (e.g. Bilt's built-in rent/mortgage platform).
     housing_fee_waived: bool = False
+    # Lowercase housing category names this card incurs the processing fee
+    # on. Empty for waived cards. Populated by ``compute_wallet`` from the
+    # wallet's housing categories. Used by allocation/LP scoring (subtract
+    # the fee % from the dollar-equivalent score) and per-card EAF
+    # accounting (deduct fee × allocated_housing_spend from net annual).
+    housing_fee_categories: frozenset[str] = field(default_factory=frozenset)
 
     # Secondary currency earned at a flat rate on all allocated spend
     # (e.g. Bilt Cash at 4% alongside Bilt Points via multipliers)
@@ -164,6 +170,11 @@ class CardData:
     # Conversion cap: secondary currency can only convert to points when non-housing
     # spend on this card ≤ cap_rate × housing spend. 0 = no cap. (e.g. 0.75 for Bilt)
     secondary_currency_cap_rate: float = 0.0
+    # Recurring annual bonus paid in the secondary currency (e.g. Bilt
+    # Palladium: 200 BC/yr). Added to the BC budget in
+    # ``apply_bilt_2_housing_mode`` so it can fund Tier 1 housing unlock or
+    # Point Accelerator activations alongside spend-derived BC.
+    secondary_currency_annual_bonus: int = 0
     # Spend category names (lowercase; may include ``__foreign__`` prefix) on
     # which the secondary currency earns *nothing* — neither points nor the
     # scoring bonus. Bilt 2.0 in Bilt Cash mode populates this with Rent /
@@ -301,6 +312,12 @@ class CardResult:
     accelerator_cost_points: float = 0.0        # secondary currency pts spent on accelerator
     secondary_currency_net_earn: float = 0.0    # gross secondary pts minus accelerator cost
     secondary_currency_value_dollars: float = 0.0  # annualized dollar value of net secondary earn
+
+    # Annual housing processing fee: 3% × allocated housing spend on cards
+    # without ``housing_fee_waived``. Already deducted from
+    # ``effective_annual_fee``; surfaced here as a separate dollar line so
+    # the UI can show the cost without having to re-derive it.
+    housing_fee_dollars: float = 0.0
 
     # The projected SUB earn date used for this card's allocation (post-LP /
     # plan_sub_targeting). The calculator does not write this field —
