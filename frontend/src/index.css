@@ -1,58 +1,85 @@
 @import "tailwindcss";
+@import "./styles/tokens.css";
 
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
-    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+/* @theme inline tells Tailwind to emit utilities that REFERENCE the
+   CSS variables verbatim, so `bg-page` resolves at runtime to whatever
+   --color-page is — which depends on data-theme. Without `inline`,
+   Tailwind would resolve the variable at build time and lock the value. */
+@theme inline {
+  --color-page: var(--color-page);
+  --color-surface: var(--color-surface);
+  --color-surface-2: var(--color-surface-2);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-ink-faint: var(--color-ink-faint);
+  --color-divider: var(--color-divider);
+  --color-divider-strong: var(--color-divider-strong);
+  --color-accent: var(--color-accent);
+  --color-accent-soft: var(--color-accent-soft);
+  --color-pos: var(--color-pos);
+  --color-neg: var(--color-neg);
+  --color-warn: var(--color-warn);
+  --color-info: var(--color-info);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-modal: var(--shadow-modal);
 }
 
 html {
   font-family: var(--font-sans);
+  background: var(--color-page);
+  color: var(--color-ink);
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
-   Custom scrollbars — slim, dark, hover-reactive. Applies app-wide.
-   Firefox uses `scrollbar-*` props; WebKit/Blink use the pseudo-elements.
-   ────────────────────────────────────────────────────────────────────────── */
+body {
+  background: var(--color-page);
+  color: var(--color-ink);
+}
+
+/* Editorial numeric variants */
+.tnum {
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+.tnum-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+.tnum-feature {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 144;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* Custom scrollbars — preserve existing behavior, switch to token */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgb(51 65 85 / 0.6) transparent; /* slate-700 / transparent */
+  scrollbar-color: var(--color-divider-strong) transparent;
 }
-
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
-  background-color: rgb(51 65 85 / 0.6); /* slate-700 @ 60% */
+  background-color: var(--color-divider-strong);
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: padding-box;
   transition: background-color 150ms ease;
 }
-
-*::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(100 116 139 / 0.8); /* slate-500 @ 80% */
-}
-
-*::-webkit-scrollbar-thumb:active {
-  background-color: rgb(148 163 184 / 0.9); /* slate-400 @ 90% */
-}
-
-*::-webkit-scrollbar-corner {
-  background: transparent;
-}
+*::-webkit-scrollbar-thumb:hover { background-color: var(--color-ink-faint); }
+*::-webkit-scrollbar-thumb:active { background-color: var(--color-ink-muted); }
+*::-webkit-scrollbar-corner { background: transparent; }
 
 @keyframes progress-bar {
   0%   { width: 0%; opacity: 1; }
   60%  { width: 85%; opacity: 1; }
   100% { width: 95%; opacity: 1; }
 }
-
-.animate-progress-bar {
-  animation: progress-bar 2s ease-out forwards;
-}
+.animate-progress-bar { animation: progress-bar 2s ease-out forwards; }
