@@ -98,7 +98,7 @@ function ToastDemo() {
  */
 export default function Styleguide() {
   return (
-    <div className="min-h-dvh bg-page text-ink">
+    <div className="h-full overflow-y-auto bg-page text-ink">
       <header className="border-b border-divider px-8 py-6 flex items-center justify-between">
         <div>
           <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Internal</p>
