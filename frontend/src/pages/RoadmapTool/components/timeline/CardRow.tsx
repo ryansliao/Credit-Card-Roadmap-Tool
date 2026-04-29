@@ -95,6 +95,9 @@ function SubEarningSegment({
   // colored border. Uses the same `${color}33` alpha pattern the rest of
   // the bar uses (33/255 ≈ 20% alpha).
   const yellow = 'var(--chart-sub)'
+  // Skip the right border when the indigo lifetime bar abuts this segment —
+  // otherwise both bars render a 1px border at the seam and it reads as 2px.
+  const abutsLifetimeRight = !segmentTouchesLifetimeRight
   return (
     <div
       className={`absolute ${roundedClass}`}
@@ -104,7 +107,10 @@ function SubEarningSegment({
         top,
         height: barHeight,
         backgroundColor: `color-mix(in oklab, ${yellow} 20%, transparent)`,
-        border: `1px solid ${yellow}`,
+        borderTop: `1px solid ${yellow}`,
+        borderBottom: `1px solid ${yellow}`,
+        borderLeft: `1px solid ${yellow}`,
+        borderRight: abutsLifetimeRight ? 'none' : `1px solid ${yellow}`,
         zIndex: 31,
       }}
       title={title ?? undefined}
