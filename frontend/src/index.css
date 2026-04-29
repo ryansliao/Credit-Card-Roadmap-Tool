@@ -55,7 +55,7 @@ body {
 }
 .tnum-feature {
   font-family: var(--font-display);
-  font-variation-settings: "opsz" 144;
+  font-weight: 600;
   font-feature-settings: "tnum" 1, "lnum" 1;
 }
 
