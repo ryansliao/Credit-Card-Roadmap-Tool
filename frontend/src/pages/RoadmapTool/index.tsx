@@ -33,13 +33,14 @@ import { today } from '../../utils/format'
 import { WalletCardModal } from '../../components/cards/WalletCardModal'
 import { DeleteCardWarningModal } from '../../components/cards/DeleteCardWarningModal'
 import { WalletSummaryStats } from './components/summary/WalletSummaryStats'
-import { MethodologyInfoPopover } from './components/summary/MethodologyInfoPopover'
+import { Popover } from '../../components/ui/Popover'
+import { Button } from '../../components/ui/Button'
+import { Heading } from '../../components/ui/Heading'
 import { WalletTimelineChart } from './components/timeline/WalletTimelineChart'
 import { SpendPanel } from './components/spend/SpendPanel'
 import { ApplicationRuleWarningModal } from './components/ApplicationRuleWarningModal'
 import { AddScenarioModal } from './components/AddScenarioModal'
 import { ScenarioPicker } from './components/ScenarioPicker'
-import { InfoIconButton } from '../../components/InfoPopover'
 import { useCardLibrary } from './hooks/useCardLibrary'
 import { useCreditLibrary } from '../../hooks/useCreditLibrary'
 import { useTravelPortals } from '../../hooks/useTravelPortals'
@@ -212,7 +213,6 @@ export default function RoadmapToolPage() {
   const [walletCardModal, setWalletCardModal] = useState<WalletCardModalOpen | null>(null)
   const [durationYears, setDurationYears] = useState(2)
   const [durationMonths, setDurationMonths] = useState(0)
-  const [methodologyAnchor, setMethodologyAnchor] = useState<HTMLElement | null>(null)
   const [includeSubs, setIncludeSubs] = useState(true)
   const [result, setResult] = useState<WalletResultResponse | null>(null)
   // Signature of inputs at the last successful calc.
@@ -778,7 +778,7 @@ export default function RoadmapToolPage() {
   if (walletLoading) {
     return (
       <div className="max-w-screen-xl mx-auto w-full shrink-0">
-        <div className="text-center text-slate-400 py-20">Loading wallet…</div>
+        <div className="text-center text-ink-muted py-20">Loading wallet…</div>
       </div>
     )
   }
@@ -787,12 +787,12 @@ export default function RoadmapToolPage() {
     <div className="max-w-screen-xl mx-auto w-full flex flex-col flex-1 min-h-0">
       {isBusy && (
         <div className="fixed top-0 left-0 right-0 z-50 h-0.5">
-          <div className="h-full bg-indigo-500 animate-progress-bar" />
+          <div className="h-full bg-accent animate-progress-bar" />
         </div>
       )}
       <header className="mb-3 shrink-0 flex items-start justify-between gap-4">
         <div className="min-w-0 flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-white shrink-0">Roadmap Tool</h1>
+          <Heading level={3} className="shrink-0">Roadmap Tool</Heading>
           {scenarios.length > 0 && (
             <ScenarioPicker
               scenarios={scenarios}
@@ -809,29 +809,105 @@ export default function RoadmapToolPage() {
         </div>
         {activeScenarioId != null && (
           <div className="shrink-0 flex items-center gap-2">
-            <InfoIconButton
-              onClick={(e) => {
-                const anchor = e.currentTarget
-                setMethodologyAnchor((cur) => (cur ? null : anchor))
-              }}
-              label="How the roadmap is calculated"
-              size={18}
-              active={!!methodologyAnchor}
-            />
-            <button
-              type="button"
-              onClick={calculateNow}
-              disabled={resultsMutation.isPending || !needsCalculate}
-              aria-live="polite"
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            <Popover
+              side="bottom"
+              portal
+              trigger={({ onClick, ref }) => (
+                <Button
+                  variant="icon"
+                  size="sm"
+                  onClick={onClick}
+                  ref={ref as React.RefObject<HTMLButtonElement>}
+                  aria-label="How the roadmap is calculated"
+                  title="How the roadmap is calculated"
+                >
+                  <svg
+                    width={18}
+                    height={18}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="16" x2="12" y2="12" />
+                    <line x1="12" y1="8" x2="12.01" y2="8" />
+                  </svg>
+                </Button>
+              )}
+            >
+              <div className="space-y-3 text-xs text-ink-muted leading-relaxed">
+                <p className="text-sm font-semibold text-ink">How the Roadmap Is Calculated</p>
+                <p>
+                  The roadmap turns your cards, spending, and time horizon into the
+                  rewards, credits, fees, and Effective Annual Fee shown in the
+                  summary and timeline.
+                </p>
+                <div>
+                  <p className="text-ink-muted font-medium mb-1">How spend is assigned</p>
+                  <p>
+                    Each dollar of spend goes to the card that earns the most on
+                    it — no double-counting across cards. If two cards tie, the
+                    dollars are split evenly.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-ink-muted font-medium mb-1">Time periods</p>
+                  <p>
+                    Cards only count during the periods they're active. When cards
+                    have start or close dates, the projection is split into chunks
+                    at every card open, close, sign-up-bonus earn, and cap reset,
+                    and each chunk uses only the cards active then.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-ink-muted font-medium mb-1">Sign-up bonuses</p>
+                  <p>
+                    Sign-up bonus minimums are tracked against their deadlines,
+                    and priority spend is steered to cards with an active offer.
+                    The lost value from diverting that spend away from your
+                    best-earning card is deducted.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-ink-muted font-medium mb-1">Fees, credits, and perks</p>
+                  <p>
+                    Annual fees, statement credits, first-year fee waivers, and
+                    one-time perks all get netted in. One-time perks are spread
+                    evenly across the projection years.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-ink-muted font-medium mb-1">Foreign spend and point upgrades</p>
+                  <p>
+                    Foreign-transaction rules split eligible categories into
+                    domestic and foreign portions, favoring no-fee Visa/Mastercard
+                    cards abroad. Point-upgrade pairings (e.g. Freedom + Sapphire)
+                    boost the value of cards whose points become worth more when
+                    paired with a premium card in the wallet.
+                  </p>
+                </div>
+                <p className="text-ink-faint">
+                  For more detail on any of the numbers, click the ⓘ next to the
+                  stat you're curious about.
+                </p>
+              </div>
+            </Popover>
+            <Button
+              variant={
                 resultsMutation.isPending
-                  ? 'bg-slate-700 text-slate-400 cursor-wait'
+                  ? 'primary'
                   : isStale
-                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-sm shadow-amber-900/40'
-                  : needsInitialCalc
-                  ? 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-sm shadow-indigo-900/40'
-                  : 'bg-slate-700 text-slate-500 cursor-not-allowed'
-              }`}
+                  ? 'warn'
+                  : 'primary'
+              }
+              size="sm"
+              loading={resultsMutation.isPending}
+              disabled={resultsMutation.isPending || !needsCalculate}
+              onClick={calculateNow}
+              aria-live="polite"
               title={
                 isStale
                   ? 'Results are out of date — click to recalculate'
@@ -843,30 +919,25 @@ export default function RoadmapToolPage() {
               {resultsMutation.isPending
                 ? 'Calculating…'
                 : needsCalculate
-                ? 'Calculate'
+                ? isStale
+                  ? 'Recalculate'
+                  : 'Calculate'
                 : 'Up to Date'}
-            </button>
+            </Button>
           </div>
         )}
       </header>
 
-      {methodologyAnchor && (
-        <MethodologyInfoPopover
-          anchorEl={methodologyAnchor}
-          onClose={() => setMethodologyAnchor(null)}
-        />
-      )}
-
       {fallbackMessage && (
-        <div className="mb-3 shrink-0 px-3 py-2 rounded-md border border-amber-700/60 bg-amber-900/30 text-amber-200 text-sm">
+        <div className="mb-3 shrink-0 px-3 py-2 rounded-md border border-warn/60 bg-warn/10 text-warn text-sm">
           {fallbackMessage}
         </div>
       )}
 
       <div className="min-w-0 flex-1 min-h-0 flex flex-col">
         {!wallet || activeScenarioId == null ? (
-          <div className="bg-slate-900 border border-slate-700 rounded-xl p-8 text-center text-slate-500 shrink-0">
-            Add cards and spending in your <Link to="/profile" className="text-indigo-400 hover:text-indigo-300">profile</Link> to get started.
+          <div className="bg-surface border border-divider rounded-xl p-8 text-center text-ink-faint shrink-0">
+            Add cards and spending in your <Link to="/profile" className="text-accent hover:text-accent">profile</Link> to get started.
           </div>
         ) : (
           <>
@@ -937,8 +1008,8 @@ export default function RoadmapToolPage() {
                       onClick={() => setMainView(tab.key)}
                       className={`px-2 py-3 rounded-l-md border border-r-0 transition-colors ${
                         isActive
-                          ? 'bg-slate-900 text-indigo-300 border-slate-700 -mr-px'
-                          : 'bg-slate-800/70 text-slate-400 border-slate-800 hover:text-slate-200 hover:bg-slate-800'
+                          ? 'bg-surface text-accent border-divider -mr-px'
+                          : 'bg-surface-2/70 text-ink-muted border-divider hover:text-ink hover:bg-surface-2'
                       }`}
                       aria-pressed={isActive}
                       aria-label={tab.label}
