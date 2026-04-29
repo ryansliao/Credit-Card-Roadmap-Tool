@@ -355,7 +355,7 @@ export function WalletSummaryStats({
           }}
           className="w-full h-1.5 accent-accent cursor-pointer block my-0"
         />
-        <div className="relative h-4 mt-2">
+        <div className="relative h-4 mt-2 mx-2">
           {durationTicks.map((t) => {
             const pct = ((t.months - 6) / 30) * 100
             // All labels center-aligned on their position so the visual
