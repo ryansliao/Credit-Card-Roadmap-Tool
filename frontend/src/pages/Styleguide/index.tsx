@@ -11,6 +11,7 @@ import { Popover } from '../../components/ui/Popover'
 import { Drawer } from '../../components/ui/Drawer'
 import { useToast } from '../../components/ui/Toast'
 import { Tooltip } from '../../components/ui/Tooltip'
+import { Button } from '../../components/ui/Button'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -234,6 +235,22 @@ export default function Styleguide() {
                 Hover (right)
               </button>
             </Tooltip>
+          </div>
+        </section>
+        <section id="button" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Button</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="primary">Primary</Button>
+            <Button variant="secondary">Secondary</Button>
+            <Button variant="ghost">Ghost</Button>
+            <Button variant="link">Link</Button>
+            <Button variant="primary" loading>Loading</Button>
+            <Button variant="primary" disabled>Disabled</Button>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button size="sm">Small</Button>
+            <Button size="md">Medium</Button>
+            <Button size="lg">Large</Button>
           </div>
         </section>
       </main>
