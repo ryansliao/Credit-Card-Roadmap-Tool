@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { walletApi, walletSpendApi } from '../api/client'
 import { queryKeys } from '../lib/queryKeys'
+import { Surface } from '../components/ui/Surface'
 
 type StepStatus = 'pending' | 'current' | 'complete' | 'preview'
 
@@ -40,16 +41,16 @@ export default function Home() {
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-6xl mx-auto px-4 py-12 sm:py-20">
         <section className="text-center mb-24">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium mb-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-medium mb-6">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
             Credit card wallet optimizer
           </div>
-          <h1 className="text-5xl sm:text-6xl font-bold text-white mb-6 tracking-tight leading-[1.05]">
+          <h1 className="text-5xl sm:text-6xl font-bold text-ink mb-6 tracking-tight leading-[1.05]">
             Stop guessing which cards
             <br className="hidden sm:block" />
-            <span className="text-indigo-400"> actually pay off.</span>
+            <span className="text-accent"> actually pay off.</span>
           </h1>
-          <p className="text-slate-400 text-lg sm:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
+          <p className="text-ink-muted text-lg sm:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
             Model your real or planned wallet, enter your annual spend, and get a
             segment-aware projection of rewards, credits, and sign-up bonuses —
             with each category allocated optimally across every card.
@@ -57,24 +58,24 @@ export default function Home() {
           {heroCta ? (
             <Link
               to={heroCta.to}
-              className="inline-block px-7 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors"
+              className="inline-block px-7 py-3.5 bg-accent hover:bg-accent text-page font-semibold rounded-lg transition-colors"
             >
               {heroCta.label}
             </Link>
           ) : (
-            <p className="text-slate-500 text-sm">Sign in from the navbar to get started.</p>
+            <p className="text-ink-faint text-sm">Sign in from the navbar to get started.</p>
           )}
           {isAuthenticated && currentStep === 1 && stateKnown && (
-            <p className="text-slate-500 text-sm mt-4">Takes about two minutes to set up.</p>
+            <p className="text-ink-faint text-sm mt-4">Takes about two minutes to set up.</p>
           )}
         </section>
 
         <section className="mb-24">
           <div className="text-center mb-12">
-            <h2 className="text-xs uppercase tracking-widest text-slate-500 font-semibold mb-3">
+            <h2 className="text-xs uppercase tracking-widest text-ink-faint font-semibold mb-3">
               {isAuthenticated ? 'Your setup' : 'How it works'}
             </h2>
-            <h3 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
+            <h3 className="text-3xl sm:text-4xl font-bold text-ink tracking-tight">
               {isAuthenticated && currentStep !== 3
                 ? "Let's get your wallet ready."
                 : 'Three steps, one number.'}
@@ -115,10 +116,10 @@ export default function Home() {
 
         <section className="mb-4">
           <div className="text-center mb-12">
-            <h2 className="text-xs uppercase tracking-widest text-slate-500 font-semibold mb-3">
+            <h2 className="text-xs uppercase tracking-widest text-ink-faint font-semibold mb-3">
               Under the hood
             </h2>
-            <h3 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
+            <h3 className="text-3xl sm:text-4xl font-bold text-ink tracking-tight">
               More than a multiplier lookup.
             </h3>
           </div>
@@ -175,10 +176,10 @@ function stepStatus(current: 1 | 2 | 3 | null, step: 1 | 2 | 3): StepStatus {
 
 function FeatureCard({ title, body }: { title: string; body: string }) {
   return (
-    <div className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-6 transition-colors">
-      <h4 className="text-white font-semibold mb-2">{title}</h4>
-      <p className="text-slate-400 text-sm leading-relaxed">{body}</p>
-    </div>
+    <Surface variant="panel" padding="none" className="rounded-xl p-6 hover:border-divider transition-colors">
+      <h4 className="text-ink font-semibold mb-2">{title}</h4>
+      <p className="text-ink-muted text-sm leading-relaxed">{body}</p>
+    </Surface>
   )
 }
 
@@ -200,23 +201,23 @@ function StepCard({
   const isPending = status === 'pending'
 
   const containerClass = isCurrent
-    ? 'bg-slate-900 border border-indigo-500/50 ring-1 ring-indigo-500/20'
+    ? 'bg-surface border border-accent/50 ring-1 ring-accent/20'
     : isComplete
-    ? 'bg-slate-900/60 border border-slate-800'
-    : 'bg-slate-900 border border-slate-800'
+    ? 'bg-surface/60 border border-divider'
+    : 'bg-surface border border-divider'
 
-  const titleClass = isPending ? 'text-slate-400' : 'text-white'
-  const bodyClass = isPending ? 'text-slate-500' : 'text-slate-400'
+  const titleClass = isPending ? 'text-ink-muted' : 'text-ink'
+  const bodyClass = isPending ? 'text-ink-faint' : 'text-ink-muted'
 
   return (
     <div className={`rounded-xl p-6 transition-colors ${containerClass}`}>
       <div className="flex items-center justify-between mb-4">
         <StepBadge num={num} status={status} />
         {isComplete && (
-          <span className="text-xs font-medium text-emerald-400">Done</span>
+          <span className="text-xs font-medium text-pos">Done</span>
         )}
         {isCurrent && (
-          <span className="text-xs font-medium text-indigo-300">Next up</span>
+          <span className="text-xs font-medium text-accent">Next up</span>
         )}
       </div>
       <h4 className={`font-semibold mb-2 ${titleClass}`}>{title}</h4>
@@ -224,7 +225,7 @@ function StepCard({
       {cta && (
         <Link
           to={cta.to}
-          className="inline-block mt-5 text-sm font-medium text-indigo-300 hover:text-indigo-200 transition-colors"
+          className="inline-block mt-5 text-sm font-medium text-accent hover:text-accent transition-colors"
         >
           {cta.label}
         </Link>
@@ -236,7 +237,7 @@ function StepCard({
 function StepBadge({ num, status }: { num: number; status: StepStatus }) {
   if (status === 'complete') {
     return (
-      <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 flex items-center justify-center">
+      <div className="w-8 h-8 rounded-full bg-pos/10 border border-pos/30 text-pos flex items-center justify-center">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="20 6 9 17 4 12" />
         </svg>
@@ -245,10 +246,10 @@ function StepBadge({ num, status }: { num: number; status: StepStatus }) {
   }
   const toneClass =
     status === 'current'
-      ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-200'
+      ? 'bg-accent/15 border-accent/40 text-accent'
       : status === 'pending'
-      ? 'bg-slate-800/60 border-slate-700 text-slate-500'
-      : 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300'
+      ? 'bg-surface-2/60 border-divider text-ink-faint'
+      : 'bg-accent/10 border-accent/30 text-accent'
   return (
     <div
       className={`w-8 h-8 rounded-full border flex items-center justify-center text-sm font-bold ${toneClass}`}
