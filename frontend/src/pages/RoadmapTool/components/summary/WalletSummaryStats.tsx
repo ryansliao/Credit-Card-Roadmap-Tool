@@ -474,7 +474,7 @@ export function WalletSummaryStats({
       {/* Right: timeline legend */}
       {roadmap && (
         <div
-          className={`shrink-0 w-45 bg-surface border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
+          className={`shrink-0 w-52 bg-surface border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
         >
           <div className="grid grid-cols-[36px_1fr] gap-x-2 gap-y-2 items-center text-xs text-ink-faint">
             <span
