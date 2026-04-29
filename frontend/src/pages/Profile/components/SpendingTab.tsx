@@ -4,12 +4,11 @@ import {
   walletApi,
   walletSpendApi,
   type HousingType,
-  type UserSpendCategory,
   type WalletSpendItem,
 } from '../../../api/client'
 import { useMyWallet } from '../hooks/useMyWallet'
 import { queryKeys } from '../../../lib/queryKeys'
-import { InfoIconButton, InfoQuoteBox } from '../../../components/InfoPopover'
+import { Popover } from '../../../components/ui/Popover'
 
 export function SpendingTab() {
   const queryClient = useQueryClient()
@@ -17,10 +16,6 @@ export function SpendingTab() {
   const [amountDraft, setAmountDraft] = useState('')
   // In-flight slider drag; null means "show committed value from wallet".
   const [draftForeignPct, setDraftForeignPct] = useState<number | null>(null)
-  const [foreignAnchor, setForeignAnchor] = useState<HTMLElement | null>(null)
-  const [infoCategory, setInfoCategory] = useState<
-    { cat: UserSpendCategory; anchor: HTMLElement } | null
-  >(null)
 
   const { data: wallet } = useMyWallet()
 
@@ -86,24 +81,24 @@ export function SpendingTab() {
   const totalSpend = spendItems.reduce((sum, item) => sum + (item.amount || 0), 0)
 
   if (isLoading) {
-    return <div className="text-slate-500 text-sm">Loading spending...</div>
+    return <div className="text-ink-faint text-sm">Loading spending...</div>
   }
 
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="mb-5 shrink-0">
-        <h2 className="text-xl font-bold text-white">Annual Spending</h2>
-        <p className="text-slate-400 text-sm mt-1">Track how much you spend in each category per year.</p>
+        <h2 className="text-xl font-bold text-ink">Annual Spending</h2>
+        <p className="text-ink-muted text-sm mt-1">Track how much you spend in each category per year.</p>
       </div>
 
       <div className="flex gap-3 mb-4 shrink-0">
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center w-48 shrink-0 flex flex-col justify-center">
-          <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Annual Spend</p>
-          <p className="text-xl font-bold text-white mt-0.5 tabular-nums">${totalSpend.toLocaleString()}</p>
+        <div className="bg-surface-2 border border-divider rounded-xl p-3 text-center w-48 shrink-0 flex flex-col justify-center">
+          <p className="text-[10px] text-ink-muted uppercase tracking-wider">Total Annual Spend</p>
+          <p className="text-xl font-bold text-ink mt-0.5 tabular-nums">${totalSpend.toLocaleString()}</p>
         </div>
-        <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 w-56 shrink-0 flex flex-col justify-center">
-          <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-2">Housing Type</p>
-          <div className="grid grid-cols-2 gap-1 bg-slate-900/60 rounded-md p-0.5">
+        <div className="bg-surface-2 border border-divider rounded-xl px-4 py-3 w-56 shrink-0 flex flex-col justify-center">
+          <p className="text-[10px] text-ink-muted uppercase tracking-wider mb-2">Housing Type</p>
+          <div className="grid grid-cols-2 gap-1 bg-page/60 rounded-md p-0.5">
             {(['rent', 'mortgage'] as const).map((opt) => {
               const active = housingType === opt
               return (
@@ -116,8 +111,8 @@ export function SpendingTab() {
                   }}
                   className={`text-xs font-medium py-1.5 rounded transition-colors capitalize ${
                     active
-                      ? 'bg-indigo-500 text-white'
-                      : 'text-slate-300 hover:bg-slate-700/60'
+                      ? 'bg-accent text-page'
+                      : 'text-ink-muted hover:bg-surface-2/60'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {opt}
@@ -126,20 +121,76 @@ export function SpendingTab() {
             })}
           </div>
         </div>
-        <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 flex-1 min-w-0 flex flex-col justify-center">
+        <div className="bg-surface-2 border border-divider rounded-xl px-4 py-3 flex-1 min-w-0 flex flex-col justify-center">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider">Foreign Spend</span>
-              <InfoIconButton
-                onClick={(e) => {
-                  const anchor = e.currentTarget
-                  setForeignAnchor((cur) => (cur ? null : anchor))
-                }}
-                label="How foreign spend affects calculation"
-                active={!!foreignAnchor}
-              />
+              <span className="text-[10px] text-ink-muted uppercase tracking-wider">Foreign Spend</span>
+              <Popover
+                side="bottom"
+                portal
+                trigger={({ onClick, ref }) => (
+                  <button
+                    ref={ref as React.RefObject<HTMLButtonElement>}
+                    type="button"
+                    onClick={onClick}
+                    className="shrink-0 transition-colors text-ink-faint hover:text-accent"
+                    aria-label="How foreign spend affects calculation"
+                    title="How foreign spend affects calculation"
+                  >
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </button>
+                )}
+              >
+                <div className="space-y-3 text-xs text-ink-muted leading-relaxed">
+                  <h3 className="text-sm font-semibold text-ink">Foreign Spend</h3>
+                  <p>
+                    What percentage of your yearly spend happens abroad. Each
+                    category is split into a domestic part and a foreign part,
+                    and the calculator assigns them separately.
+                  </p>
+                  <div>
+                    <p className="text-ink font-medium mb-1">Card priority</p>
+                    <p>
+                      Foreign spend goes to cards with no foreign-transaction fee.
+                      If the wallet has a no-fee Visa or Mastercard, that gets
+                      priority over no-fee cards on other networks (like Amex),
+                      since Visa/Mastercard are more widely accepted overseas.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-ink font-medium mb-1">Rate on foreign spend</p>
+                    <p>
+                      On the foreign portion of a category, a card earns whichever
+                      is higher: its normal rate for that category, or its dedicated
+                      "Foreign Transactions" rate. So a card with a foreign-spend
+                      bonus (e.g. Atmos Summit at 3x) earns that on foreign
+                      groceries even if its domestic grocery rate is lower.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-ink font-medium mb-1">If every card charges a foreign fee</p>
+                    <p>
+                      Cards compete normally and you pay the ~3% fee on the
+                      winning card's foreign spend.
+                    </p>
+                  </div>
+                </div>
+              </Popover>
             </div>
-            <span className="text-xs font-medium text-slate-200 tabular-nums">
+            <span className="text-xs font-medium text-ink tabular-nums">
               {Math.round(foreignSpendPercent)}%
             </span>
           </div>
@@ -158,13 +209,13 @@ export function SpendingTab() {
               const pct = Number((e.target as HTMLInputElement).value)
               if (walletReady) updateWalletMutation.mutate(pct)
             }}
-            className="w-full h-1.5 accent-indigo-500 cursor-pointer block my-0 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full h-1.5 accent-accent cursor-pointer block my-0 disabled:cursor-not-allowed disabled:opacity-50"
           />
           <div className="relative h-4 mt-2">
             {(['0%', '25%', '50%', '75%', '100%'] as const).map((label, i) => (
               <span
                 key={label}
-                className={`absolute text-[10px] text-slate-500 tabular-nums ${i === 0 ? '' : i === 4 ? '-translate-x-full' : '-translate-x-1/2'}`}
+                className={`absolute text-[10px] text-ink-faint tabular-nums ${i === 0 ? '' : i === 4 ? '-translate-x-full' : '-translate-x-1/2'}`}
                 style={{ left: `${i * 25}%` }}
               >
                 {label}
@@ -174,64 +225,24 @@ export function SpendingTab() {
         </div>
       </div>
 
-      {foreignAnchor && (
-        <InfoQuoteBox
-          anchorEl={foreignAnchor}
-          title="Foreign Spend"
-          onClose={() => setForeignAnchor(null)}
-        >
-          <p>
-            What percentage of your yearly spend happens abroad. Each
-            category is split into a domestic part and a foreign part,
-            and the calculator assigns them separately.
-          </p>
-          <div>
-            <p className="text-slate-300 font-medium mb-1">Card priority</p>
-            <p>
-              Foreign spend goes to cards with no foreign-transaction fee.
-              If the wallet has a no-fee Visa or Mastercard, that gets
-              priority over no-fee cards on other networks (like Amex),
-              since Visa/Mastercard are more widely accepted overseas.
-            </p>
-          </div>
-          <div>
-            <p className="text-slate-300 font-medium mb-1">Rate on foreign spend</p>
-            <p>
-              On the foreign portion of a category, a card earns whichever
-              is higher: its normal rate for that category, or its dedicated
-              "Foreign Transactions" rate. So a card with a foreign-spend
-              bonus (e.g. Atmos Summit at 3x) earns that on foreign
-              groceries even if its domestic grocery rate is lower.
-            </p>
-          </div>
-          <div>
-            <p className="text-slate-300 font-medium mb-1">If every card charges a foreign fee</p>
-            <p>
-              Cards compete normally and you pay the ~3% fee on the
-              winning card's foreign spend.
-            </p>
-          </div>
-        </InfoQuoteBox>
-      )}
-
       <div className="min-h-0 overflow-y-auto flex-1">
         {spendItems.length === 0 ? (
-          <div className="border-2 border-dashed border-slate-700/60 rounded-xl py-12 px-6 text-center">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto text-slate-600 mb-3">
+          <div className="border-2 border-dashed border-divider/60 rounded-xl py-12 px-6 text-center">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto text-ink-faint mb-3">
               <line x1="12" y1="1" x2="12" y2="23" />
               <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
             </svg>
-            <p className="text-slate-400 text-sm font-medium">No spend categories</p>
-            <p className="text-slate-500 text-xs mt-1">Add categories to track your annual spending.</p>
+            <p className="text-ink-muted text-sm font-medium">No spend categories</p>
+            <p className="text-ink-faint text-xs mt-1">Add categories to track your annual spending.</p>
           </div>
         ) : (
-          <div className="rounded-lg border border-slate-800 overflow-hidden">
+          <div className="rounded-lg border border-surface-2 overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-slate-900">
+              <thead className="bg-page">
                 <tr>
-                  <th className="text-left text-sm font-semibold text-slate-300 px-3 py-2.5 border-b border-slate-800">Category</th>
-                  <th className="text-center text-sm font-semibold text-slate-300 px-3 py-2.5 border-b border-slate-800 w-40">Annual Spend</th>
-                  <th className="w-12 border-b border-slate-800" />
+                  <th className="text-left text-sm font-semibold text-ink-muted px-3 py-2.5 border-b border-surface-2">Category</th>
+                  <th className="text-center text-sm font-semibold text-ink-muted px-3 py-2.5 border-b border-surface-2 w-40">Annual Spend</th>
+                  <th className="w-12 border-b border-surface-2" />
                 </tr>
               </thead>
               <tbody>
@@ -240,41 +251,75 @@ export function SpendingTab() {
                   const catName = item.user_spend_category?.name ?? 'Unknown'
                   const isLocked = item.user_spend_category?.is_system && catName === 'All Other'
                   return (
-                    <tr key={item.id} className="border-b border-slate-800/60 last:border-b-0">
-                      <td className="text-left px-3 py-2 text-slate-200">
+                    <tr key={item.id} className="border-b border-surface-2/60 last:border-b-0">
+                      <td className="text-left px-3 py-2 text-ink-muted">
                         <div className="flex items-center gap-1.5">
                           <span>{catName}</span>
                           {item.user_spend_category && item.user_spend_category.mappings.length > 0 && (() => {
                             const cat = item.user_spend_category
-                            const isOpen = infoCategory?.cat.id === cat.id
+                            const isHousing = cat.name.trim().toLowerCase() === 'housing'
+                            const housingTarget = housingType === 'mortgage' ? 'Mortgage' : 'Rent'
+                            const displayMappings = isHousing
+                              ? cat.mappings.map((m) => ({
+                                  ...m,
+                                  default_weight:
+                                    m.earn_category.category.trim().toLowerCase() === housingTarget.toLowerCase()
+                                      ? 1
+                                      : 0,
+                                }))
+                              : cat.mappings
                             return (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  const anchor = e.currentTarget
-                                  setInfoCategory(isOpen ? null : { cat, anchor })
-                                }}
-                                aria-expanded={isOpen}
-                                className={`shrink-0 p-0.5 rounded transition-colors ${
-                                  isOpen
-                                    ? 'text-indigo-300 bg-indigo-500/10'
-                                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-700/50'
-                                }`}
-                                title="View category details"
+                              <Popover
+                                side="bottom"
+                                portal
+                                trigger={({ onClick, ref }) => (
+                                  <button
+                                    ref={ref as React.RefObject<HTMLButtonElement>}
+                                    type="button"
+                                    onClick={onClick}
+                                    className="shrink-0 p-0.5 rounded transition-colors text-ink-faint hover:text-ink-muted hover:bg-surface-2/50"
+                                    title="View category details"
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <circle cx="12" cy="12" r="10" />
+                                      <path d="M12 16v-4" />
+                                      <path d="M12 8h.01" />
+                                    </svg>
+                                  </button>
+                                )}
                               >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <circle cx="12" cy="12" r="10" />
-                                  <path d="M12 16v-4" />
-                                  <path d="M12 8h.01" />
-                                </svg>
-                              </button>
+                                <div className="space-y-3 text-xs text-ink-muted leading-relaxed">
+                                  <h3 className="text-sm font-semibold text-ink">{cat.name}</h3>
+                                  {cat.description && <p>{cat.description}</p>}
+                                  <div>
+                                    <p className="text-ink font-medium mb-1.5">Includes spend on:</p>
+                                    <ul className="space-y-1">
+                                      {displayMappings
+                                        .sort((a, b) => b.default_weight - a.default_weight)
+                                        .map((mapping) => (
+                                          <li key={mapping.id} className="flex items-center justify-between">
+                                            <span className="text-ink-muted">{mapping.earn_category.category}</span>
+                                            <span className="text-ink-faint tabular-nums">
+                                              {Math.round(mapping.default_weight * 100)}%
+                                            </span>
+                                          </li>
+                                        ))}
+                                    </ul>
+                                    {isHousing && (
+                                      <p className="text-xs text-ink-faint mt-2">
+                                        Set by your Housing Type above. Switch to {housingTarget === 'Rent' ? 'Mortgage' : 'Rent'} to flip.
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </Popover>
                             )
                           })()}
                         </div>
                       </td>
                       <td className="text-center px-2 py-2 tabular-nums">
                         <div className="relative w-full">
-                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none">$</span>
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none">$</span>
                           <input
                             type="text"
                             inputMode="numeric"
@@ -291,7 +336,7 @@ export function SpendingTab() {
                                 ;(e.currentTarget as HTMLInputElement).blur()
                               }
                             }}
-                            className="w-full min-w-0 bg-slate-700 border border-slate-600 text-white text-sm tabular-nums text-right pl-4 pr-1.5 py-0.5 rounded outline-none focus:border-indigo-500 placeholder:text-slate-500"
+                            className="w-full min-w-0 bg-surface-2 border border-divider text-ink text-sm tabular-nums text-right pl-4 pr-1.5 py-0.5 rounded outline-none focus:border-accent placeholder:text-ink-faint"
                           />
                         </div>
                       </td>
@@ -301,7 +346,7 @@ export function SpendingTab() {
                             type="button"
                             onClick={() => requestDeleteItem(item)}
                             disabled={deleteMutation.isPending}
-                            className="p-1 rounded text-slate-600 hover:text-red-400 hover:bg-red-950/40 transition-colors disabled:opacity-50"
+                            className="p-1 rounded text-ink-faint hover:text-neg hover:bg-neg/10 transition-colors disabled:opacity-50"
                             title="Remove"
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -319,49 +364,6 @@ export function SpendingTab() {
           </div>
         )}
       </div>
-
-      {infoCategory && (() => {
-        const isHousing = infoCategory.cat.name.trim().toLowerCase() === 'housing'
-        const housingTarget = housingType === 'mortgage' ? 'Mortgage' : 'Rent'
-        const displayMappings = isHousing
-          ? infoCategory.cat.mappings.map((m) => ({
-              ...m,
-              default_weight:
-                m.earn_category.category.trim().toLowerCase() === housingTarget.toLowerCase()
-                  ? 1
-                  : 0,
-            }))
-          : infoCategory.cat.mappings
-        return (
-          <InfoQuoteBox
-            anchorEl={infoCategory.anchor}
-            title={infoCategory.cat.name}
-            onClose={() => setInfoCategory(null)}
-          >
-            {infoCategory.cat.description && <p>{infoCategory.cat.description}</p>}
-            <div>
-              <p className="text-slate-300 font-medium mb-1.5">Includes spend on:</p>
-              <ul className="space-y-1">
-                {displayMappings
-                  .sort((a, b) => b.default_weight - a.default_weight)
-                  .map((mapping) => (
-                    <li key={mapping.id} className="flex items-center justify-between">
-                      <span className="text-slate-300">{mapping.earn_category.category}</span>
-                      <span className="text-slate-500 tabular-nums">
-                        {Math.round(mapping.default_weight * 100)}%
-                      </span>
-                    </li>
-                  ))}
-              </ul>
-              {isHousing && (
-                <p className="text-xs text-slate-500 mt-2">
-                  Set by your Housing Type above. Switch to {housingTarget === 'Rent' ? 'Mortgage' : 'Rent'} to flip.
-                </p>
-              )}
-            </div>
-          </InfoQuoteBox>
-        )
-      })()}
     </div>
   )
 }

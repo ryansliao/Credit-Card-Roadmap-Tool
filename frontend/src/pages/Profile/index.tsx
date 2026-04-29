@@ -20,7 +20,7 @@ export default function Profile() {
   const { data: wallet, isLoading: walletLoading } = useMyWallet()
 
   if (authLoading) {
-    return <div className="text-center text-slate-400 py-20">Loading...</div>
+    return <div className="text-center text-ink-muted py-20">Loading...</div>
   }
 
   if (!isAuthenticated || !user) {
@@ -39,8 +39,8 @@ export default function Profile() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   activeTab === tab.id
-                    ? 'bg-slate-800 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                    ? 'bg-surface-2 text-ink'
+                    : 'text-ink-muted hover:text-ink hover:bg-surface-2/50'
                 }`}
               >
                 {tab.icon}
@@ -52,7 +52,7 @@ export default function Profile() {
       </nav>
 
       {/* Content */}
-      <div className="flex-1 min-w-0 min-h-0 bg-slate-900 border border-slate-700 rounded-xl p-6 overflow-auto">
+      <div className="flex-1 min-w-0 min-h-0 bg-surface border border-divider rounded-xl p-6 overflow-auto">
         {activeTab === 'wallet' && (
           <WalletTab
             cardInstances={wallet?.card_instances ?? []}

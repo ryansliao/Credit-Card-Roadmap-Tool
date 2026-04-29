@@ -11,6 +11,7 @@ import { DeleteCardWarningModal } from '../../../components/cards/DeleteCardWarn
 import { useCreditLibrary } from '../../../hooks/useCreditLibrary'
 import { queryKeys } from '../../../lib/queryKeys'
 import { formatMoney, formatPoints, pointsUnitLabel } from '../../../utils/format'
+import { Button } from '../../../components/ui/Button'
 import { CardPhoto } from './CardPhoto'
 
 type WalletCardModalOpen =
@@ -88,38 +89,39 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
     })
 
   if (isLoading) {
-    return <div className="text-slate-500 text-sm">Loading wallet...</div>
+    return <div className="text-ink-faint text-sm">Loading wallet...</div>
   }
 
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center justify-between mb-5 shrink-0">
         <div>
-          <h2 className="text-xl font-bold text-white">My Cards</h2>
-          <p className="text-slate-400 text-sm mt-1">Manage the credit cards in your wallet.</p>
+          <h2 className="text-xl font-bold text-ink">My Cards</h2>
+          <p className="text-ink-muted text-sm mt-1">Manage the credit cards in your wallet.</p>
         </div>
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="sm"
           onClick={() => setWalletCardModal({ mode: 'add' })}
-          className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
           Add Card
-        </button>
+        </Button>
       </div>
 
       <div className="min-h-0 overflow-y-auto flex-1">
         {inWalletCards.length === 0 ? (
-          <div className="border-2 border-dashed border-slate-700/60 rounded-xl py-12 px-6 text-center">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto text-slate-600 mb-3">
+          <div className="border-2 border-dashed border-divider/60 rounded-xl py-12 px-6 text-center">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto text-ink-faint mb-3">
               <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
               <line x1="1" y1="10" x2="23" y2="10" />
             </svg>
-            <p className="text-slate-400 text-sm font-medium">No cards yet</p>
-            <p className="text-slate-500 text-xs mt-1">Add your first credit card to your wallet.</p>
+            <p className="text-ink-muted text-sm font-medium">No cards yet</p>
+            <p className="text-ink-faint text-xs mt-1">Add your first credit card to your wallet.</p>
           </div>
         ) : (
           <ul className="space-y-1.5">
@@ -129,16 +131,16 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
               return (
                 <li
                   key={inst.id}
-                  className="group bg-slate-800/60 hover:bg-slate-800 border border-slate-700/40 hover:border-slate-600 rounded-xl transition-colors cursor-pointer overflow-hidden"
+                  className="group bg-surface-2/60 hover:bg-surface-2 border border-divider/40 hover:border-divider rounded-xl transition-colors cursor-pointer overflow-hidden"
                   onClick={() => setWalletCardModal({ mode: 'edit', instance: inst })}
                 >
                   <div className="flex items-center gap-3 px-3 py-2">
-                    <div className="w-[72px] h-11 shrink-0 rounded overflow-hidden bg-slate-700/50">
+                    <div className="w-[72px] h-11 shrink-0 rounded overflow-hidden bg-surface-2/50">
                       <CardPhoto slug={inst.photo_slug} name={cardName} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-white truncate">{cardName}</p>
+                        <p className="text-sm font-medium text-ink truncate">{cardName}</p>
                         {isPc && (
                           <span
                             className="text-[10px] font-medium bg-violet-900/60 text-violet-300 border border-violet-700/50 rounded px-1.5 py-0.5 shrink-0"
@@ -150,44 +152,44 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         {inst.issuer_name && (
-                          <span className="text-xs text-slate-400">{inst.issuer_name}</span>
+                          <span className="text-xs text-ink-muted">{inst.issuer_name}</span>
                         )}
                         {inst.issuer_name && inst.opening_date && (
-                          <span className="text-slate-600 text-xs">·</span>
+                          <span className="text-ink-faint text-xs">·</span>
                         )}
                         {inst.opening_date && (
-                          <span className="text-xs text-slate-500">
+                          <span className="text-xs text-ink-faint">
                             Opened {inst.opening_date}
                           </span>
                         )}
                       </div>
                     </div>
                     <div className="text-right shrink-0 mr-1">
-                      <p className="text-xs tabular-nums text-white">
+                      <p className="text-xs tabular-nums text-ink">
                         {inst.credit_totals
                           .filter((t) => t.value > 0)
                           .map((t) => (
                             <span key={`${t.kind}-${t.currency_id ?? 'cash'}`}>
                               Credits:{' '}
-                              <span className="text-emerald-400">
+                              <span className="text-pos">
                                 {t.kind === 'cash'
                                   ? formatMoney(t.value)
                                   : `${formatPoints(t.value)} ${pointsUnitLabel(t.currency_name)}`}
                               </span>
-                              <span className="text-slate-600 mx-1.5">·</span>
+                              <span className="text-ink-faint mx-1.5">·</span>
                             </span>
                           ))}
                         Annual Fee:{' '}
                         {(inst.annual_fee ?? 0) > 0 ? (
-                          <span className="text-red-400">{formatMoney(inst.annual_fee ?? 0)}</span>
+                          <span className="text-neg">{formatMoney(inst.annual_fee ?? 0)}</span>
                         ) : (
-                          <span className="text-emerald-400">$0</span>
+                          <span className="text-pos">$0</span>
                         )}
                       </p>
                     </div>
                     <button
                       type="button"
-                      className="p-1.5 rounded-lg text-slate-700 hover:text-red-400 hover:bg-red-950/40 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 shrink-0"
+                      className="p-1.5 rounded-lg text-ink-faint hover:text-neg hover:bg-neg/10 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 shrink-0"
                       aria-label="Remove card"
                       title="Remove"
                       onClick={(e) => {
