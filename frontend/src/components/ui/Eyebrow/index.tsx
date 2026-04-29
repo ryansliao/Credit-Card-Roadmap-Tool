@@ -17,7 +17,7 @@ export function Eyebrow({ children, accent = false, className = '' }: Props) {
           style={{ width: 28, height: 2 }}
         />
       )}
-      <span className="block text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint whitespace-nowrap">
+      <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">
         {children}
       </span>
     </div>
