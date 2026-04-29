@@ -8,6 +8,7 @@ import { Stat } from '../../components/ui/Stat'
 import { Surface } from '../../components/ui/Surface'
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../../components/ui/Modal'
 import { Popover } from '../../components/ui/Popover'
+import { Drawer } from '../../components/ui/Drawer'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -38,6 +39,26 @@ function ModalDemo() {
           </button>
         </ModalFooter>
       </Modal>
+    </>
+  )
+}
+
+function DrawerDemo() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="text-sm border border-divider rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors text-ink"
+      >
+        Open drawer
+      </button>
+      <Drawer open={open} onClose={() => setOpen(false)} side="right" width="md" ariaLabel="Drawer demo">
+        <div className="p-6 space-y-3">
+          <Heading level={3}>Drawer</Heading>
+          <p className="text-ink-muted text-sm">Slide-over panel from the right. Esc + backdrop dismiss.</p>
+        </div>
+      </Drawer>
     </>
   )
 }
@@ -163,6 +184,10 @@ export default function Styleguide() {
               <p className="text-sm text-ink">Portaled — escapes overflow:hidden parents.</p>
             </Popover>
           </div>
+        </section>
+        <section id="drawer" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Drawer</p>
+          <DrawerDemo />
         </section>
       </main>
     </div>
