@@ -295,8 +295,8 @@ export function WalletSummaryStats({
       <div
         className={`shrink-0 w-60 lg:w-72 bg-surface border rounded-xl px-4 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1">
+        <div className="flex items-baseline justify-between mb-2">
+          <div className="flex items-baseline gap-1">
             <Eyebrow className="whitespace-nowrap">Time Horizon</Eyebrow>
             <Popover
               side="bottom"
@@ -476,13 +476,13 @@ export function WalletSummaryStats({
         <div
           className={`shrink-0 w-45 bg-surface border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
         >
-          <div className="grid grid-cols-[26px_1fr] gap-x-2 gap-y-1.5 items-center text-[11px] text-ink-faint">
+          <div className="grid grid-cols-[36px_1fr] gap-x-2 gap-y-2 items-center text-xs text-ink-faint">
             <span
               aria-hidden
-              className="justify-self-center inline-block rounded-l-full"
+              className="justify-self-center inline-block rounded-full"
               style={{
-                width: 24,
-                height: 9,
+                width: 32,
+                height: 12,
                 backgroundColor: 'color-mix(in oklab, var(--chart-sub) 20%, transparent)',
                 border: '1px solid var(--chart-sub)',
               }}
@@ -494,8 +494,8 @@ export function WalletSummaryStats({
               aria-hidden
               className="justify-self-center inline-block rounded-full"
               style={{
-                width: 24,
-                height: 9,
+                width: 32,
+                height: 12,
                 backgroundColor: 'color-mix(in oklab, var(--chart-points) 20%, transparent)',
                 border: '1px solid var(--chart-points)',
               }}
@@ -505,12 +505,12 @@ export function WalletSummaryStats({
 
             <span
               aria-hidden
-              className="justify-self-center relative inline-block w-5 h-2.5 rounded-full bg-accent"
+              className="justify-self-center relative inline-block w-7 h-3.5 rounded-full bg-accent"
               title="Per-card toggle in the timeline includes the card in calculation"
             >
               <span
-                className="absolute top-0.5 w-1.5 h-1.5 rounded-full bg-white"
-                style={{ left: 11 }}
+                className="absolute w-2.5 h-2.5 rounded-full bg-white"
+                style={{ left: 14, top: 2 }}
               />
             </span>
             <span className="whitespace-nowrap">Add Card to Calculation</span>
