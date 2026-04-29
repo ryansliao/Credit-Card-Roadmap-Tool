@@ -10,6 +10,7 @@ import { Modal, ModalHeader, ModalBody, ModalFooter } from '../../components/ui/
 import { Popover } from '../../components/ui/Popover'
 import { Drawer } from '../../components/ui/Drawer'
 import { useToast } from '../../components/ui/Toast'
+import { Tooltip } from '../../components/ui/Tooltip'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -219,6 +220,21 @@ export default function Styleguide() {
         <section id="toast" className="space-y-4">
           <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Toast</p>
           <ToastDemo />
+        </section>
+        <section id="tooltip" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Tooltip</p>
+          <div className="flex gap-3">
+            <Tooltip label="Top tooltip">
+              <button className="text-sm border border-divider rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors text-ink">
+                Hover me
+              </button>
+            </Tooltip>
+            <Tooltip label="Right tooltip" side="right">
+              <button className="text-sm border border-divider rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors text-ink">
+                Hover (right)
+              </button>
+            </Tooltip>
+          </div>
         </section>
       </main>
     </div>
