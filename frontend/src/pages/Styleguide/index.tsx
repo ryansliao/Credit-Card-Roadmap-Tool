@@ -12,6 +12,7 @@ import { Drawer } from '../../components/ui/Drawer'
 import { useToast } from '../../components/ui/Toast'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -251,6 +252,15 @@ export default function Styleguide() {
             <Button size="sm">Small</Button>
             <Button size="md">Medium</Button>
             <Button size="lg">Large</Button>
+          </div>
+        </section>
+        <section id="input" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Input</p>
+          <div className="space-y-3 max-w-sm">
+            <Input placeholder="Default state" />
+            <Input placeholder="Disabled" disabled />
+            <Input placeholder="Invalid" invalid defaultValue="bad@value" />
+            <Input type="number" placeholder="Number" />
           </div>
         </section>
       </main>
