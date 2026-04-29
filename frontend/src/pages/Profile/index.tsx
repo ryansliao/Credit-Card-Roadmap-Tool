@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/useAuth'
 import { useMyWallet } from './hooks/useMyWallet'
 import { WalletTab } from './components/WalletTab'
 import { SpendingTab } from './components/SpendingTab'
+import { AppearanceTab } from './components/AppearanceTab'
 import { SettingsTab } from './components/SettingsTab'
 import { TABS, type Tab } from './lib/constants'
 
@@ -11,7 +12,9 @@ export default function Profile() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
   const activeTab: Tab =
-    tabParam === 'spending' || tabParam === 'settings' ? tabParam : 'wallet'
+    tabParam === 'spending' || tabParam === 'appearance' || tabParam === 'settings'
+      ? tabParam
+      : 'wallet'
   const setActiveTab = (tab: Tab) => {
     if (tab === 'wallet') setSearchParams({}, { replace: true })
     else setSearchParams({ tab }, { replace: true })
@@ -60,6 +63,7 @@ export default function Profile() {
           />
         )}
         {activeTab === 'spending' && <SpendingTab />}
+        {activeTab === 'appearance' && <AppearanceTab />}
         {activeTab === 'settings' && <SettingsTab />}
       </div>
     </div>

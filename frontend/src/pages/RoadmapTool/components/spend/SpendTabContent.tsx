@@ -609,7 +609,7 @@ export function SpendTabContent({
                             >
                               {cat.description && <p className="text-xs text-ink-muted mb-1.5">{cat.description}</p>}
                               <p className="text-ink-muted font-medium mb-1.5">{cat.name}</p>
-                              <p className="text-ink-muted font-medium mb-1.5">Includes spend on:</p>
+                              <p className="text-[10px] text-ink-faint uppercase tracking-wider mb-1.5">Includes spend on</p>
                               <ul className="space-y-1">
                                 {displayMappings
                                   .slice()

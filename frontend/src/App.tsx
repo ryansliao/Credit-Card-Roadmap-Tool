@@ -13,7 +13,6 @@ import { Input } from './components/ui/Input'
 import { Field } from './components/ui/Field'
 import { Modal, ModalHeader, ModalBody } from './components/ui/Modal'
 import { Heading } from './components/ui/Heading'
-import { ThemeToggle } from './components/ui/ThemeToggle'
 
 declare global {
   interface Window {
@@ -348,13 +347,9 @@ function Nav() {
             >
               Sign out
             </button>
-            <ThemeToggle className="!border-on-accent/40 !text-on-accent hover:!bg-black/15" />
           </div>
         ) : (
-          <>
-            <SignInDropdown />
-            <ThemeToggle className="!border-on-accent/40 !text-on-accent hover:!bg-black/15" />
-          </>
+          <SignInDropdown />
         )
       )}
     </nav>

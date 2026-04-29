@@ -292,7 +292,7 @@ export function SpendingTab() {
                                   <h3 className="text-sm font-semibold text-ink">{cat.name}</h3>
                                   {cat.description && <p>{cat.description}</p>}
                                   <div>
-                                    <p className="text-ink font-medium mb-1.5">Includes spend on:</p>
+                                    <p className="text-[10px] text-ink-faint uppercase tracking-wider mb-1.5">Includes spend on</p>
                                     <ul className="space-y-1">
                                       {displayMappings
                                         .sort((a, b) => b.default_weight - a.default_weight)
