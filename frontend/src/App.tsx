@@ -160,7 +160,7 @@ function SignInDropdown() {
       <button
         type="button"
         onClick={() => { setOpen(!open); resetForm() }}
-        className="text-sm font-medium px-5 py-2 rounded-full text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors"
+        className="text-sm font-medium px-5 py-2 rounded-full opacity-75 hover:opacity-100 hover:bg-black/15 transition-colors"
       >
         Sign in
       </button>
@@ -308,8 +308,8 @@ function Nav() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth()
 
   return (
-    <nav className="bg-surface border-b border-divider px-6 py-2.5 flex items-center gap-2">
-      <Link to="/" className="text-ink font-bold text-lg mr-6 hover:text-ink-muted transition-colors">
+    <nav className="bg-accent text-on-accent px-6 py-2.5 flex items-center gap-2">
+      <Link to="/" className="font-bold text-lg mr-6 hover:opacity-80 transition-opacity">
         CardSolver
       </Link>
       {isAuthenticated && (
@@ -318,8 +318,8 @@ function Nav() {
           className={({ isActive }) =>
             `text-sm font-medium px-5 py-2 rounded-full transition-colors ${
               isActive
-                ? 'text-ink bg-surface-2'
-                : 'text-ink-muted hover:text-ink hover:bg-surface-2'
+                ? 'bg-black/20'
+                : 'opacity-75 hover:opacity-100 hover:bg-black/15'
             }`
           }
         >
@@ -330,7 +330,7 @@ function Nav() {
       {!isLoading && (
         isAuthenticated && user ? (
           <div className="flex items-center gap-3">
-            <Link to="/profile" className="flex items-center gap-2 px-3 py-1 rounded-full text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors -mr-2">
+            <Link to="/profile" className="flex items-center gap-2 px-3 py-1 rounded-full opacity-75 hover:opacity-100 hover:bg-black/15 transition-colors -mr-2">
               {user.picture && (
                 <img
                   src={user.picture}
@@ -344,16 +344,16 @@ function Nav() {
             <button
               type="button"
               onClick={signOut}
-              className="text-sm font-medium px-5 py-2 rounded-full text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors ml-2"
+              className="text-sm font-medium px-5 py-2 rounded-full opacity-75 hover:opacity-100 hover:bg-black/15 transition-colors ml-2"
             >
               Sign out
             </button>
-            <ThemeToggle />
+            <ThemeToggle className="!border-on-accent/40 !text-on-accent hover:!bg-black/15" />
           </div>
         ) : (
           <>
             <SignInDropdown />
-            <ThemeToggle />
+            <ThemeToggle className="!border-on-accent/40 !text-on-accent hover:!bg-black/15" />
           </>
         )
       )}

@@ -17,6 +17,7 @@
   --color-divider-strong: #a09173;
   --color-accent: #7a1c2c;
   --color-accent-soft: rgba(122, 28, 44, 0.08);
+  --color-on-accent: #faf8f3;
   --color-pos: #2e7d49;
   --color-neg: #a83210;
   --color-warn: #9e5d09;
@@ -53,8 +54,8 @@
   --color-ink-faint: #737373;
   --color-divider: #2e2e2e;
   --color-divider-strong: #4a4a4a;
-  --color-accent: #d4647a;
-  --color-accent-soft: rgba(212, 100, 122, 0.14);
+  --color-accent: #7a1c2c;
+  --color-accent-soft: rgba(122, 28, 44, 0.22);
   --color-pos: #8fcf95;
   --color-neg: #e08c79;
   --color-warn: #d6a85b;

@@ -16,6 +16,7 @@
   --color-divider-strong: var(--color-divider-strong);
   --color-accent: var(--color-accent);
   --color-accent-soft: var(--color-accent-soft);
+  --color-on-accent: var(--color-on-accent);
   --color-pos: var(--color-pos);
   --color-neg: var(--color-neg);
   --color-warn: var(--color-warn);
