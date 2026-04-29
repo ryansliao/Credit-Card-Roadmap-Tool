@@ -13,6 +13,7 @@ import { useToast } from '../../components/ui/Toast'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { Field } from '../../components/ui/Field'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -262,6 +263,15 @@ export default function Styleguide() {
             <Input placeholder="Invalid" invalid defaultValue="bad@value" />
             <Input type="number" placeholder="Number" />
           </div>
+        </section>
+        <section id="field" className="space-y-4 max-w-sm">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Field</p>
+          <Field label="Annual spend" hint="Wallet-wide total in USD" required>
+            <Input placeholder="120,000" />
+          </Field>
+          <Field label="Email" error="Not a valid email">
+            <Input defaultValue="bad" />
+          </Field>
         </section>
       </main>
     </div>
