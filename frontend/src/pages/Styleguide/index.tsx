@@ -21,6 +21,7 @@ import { DataTable } from '../../components/ui/DataTable'
 import { Badge } from '../../components/ui/Badge'
 import { Tabs } from '../../components/ui/Tabs'
 import { CardTile } from '../../components/cards/CardTile'
+import { CategoryRow } from '../../components/cards/CategoryRow'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -367,6 +368,18 @@ export default function Styleguide() {
               { label: 'AF', value: <Money value={-795} mono={false} tone="auto" /> },
             ]}
           />
+        </section>
+        <section id="categoryrow" className="space-y-1 max-w-2xl">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">CategoryRow</p>
+          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint border-b border-divider pb-2">
+            <span>Category</span>
+            <span className="text-right">Mult</span>
+            <span className="text-right">Spend</span>
+            <span className="text-right">Earn</span>
+          </div>
+          <CategoryRow category="Travel" multiplier={3} allocatedSpend={12000} earn={36000} />
+          <CategoryRow category="Dining" multiplier={3} allocatedSpend={8000} earn={24000} caption="Restaurants & food delivery" />
+          <CategoryRow category="All Other" multiplier={1} allocatedSpend={45000} earn={45000} />
         </section>
       </main>
     </div>
