@@ -909,6 +909,7 @@ export default function RoadmapToolPage() {
               disabled={resultsMutation.isPending || !needsCalculate}
               onClick={calculateNow}
               aria-live="polite"
+              className="h-7"
               title={
                 isStale
                   ? 'Results are out of date — click to recalculate'
