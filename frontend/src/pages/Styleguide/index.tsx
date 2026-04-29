@@ -2,6 +2,7 @@ import { ThemeToggle } from '../../components/ui/ThemeToggle'
 import { Heading } from '../../components/ui/Heading'
 import { Eyebrow } from '../../components/ui/Eyebrow'
 import { Money } from '../../components/ui/Money'
+import { Points } from '../../components/ui/Points'
 
 /**
  * Internal styleguide route — gated by VITE_SHOW_STYLEGUIDE=1.
@@ -52,6 +53,15 @@ export default function Styleguide() {
           </div>
           <div>Feature size:</div>
           <Money value={3418} feature />
+        </section>
+        <section id="points" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Points</p>
+          <div className="space-y-2">
+            <div>Compact: <Points value={125000} /></div>
+            <div>Exact: <Points value={125000} exact /></div>
+            <div>With unit: <Points value={125000} unit="UR" /></div>
+            <div>Feature: <Points value={125000} feature unit="UR" /></div>
+          </div>
         </section>
       </main>
     </div>
