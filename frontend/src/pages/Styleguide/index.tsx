@@ -18,6 +18,7 @@ import { Select } from '../../components/ui/Select'
 import { Checkbox } from '../../components/ui/Checkbox'
 import { Toggle } from '../../components/ui/Toggle'
 import { DataTable } from '../../components/ui/DataTable'
+import { Badge } from '../../components/ui/Badge'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -319,6 +320,17 @@ export default function Styleguide() {
               </DataTable.Row>
             </DataTable.Body>
           </DataTable>
+        </section>
+        <section id="badge" className="space-y-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Badge</p>
+          <div className="flex flex-wrap gap-2">
+            <Badge>Visa</Badge>
+            <Badge tone="accent">Top pick</Badge>
+            <Badge tone="pos">Earned</Badge>
+            <Badge tone="neg">Expired</Badge>
+            <Badge tone="warn">Pending</Badge>
+            <Badge tone="info">No SUB</Badge>
+          </div>
         </section>
       </main>
     </div>
