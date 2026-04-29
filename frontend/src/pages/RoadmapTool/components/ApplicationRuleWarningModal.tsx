@@ -1,5 +1,8 @@
 import type { RoadmapRuleStatus } from '../../../api/client'
-import { ModalBackdrop } from '../../../components/ModalBackdrop'
+import { Modal, ModalHeader, ModalBody, ModalFooter } from '../../../components/ui/Modal'
+import { Heading } from '../../../components/ui/Heading'
+import { Button } from '../../../components/ui/Button'
+import { IssuerRuleBanner } from '../../../components/cards/IssuerRuleBanner'
 
 interface Props {
   violations: RoadmapRuleStatus[]
@@ -8,49 +11,36 @@ interface Props {
 
 export function ApplicationRuleWarningModal({ violations, onClose }: Props) {
   return (
-    <ModalBackdrop
-      onClose={onClose}
-      className="bg-slate-900 border border-amber-700/50 rounded-xl p-5 max-w-lg w-full shadow-xl"
-    >
-      <div
-        role="alertdialog"
-        aria-labelledby="application-rule-warning-title"
-        aria-describedby="application-rule-warning-desc"
-      >
-        <h2
-          id="application-rule-warning-title"
-          className="text-base font-semibold text-amber-300 mb-1"
-        >
-          Application rule warning
-        </h2>
-        <p id="application-rule-warning-desc" className="text-xs text-slate-400 mb-4">
+    <Modal open={true} onClose={onClose} size="md" ariaLabel="Application rule warning">
+      <ModalHeader>
+        <Heading level={3} className="text-warn">Application rule warning</Heading>
+      </ModalHeader>
+      <ModalBody>
+        <p className="text-xs text-ink-muted mb-4">
           Adding this card pushed your wallet past at least one issuer application rule.
         </p>
         <div className="space-y-2 max-h-[min(50vh,320px)] overflow-y-auto">
           {violations.map((r) => (
-            <div
+            <IssuerRuleBanner
               key={r.rule_id}
-              className="flex items-start gap-3 bg-amber-900/20 border border-amber-700/40 rounded-lg px-3 py-2"
-            >
-              <span className="text-amber-400 font-bold text-sm shrink-0">{r.rule_name}</span>
-              <div className="text-xs text-slate-300 flex-1">
-                <span className="text-amber-300 font-medium">{r.issuer_name}: </span>
-                {r.description}
-                <span className="ml-2 text-amber-400">
-                  ({r.current_count}/{r.max_count} in {r.period_days}d)
-                </span>
-              </div>
-            </div>
+              rule={`${r.issuer_name} ${r.rule_name}`}
+              message={
+                <>
+                  {r.description}{' '}
+                  <span className="text-ink-faint">
+                    ({r.current_count}/{r.max_count} in {r.period_days}d)
+                  </span>
+                </>
+              }
+            />
           ))}
         </div>
-        <button
-          type="button"
-          className="mt-5 w-full bg-slate-700 hover:bg-slate-600 text-white text-sm py-2 rounded-lg"
-          onClick={onClose}
-        >
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="secondary" className="w-full" onClick={onClose}>
           OK
-        </button>
-      </div>
-    </ModalBackdrop>
+        </Button>
+      </ModalFooter>
+    </Modal>
   )
 }
