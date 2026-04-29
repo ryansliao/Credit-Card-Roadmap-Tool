@@ -4,6 +4,7 @@ import { Eyebrow } from '../../components/ui/Eyebrow'
 import { Money } from '../../components/ui/Money'
 import { Points } from '../../components/ui/Points'
 import { Stat } from '../../components/ui/Stat'
+import { Surface } from '../../components/ui/Surface'
 
 /**
  * Internal styleguide route — gated by VITE_SHOW_STYLEGUIDE=1.
@@ -77,6 +78,15 @@ export default function Styleguide() {
             <Stat label="Credits" value={<Money value={700} />} />
             <Stat label="Annual fee" value={<Money value={-795} tone="auto" />} align="right" />
           </div>
+        </section>
+        <section id="surface" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Surface</p>
+          <div className="grid grid-cols-3 gap-4">
+            <Surface variant="panel">Panel (default)</Surface>
+            <Surface variant="inset">Inset</Surface>
+            <Surface variant="bare">Bare</Surface>
+          </div>
+          <Surface elevated>Elevated panel</Surface>
         </section>
       </main>
     </div>
