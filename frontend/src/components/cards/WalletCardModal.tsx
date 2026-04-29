@@ -16,7 +16,8 @@ import {
   walletSpendApi,
 } from '../../api/client'
 import type { ResolvedCard } from '../../pages/RoadmapTool/lib/resolveScenarioCards'
-import { ModalBackdrop } from '../ModalBackdrop'
+import { Modal } from '../ui/Modal'
+import { Button } from '../ui/Button'
 import { formatMoney, today } from '../../utils/format'
 import { useCardLibrary } from '../../pages/RoadmapTool/hooks/useCardLibrary'
 import { useCreditLibrary } from '../../hooks/useCreditLibrary'
@@ -947,21 +948,24 @@ export function WalletCardModal(props: WalletCardModalProps) {
         : null
 
   return (
-    <ModalBackdrop
+    <Modal
+      open={true}
       onClose={onClose}
-      className="bg-slate-800 border border-slate-600 rounded-xl w-full max-w-lg shadow-xl flex flex-col h-[640px] max-h-[90vh]"
+      size="md"
+      ariaLabel={title}
+      className="flex flex-col h-[640px] max-h-[90vh]"
     >
       {/* ── Fixed header ── */}
-      <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-slate-700">
+      <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-divider">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1 space-y-1">
-            <h2 className="text-lg font-semibold text-white">{title}</h2>
+            <h2 className="text-lg font-semibold text-ink">{title}</h2>
             {(lib?.network_tier || lib?.issuer) && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-faint">
                 {lib?.network_tier && (
                   <div className="flex items-center gap-1.5">
                     <span className="uppercase tracking-wide">Network</span>
-                    <span className="font-medium bg-slate-700 text-slate-300 border border-slate-600 rounded px-1.5 py-0.5">
+                    <span className="font-medium bg-surface-2 text-ink-muted border border-divider rounded px-1.5 py-0.5">
                       {lib.network_tier.name}
                     </span>
                   </div>
@@ -969,7 +973,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                 {lib?.issuer && (
                   <div className="flex items-center gap-1.5">
                     <span className="uppercase tracking-wide">Issuer</span>
-                    <span className="font-medium bg-slate-700 text-slate-300 border border-slate-600 rounded px-1.5 py-0.5">
+                    <span className="font-medium bg-surface-2 text-ink-muted border border-divider rounded px-1.5 py-0.5">
                       {lib.issuer.name}
                     </span>
                   </div>
@@ -983,7 +987,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                 type="button"
                 disabled={isLoading || !resolvedCard?.is_overlay_modified}
                 onClick={onClearOverlay}
-                className="px-2 py-1 text-xs rounded-md text-amber-300 hover:bg-amber-500/10 disabled:opacity-40 transition-colors"
+                className="px-2 py-1 text-xs rounded-md text-warn hover:bg-warn/10 disabled:opacity-40 transition-colors"
                 title="Reset to base values (clears the overlay)"
               >
                 Reset
@@ -994,7 +998,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                 type="button"
                 disabled={isLoading}
                 onClick={onDeleteHandler}
-                className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-950/40 disabled:opacity-50 transition-colors"
+                className="p-2 rounded-lg text-ink-faint hover:text-neg hover:bg-neg/10 disabled:opacity-50 transition-colors"
                 title={isFuture ? 'Delete future card' : 'Delete card'}
                 aria-label="Delete card"
               >
@@ -1008,7 +1012,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
               type="button"
               disabled={saveDisabled}
               onClick={() => void handlePrimary()}
-              className="p-2 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-950/40 disabled:opacity-40 disabled:hover:text-slate-400 disabled:hover:bg-transparent transition-colors"
+              className="p-2 rounded-lg text-ink-muted hover:text-accent hover:bg-accent/10 disabled:opacity-40 disabled:hover:text-ink-muted disabled:hover:bg-transparent transition-colors"
               title={isAddFlow ? 'Add card' : 'Save changes'}
               aria-label={isAddFlow ? 'Add card' : 'Save changes'}
             >
@@ -1023,14 +1027,14 @@ export function WalletCardModal(props: WalletCardModalProps) {
       </div>
 
       {isOverlayContext && (
-        <div className="flex-shrink-0 px-6 py-2 text-[11px] text-amber-200 bg-amber-900/20 border-b border-amber-700/40">
+        <div className="flex-shrink-0 px-6 py-2 text-[11px] text-warn bg-warn/10 border-b border-warn/40">
           Editing in this scenario only — your owned card stays unchanged.
         </div>
       )}
 
       {/* ── Tab bar ── */}
       {(isAddFlow || lib) && (
-        <div className="flex-shrink-0 flex gap-1 px-6 border-b border-slate-700">
+        <div className="flex-shrink-0 flex gap-1 px-6 border-b border-divider">
           {([
             { id: 'lifecycle' as const, label: 'Lifecycle', badge: 0 },
             ...(cardSelected
@@ -1053,13 +1057,13 @@ export function WalletCardModal(props: WalletCardModalProps) {
               onClick={() => setActiveTab(t.id)}
               className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
                 activeTab === t.id
-                  ? 'border-indigo-500 text-indigo-300'
-                  : 'border-transparent text-slate-400 hover:text-slate-200'
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-ink-muted hover:text-ink'
               }`}
             >
               {t.label}
               {(t.id === 'credits' || t.id === 'priority') && t.badge > 0 && (
-                <span className={`ml-1.5 ${activeTab === t.id ? 'text-indigo-400' : 'text-slate-500'}`}>
+                <span className={`ml-1.5 ${activeTab === t.id ? 'text-accent' : 'text-ink-faint'}`}>
                   ({t.badge})
                 </span>
               )}
@@ -1075,12 +1079,12 @@ export function WalletCardModal(props: WalletCardModalProps) {
         }`}
       >
         {!isAddFlow && !lib ? (
-          <p className="text-sm text-slate-400 py-8 text-center">Loading card…</p>
+          <p className="text-sm text-ink-muted py-8 text-center">Loading card…</p>
         ) : (
           <div className="flex-1 min-h-0 flex flex-col">
             {activeTab === 'lifecycle' && (
               <div className="space-y-3">
-                <p className="text-[11px] text-slate-500 -mx-6 px-6 pb-2 border-b border-slate-700/60">
+                <p className="text-[11px] text-ink-faint -mx-6 px-6 pb-2 border-b border-divider/60">
                   When and how this card entered the wallet, and whether it's still active.
                 </p>
 
@@ -1091,8 +1095,8 @@ export function WalletCardModal(props: WalletCardModalProps) {
                 {(isFuture || (isOwnedBase && !isAddFlow)) ? (
                   <div className="grid grid-cols-2 gap-3 items-start">
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">Acquisition</label>
-                      <div role="radiogroup" className="flex flex-col bg-slate-700/30 border border-slate-600 rounded-lg overflow-hidden">
+                      <label className="text-xs text-ink-muted mb-1 block">Acquisition</label>
+                      <div role="radiogroup" className="flex flex-col bg-surface-2/30 border border-divider rounded-lg overflow-hidden">
                         {([
                           { v: 'open' as const, label: 'Account Opening' },
                           { v: 'pc' as const, label: 'Product Change' },
@@ -1106,17 +1110,17 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               aria-checked={selected}
                               onClick={() => handleAcquisitionModeChange(v)}
                               className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
-                                i > 0 ? 'border-t border-slate-600/60' : ''
+                                i > 0 ? 'border-t border-divider/60' : ''
                               } ${
                                 selected
-                                  ? 'bg-slate-700 text-white'
-                                  : 'text-slate-300 hover:bg-slate-700/60'
+                                  ? 'bg-surface-2 text-ink'
+                                  : 'text-ink-muted hover:bg-surface-2/60'
                               }`}
                             >
                               <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                selected ? 'border-indigo-500' : 'border-slate-500'
+                                selected ? 'border-accent' : 'border-divider'
                               }`}>
-                                {selected && <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />}
+                                {selected && <span className="w-1.5 h-1.5 bg-accent rounded-full" />}
                               </span>
                               {label}
                             </button>
@@ -1125,12 +1129,12 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">
+                      <label className="text-xs text-ink-muted mb-1 block">
                         {acquisitionMode === 'pc' ? 'Product Change Date *' : 'Opening Date *'}
                       </label>
                       <input
                         type="date"
-                        className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500"
+                        className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent"
                         value={acquisitionMode === 'pc' ? productChangeDate : openingDate}
                         onChange={(e) =>
                           acquisitionMode === 'pc'
@@ -1142,13 +1146,13 @@ export function WalletCardModal(props: WalletCardModalProps) {
                   </div>
                 ) : (
                   <div>
-                    <label className="text-xs text-slate-400 mb-1 block">
+                    <label className="text-xs text-ink-muted mb-1 block">
                       Opening Date *
                     </label>
                     <input
                       type="date"
                       disabled={isOverlay}
-                      className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 disabled:opacity-50"
+                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={openingDate}
                       onChange={(e) => setOpeningDate(e.target.value)}
                     />
@@ -1160,9 +1164,9 @@ export function WalletCardModal(props: WalletCardModalProps) {
                     when the source is already pinned. */}
                 {isFuture && acquisitionMode === 'pc' && isAddFlow && (
                   <div>
-                    <label className="text-xs text-slate-400 mb-1 block">Changing From *</label>
+                    <label className="text-xs text-ink-muted mb-1 block">Changing From *</label>
                     <select
-                      className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500"
+                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent"
                       value={pcFromInstanceId}
                       onChange={(e) => e.target.value ? selectPcFromInstance(Number(e.target.value)) : setPcFromInstanceId('')}
                     >
@@ -1182,10 +1186,10 @@ export function WalletCardModal(props: WalletCardModalProps) {
                   )
                   return (
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">
+                      <label className="text-xs text-ink-muted mb-1 block">
                         Changed From
                       </label>
-                      <div className="w-full bg-slate-800/60 border border-slate-700 text-slate-200 text-sm px-3 py-2 rounded-lg">
+                      <div className="w-full bg-surface/60 border border-divider text-ink text-sm px-3 py-2 rounded-lg">
                         {fromInst?.card_name ?? `Instance #${pcFromInstanceId}`}
                       </div>
                     </div>
@@ -1198,10 +1202,10 @@ export function WalletCardModal(props: WalletCardModalProps) {
                     below. */}
                 {pcDestination != null && (
                   <div>
-                    <label className="text-xs text-slate-400 mb-1 block">
+                    <label className="text-xs text-ink-muted mb-1 block">
                       Changed To
                     </label>
-                    <div className="w-full bg-slate-800/60 border border-slate-700 text-slate-200 text-sm px-3 py-2 rounded-lg">
+                    <div className="w-full bg-surface/60 border border-divider text-ink text-sm px-3 py-2 rounded-lg">
                       {pcDestination.card_name}
                     </div>
                   </div>
@@ -1210,22 +1214,22 @@ export function WalletCardModal(props: WalletCardModalProps) {
                 {/* Card library search (add flow only). */}
                 {isAddFlow && (
                   <div ref={cardSearchRef} className="relative">
-                    <label className="text-xs text-slate-400 mb-1 block">
+                    <label className="text-xs text-ink-muted mb-1 block">
                       {isFuture && acquisitionMode === 'pc' ? 'Changing To *' : 'Card *'}
                     </label>
                     <input
                       type="text"
                       placeholder="Search cards…"
                       disabled={isFuture && acquisitionMode === 'pc' && !pcFromInstanceId}
-                      className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 disabled:opacity-50"
+                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={cardSearch}
                       onChange={(e) => handleCardSearchChange(e.target.value)}
                       onFocus={() => setCardDropdownOpen(true)}
                     />
                     {cardDropdownOpen && (
-                      <ul className="absolute z-10 mt-1 w-full bg-slate-800 border border-slate-600 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                      <ul className="absolute z-10 mt-1 w-full bg-surface border border-divider rounded-lg shadow-xl max-h-48 overflow-y-auto">
                         {searchedCards.length === 0 ? (
-                          <li className="px-3 py-2 text-sm text-slate-500">No cards found</li>
+                          <li className="px-3 py-2 text-sm text-ink-faint">No cards found</li>
                         ) : (
                           searchedCards.map((c) => (
                             <li
@@ -1233,16 +1237,16 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               onPointerDown={(e) => { e.preventDefault(); selectCard(c.id, c.name) }}
                               className={`px-3 py-2 text-sm cursor-pointer flex items-center gap-2 ${
                                 cardId === c.id
-                                  ? 'bg-indigo-600 text-white'
-                                  : 'text-slate-200 hover:bg-slate-700'
+                                  ? 'bg-accent text-page'
+                                  : 'text-ink hover:bg-surface-2'
                               }`}
                             >
                               <span className="flex-1 min-w-0 truncate">{c.name}</span>
                               {c.network_tier && (
                                 <span className={`text-[10px] font-medium shrink-0 rounded px-1.5 py-0.5 border ${
                                   cardId === c.id
-                                    ? 'bg-indigo-500/60 text-indigo-100 border-indigo-400/50'
-                                    : 'bg-slate-700 text-slate-400 border-slate-600'
+                                    ? 'bg-accent/60 text-page border-accent/50'
+                                    : 'bg-surface-2 text-ink-muted border-divider'
                                 }`}>
                                   {c.network_tier.name}
                                 </span>
@@ -1253,7 +1257,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       </ul>
                     )}
                     {isFuture && acquisitionMode === 'pc' && pcFromInstanceId && (
-                      <p className="text-[11px] text-slate-500 mt-1">Showing same-issuer cards</p>
+                      <p className="text-[11px] text-ink-faint mt-1">Showing same-issuer cards</p>
                     )}
                   </div>
                 )}
@@ -1262,10 +1266,10 @@ export function WalletCardModal(props: WalletCardModalProps) {
                 {!isAddFlow && (
                   <div className="grid grid-cols-2 gap-3 items-start">
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">Card Status</label>
+                      <label className="text-xs text-ink-muted mb-1 block">Card Status</label>
                       <div
                         role="radiogroup"
-                        className={`flex flex-col bg-slate-700/30 border border-slate-600 rounded-lg overflow-hidden ${
+                        className={`flex flex-col bg-surface-2/30 border border-divider rounded-lg overflow-hidden ${
                           cardStatusLocked ? 'opacity-60' : ''
                         }`}
                         title={
@@ -1293,17 +1297,17 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                 else if (!closedDate) setClosedDate(today())
                               }}
                               className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
-                                i > 0 ? 'border-t border-slate-600/60' : ''
+                                i > 0 ? 'border-t border-divider/60' : ''
                               } ${
                                 selected
-                                  ? 'bg-slate-700 text-white'
-                                  : 'text-slate-300 hover:bg-slate-700/60'
+                                  ? 'bg-surface-2 text-ink'
+                                  : 'text-ink-muted hover:bg-surface-2/60'
                               } ${cardStatusLocked ? 'cursor-not-allowed' : ''}`}
                             >
                               <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                selected ? 'border-indigo-500' : 'border-slate-500'
+                                selected ? 'border-accent' : 'border-divider'
                               }`}>
-                                {selected && <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />}
+                                {selected && <span className="w-1.5 h-1.5 bg-accent rounded-full" />}
                               </span>
                               {label}
                             </button>
@@ -1311,19 +1315,19 @@ export function WalletCardModal(props: WalletCardModalProps) {
                         })}
                       </div>
                       {cardStatusLocked && (
-                        <p className="text-[11px] text-slate-500 mt-1">
+                        <p className="text-[11px] text-ink-faint mt-1">
                           Closed by product change. Disable the new card to keep this one open.
                         </p>
                       )}
                     </div>
                     {closedDate && (
                       <div>
-                        <label className="text-xs text-slate-400 mb-1 block">Closed Date</label>
+                        <label className="text-xs text-ink-muted mb-1 block">Closed Date</label>
                         <input
                           type="date"
                           min={openingDate}
                           disabled={cardStatusLocked}
-                          className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed"
                           value={closedDate}
                           onChange={(e) => setClosedDate(e.target.value)}
                         />
@@ -1336,31 +1340,31 @@ export function WalletCardModal(props: WalletCardModalProps) {
 
             {activeTab === 'bonuses' && (
               <div className="space-y-3">
-                <p className="text-[11px] text-slate-500 -mx-6 px-6 pb-2 border-b border-slate-700/60">
+                <p className="text-[11px] text-ink-faint -mx-6 px-6 pb-2 border-b border-divider/60">
                   Sign-up / product-change bonus, annual bonus, and fees.
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-slate-400 mb-1 block">
+                    <label className="text-xs text-ink-muted mb-1 block">
                       {acquisitionMode === 'pc' ? 'PC Bonus (Pts)' : 'Sign-Up Bonus (Pts)'}
                     </label>
                     <input
                       type="number"
                       min={0}
                       disabled={formDisabled}
-                      className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 disabled:opacity-50"
+                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={subPoints}
                       onChange={(e) => setSubPoints(e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-400 mb-1 block">Annual Bonus (Pts)</label>
+                    <label className="text-xs text-ink-muted mb-1 block">Annual Bonus (Pts)</label>
                     <input
                       type="number"
                       min={0}
                       disabled={formDisabled}
                       placeholder="Optional"
-                      className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 disabled:opacity-50"
+                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={annualBonus}
                       onChange={(e) => setAnnualBonus(e.target.value)}
                     />
@@ -1369,27 +1373,27 @@ export function WalletCardModal(props: WalletCardModalProps) {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-slate-400 mb-1 block">
+                    <label className="text-xs text-ink-muted mb-1 block">
                       {acquisitionMode === 'pc' ? 'PC Min Spend ($)' : 'SUB Min Spend ($)'}
                     </label>
                     <input
                       type="number"
                       min={0}
                       disabled={formDisabled}
-                      className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 disabled:opacity-50"
+                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={subMinSpend}
                       onChange={(e) => setSubMinSpend(e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-400 mb-1 block">
+                    <label className="text-xs text-ink-muted mb-1 block">
                       {acquisitionMode === 'pc' ? 'PC Spend Months' : 'SUB Spend Months'}
                     </label>
                     <input
                       type="number"
                       min={0}
                       disabled={formDisabled}
-                      className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 disabled:opacity-50"
+                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={subMonths}
                       onChange={(e) => setSubMonths(e.target.value)}
                     />
@@ -1398,25 +1402,25 @@ export function WalletCardModal(props: WalletCardModalProps) {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-slate-400 mb-1 block">Annual Fee ($)</label>
+                    <label className="text-xs text-ink-muted mb-1 block">Annual Fee ($)</label>
                     <input
                       type="number"
                       min={0}
                       step="0.01"
                       disabled={formDisabled}
-                      className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 disabled:opacity-50"
+                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={annualFee}
                       onChange={(e) => setAnnualFee(e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-400 mb-1 block">First-Year Fee ($)</label>
+                    <label className="text-xs text-ink-muted mb-1 block">First-Year Fee ($)</label>
                     <input
                       type="number"
                       min={0}
                       step="0.01"
                       disabled={formDisabled}
-                      className="w-full bg-slate-700 border border-slate-600 text-white text-sm px-3 py-2 rounded-lg outline-none focus:border-indigo-500 disabled:opacity-50"
+                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       placeholder="Optional"
                       value={firstYearFee}
                       onChange={(e) => setFirstYearFee(e.target.value)}
@@ -1430,23 +1434,23 @@ export function WalletCardModal(props: WalletCardModalProps) {
             {activeTab === 'credits' && lib && (
               <div className="-mx-6 flex-1 min-h-0 flex flex-col">
                 <div className="flex-1 min-h-0 flex flex-col">
-                  <p className="text-[11px] text-slate-500 px-6 pb-2 border-b border-slate-700/60">
+                  <p className="text-[11px] text-ink-faint px-6 pb-2 border-b border-divider/60">
                     Input your valuation of each credit.
                   </p>
                   {creditLibraryLoading || creditOverridesLoading ? (
-                    <div className="flex items-center gap-2 px-6 py-3 text-xs text-slate-400">
-                      <svg className="w-3.5 h-3.5 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
+                    <div className="flex items-center gap-2 px-6 py-3 text-xs text-ink-muted">
+                      <svg className="w-3.5 h-3.5 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                       </svg>
                       Loading credits…
                     </div>
                   ) : Object.keys(selectedCredits).length === 0 ? (
-                    <p className="text-xs text-slate-500 px-6 py-3">
+                    <p className="text-xs text-ink-faint px-6 py-3">
                       No credits selected. Add credits this card grants from the picker below.
                     </p>
                   ) : (
-                    <ul className="divide-y divide-slate-700/40 flex-1 min-h-0 overflow-y-auto">
+                    <ul className="divide-y divide-divider/40 flex-1 min-h-0 overflow-y-auto">
                       {Object.entries(selectedCredits).map(([idStr, value]) => {
                         const libId = Number(idStr)
                         const lc = creditLibraryById.get(libId)
@@ -1464,7 +1468,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               <button
                                 type="button"
                                 onClick={() => setCreditOptionsOpen(isExpanded ? null : libId)}
-                                className="text-slate-500 hover:text-slate-300 shrink-0"
+                                className="text-ink-faint hover:text-ink-muted shrink-0"
                               >
                                 <svg
                                   className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
@@ -1473,7 +1477,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                                 </svg>
                               </button>
-                              <span className="text-slate-200 truncate min-w-0 flex-1">
+                              <span className="text-ink truncate min-w-0 flex-1">
                                 {lc?.credit_name ?? `Credit #${libId}`}
                               </span>
                               <div className="flex items-center gap-1.5 shrink-0">
@@ -1482,7 +1486,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                     const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
                                     const isCash = !cur || cur.reward_kind === 'cash'
                                     return isCash ? (
-                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none">$</span>
+                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none">$</span>
                                     ) : null
                                   })()}
                                   <input
@@ -1503,7 +1507,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                         [libId]: parsed,
                                       }))
                                     }}
-                                    className={`w-24 bg-slate-700 border border-slate-600 text-white text-xs tabular-nums pr-2 py-1 rounded outline-none focus:border-indigo-500 placeholder:text-slate-500 ${
+                                    className={`w-24 bg-surface-2 border border-divider text-ink text-xs tabular-nums pr-2 py-1 rounded outline-none focus:border-accent placeholder:text-ink-faint ${
                                       (() => {
                                         const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
                                         return (!cur || cur.reward_kind === 'cash') ? 'pl-5' : 'pl-2'
@@ -1521,7 +1525,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                     })
                                     if (isExpanded) setCreditOptionsOpen(null)
                                   }}
-                                  className="text-slate-500 hover:text-red-400 p-0.5 rounded hover:bg-slate-700/80"
+                                  className="text-ink-faint hover:text-neg p-0.5 rounded hover:bg-surface-2/80"
                                   title="Remove credit"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1546,7 +1550,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                   ? edits!.credit_currency_id
                                   : lc?.credit_currency_id ?? null
                               return (
-                              <div className={`flex items-center gap-3 px-6 pb-2.5 pt-0.5 text-xs ${isUserOwned ? 'text-slate-400' : 'text-slate-500'}`}>
+                              <div className={`flex items-center gap-3 px-6 pb-2.5 pt-0.5 text-xs ${isUserOwned ? 'text-ink-muted' : 'text-ink-faint'}`}>
                                 <label className={`flex items-center gap-1.5 select-none ${isUserOwned ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                                   <input
                                     type="checkbox"
@@ -1562,7 +1566,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                         },
                                       }))
                                     }}
-                                    className="accent-amber-500 w-3 h-3 disabled:cursor-not-allowed"
+                                    className="accent-warn w-3 h-3 disabled:cursor-not-allowed"
                                   />
                                   <span>After Year 1</span>
                                 </label>
@@ -1581,7 +1585,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                         },
                                       }))
                                     }}
-                                    className="accent-indigo-500 w-3 h-3 disabled:cursor-not-allowed"
+                                    className="accent-accent w-3 h-3 disabled:cursor-not-allowed"
                                   />
                                   <span>One-Time</span>
                                 </label>
@@ -1600,7 +1604,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                       },
                                     }))
                                   }}
-                                  className="w-60 bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1 rounded outline-none focus:border-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed truncate"
+                                  className="w-60 bg-surface-2 border border-divider text-ink text-xs px-2 py-1 rounded outline-none focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed truncate"
                                 >
                                   {(currencies ?? []).filter((cur) => {
                                     // Cash + every currency in the card issuer's ecosystem.
@@ -1618,12 +1622,12 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       })}
                     </ul>
                   )}
-                  <div className="px-6 py-2 border-t border-slate-700/60">
+                  <div className="px-6 py-2 border-t border-divider/60">
                     {!showCreditPicker ? (
                       <button
                         type="button"
                         onClick={() => setShowCreditPicker(true)}
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-indigo-400 hover:text-indigo-300 hover:bg-slate-700/40 rounded transition-colors"
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-accent hover:text-accent hover:bg-surface-2/40 rounded transition-colors"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -1638,7 +1642,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                             value={creditSearch}
                             onChange={(e) => setCreditSearch(e.target.value)}
                             placeholder="Search credits…"
-                            className="flex-1 bg-slate-700 border border-slate-600 text-white text-xs px-2 py-1.5 rounded outline-none focus:border-indigo-500"
+                            className="flex-1 bg-surface-2 border border-divider text-ink text-xs px-2 py-1.5 rounded outline-none focus:border-accent"
                             autoFocus
                           />
                           <button
@@ -1647,7 +1651,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               setShowCreditPicker(false)
                               setCreditSearch('')
                             }}
-                            className="p-1 text-slate-500 hover:text-slate-300 rounded hover:bg-slate-700/80"
+                            className="p-1 text-ink-faint hover:text-ink-muted rounded hover:bg-surface-2/80"
                             title="Cancel"
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1669,13 +1673,13 @@ export function WalletCardModal(props: WalletCardModalProps) {
                           // user has typed a name not already in the library.
                           const canCreate = trimmed.length > 0 && !exactExists
                           return (
-                            <ul className="max-h-40 overflow-y-auto rounded border border-slate-700 divide-y divide-slate-700/60">
+                            <ul className="max-h-40 overflow-y-auto rounded border border-divider divide-y divide-divider/60">
                               <li>
                                 <button
                                   type="button"
                                   disabled={!canCreate || createCreditMutation.isPending}
                                   onClick={() => canCreate && createCreditMutation.mutate(trimmed)}
-                                  className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-indigo-300 hover:bg-slate-700/60 disabled:text-slate-500 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                                  className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-accent hover:bg-surface-2/60 disabled:text-ink-faint disabled:hover:bg-transparent disabled:cursor-not-allowed"
                                 >
                                   <span className="shrink-0">+</span>
                                   <span className="truncate min-w-0">
@@ -1691,7 +1695,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               </li>
                               {matches.length === 0 ? (
                                 <li>
-                                  <p className="text-[11px] text-slate-500 px-2 py-1.5">
+                                  <p className="text-[11px] text-ink-faint px-2 py-1.5">
                                     {trimmed.length === 0
                                       ? 'No more credits to add.'
                                       : 'No matching credits.'}
@@ -1711,10 +1715,10 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                         setCreditSearch('')
                                         setShowCreditPicker(false)
                                       }}
-                                      className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-700/60"
+                                      className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs text-ink hover:bg-surface-2/60"
                                     >
                                       <span className="truncate min-w-0">{c.credit_name}</span>
-                                      <span className="text-slate-500 tabular-nums shrink-0">
+                                      <span className="text-ink-faint tabular-nums shrink-0">
                                         {formatMoney(effectiveCardId ? (c.card_values[effectiveCardId] ?? c.value ?? 0) : (c.value ?? 0))}
                                       </span>
                                     </button>
@@ -1733,15 +1737,15 @@ export function WalletCardModal(props: WalletCardModalProps) {
 
             {activeTab === 'priority' && lib && categoryTabEnabled && (
               <div className="flex-1 min-h-0 flex flex-col">
-                <p className="text-[11px] text-slate-500 -mx-6 px-6 pb-2 border-b border-slate-700/60 mb-3">
+                <p className="text-[11px] text-ink-faint -mx-6 px-6 pb-2 border-b border-divider/60 mb-3">
                   Force category spend onto this card only. Does not affect SUB spend allocation.
                 </p>
                 {!walletSpendItems || walletSpendItems.length === 0 ? (
-                  <p className="text-xs text-slate-500 py-1">
+                  <p className="text-xs text-ink-faint py-1">
                     No wallet spend categories yet.
                   </p>
                 ) : (
-                  <ul className="grid grid-cols-2 gap-x-2 gap-y-1 auto-rows-min flex-1 min-h-0 overflow-y-auto border border-slate-600 rounded-lg p-2">
+                  <ul className="grid grid-cols-2 gap-x-2 gap-y-1 auto-rows-min flex-1 min-h-0 overflow-y-auto border border-divider rounded-lg p-2">
                     {[...walletSpendItems]
                       .filter((item) => item.user_spend_category != null)
                       .sort((a, b) =>
@@ -1762,13 +1766,13 @@ export function WalletCardModal(props: WalletCardModalProps) {
                             <label
                               className={`flex items-center gap-2 text-xs px-1 py-1 rounded ${
                                 disabled
-                                  ? 'text-slate-500 cursor-not-allowed'
-                                  : 'text-slate-200 cursor-pointer hover:bg-slate-700/40'
+                                  ? 'text-ink-faint cursor-not-allowed'
+                                  : 'text-ink cursor-pointer hover:bg-surface-2/40'
                               }`}
                             >
                               <input
                                 type="checkbox"
-                                className="accent-indigo-500"
+                                className="accent-accent"
                                 checked={checked}
                                 disabled={disabled}
                                 onChange={() => {
@@ -1787,7 +1791,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                 {userCat.name}
                               </span>
                               {disabled && (
-                                <span className="text-[10px] text-slate-600 shrink-0">
+                                <span className="text-[10px] text-ink-faint shrink-0">
                                   Claimed By Another Card
                                 </span>
                               )}
@@ -1801,7 +1805,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
             )}
 
             {formError && (
-              <p className="text-xs text-red-400 bg-red-950/40 border border-red-900/50 rounded-lg mx-0 mt-3 px-3 py-2">
+              <p className="text-xs text-neg bg-neg/10 border border-neg/50 rounded-lg mx-0 mt-3 px-3 py-2">
                 {formError}
               </p>
             )}
@@ -1813,11 +1817,12 @@ export function WalletCardModal(props: WalletCardModalProps) {
       {/* Next is a step-through affordance for the add flow only — when
           editing an existing card the user can click tabs directly. */}
       {isAddFlow && hasNextTab && (
-        <div className="flex-shrink-0 flex items-center gap-2 px-6 py-4 border-t border-slate-700">
-          <button
+        <div className="flex-shrink-0 flex items-center gap-2 px-6 py-4 border-t border-divider">
+          <Button
             type="button"
+            variant="primary"
             disabled={isLoading}
-            className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm py-2 rounded-lg"
+            className="flex-1 justify-center"
             onClick={() => setActiveTab(tabOrder[currentTabIndex + 1])}
           >
             Next
@@ -1825,9 +1830,9 @@ export function WalletCardModal(props: WalletCardModalProps) {
               <path d="M5 12h14" />
               <path d="M13 6l6 6-6 6" />
             </svg>
-          </button>
+          </Button>
         </div>
       )}
-    </ModalBackdrop>
+    </Modal>
   )
 }
