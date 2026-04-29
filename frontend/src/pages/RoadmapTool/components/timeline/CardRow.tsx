@@ -326,7 +326,14 @@ export function CardRow({
       >
         {barWidthPct > 0 &&
           (() => {
-            const roundLeft = addedMs > range.startMs
+            // When a SUB segment exists, render the lifetime indigo bar
+            // STARTING AT the SUB's end so amber and indigo sit side-by-side
+            // (no transparency stack, no border overlap).
+            const cutStartMs = subSegment ? subSegment.endMs : addedMs
+            const cutStartPct = pctOf(range, Math.max(cutStartMs, range.startMs))
+            const cutWidthPct = Math.max(0, barEndPct - cutStartPct)
+            if (cutWidthPct <= 0) return null
+            const roundLeft = !subSegment && addedMs > range.startMs
             const roundRight = closedMs < range.endMs
             const roundedClass =
               `${roundLeft ? 'rounded-l-full' : ''} ${roundRight ? 'rounded-r-full' : ''}`.trim()
@@ -334,8 +341,8 @@ export function CardRow({
               <div
                 className={`absolute ${roundedClass}`}
                 style={{
-                  left: `${barStartPct}%`,
-                  width: `${barWidthPct}%`,
+                  left: `${cutStartPct}%`,
+                  width: `${cutWidthPct}%`,
                   top: (rowHeight - barHeight) / 2,
                   height: barHeight,
                   backgroundColor: enabled
