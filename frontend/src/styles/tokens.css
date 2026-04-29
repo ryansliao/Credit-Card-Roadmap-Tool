@@ -39,14 +39,14 @@
 }
 
 [data-theme="dark"] {
-  --color-page: #15130f;
-  --color-surface: #1d1a14;
-  --color-surface-2: #231f18;
-  --color-ink: #ece6d4;
-  --color-ink-muted: #a09786;
-  --color-ink-faint: #8e8775;
-  --color-divider: #2a2620;
-  --color-divider-strong: #3a3328;
+  --color-page: #0a0a0a;
+  --color-surface: #171717;
+  --color-surface-2: #262626;
+  --color-ink: #f5f5f5;
+  --color-ink-muted: #a3a3a3;
+  --color-ink-faint: #737373;
+  --color-divider: #262626;
+  --color-divider-strong: #404040;
   --color-accent: #d4647a;
   --color-accent-soft: rgba(212, 100, 122, 0.14);
   --color-pos: #8fcf95;
