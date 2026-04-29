@@ -3,6 +3,7 @@ import { Heading } from '../../components/ui/Heading'
 import { Eyebrow } from '../../components/ui/Eyebrow'
 import { Money } from '../../components/ui/Money'
 import { Points } from '../../components/ui/Points'
+import { Stat } from '../../components/ui/Stat'
 
 /**
  * Internal styleguide route — gated by VITE_SHOW_STYLEGUIDE=1.
@@ -61,6 +62,20 @@ export default function Styleguide() {
             <div>Exact: <Points value={125000} exact /></div>
             <div>With unit: <Points value={125000} unit="UR" /></div>
             <div>Feature: <Points value={125000} feature unit="UR" /></div>
+          </div>
+        </section>
+        <section id="stat" className="space-y-6">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Stat</p>
+          <Stat
+            label="Net EV / yr"
+            value={<Money value={3418} feature />}
+            caption="over 7 years, default scenario"
+            accent
+          />
+          <div className="flex justify-between border-t border-divider pt-4">
+            <Stat label="Earn" value={<Money value={2134} />} />
+            <Stat label="Credits" value={<Money value={700} />} />
+            <Stat label="Annual fee" value={<Money value={-795} tone="auto" />} align="right" />
           </div>
         </section>
       </main>
