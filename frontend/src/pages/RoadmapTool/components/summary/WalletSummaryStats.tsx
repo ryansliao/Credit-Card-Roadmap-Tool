@@ -483,8 +483,8 @@ export function WalletSummaryStats({
               style={{
                 width: 24,
                 height: 9,
-                backgroundColor: '#fbbf2433',
-                border: '1px solid #fbbf24',
+                backgroundColor: 'color-mix(in oklab, var(--chart-sub) 20%, transparent)',
+                border: '1px solid var(--chart-sub)',
               }}
               title="Yellow segment of the bar covers the SUB earning period (anchor → projected earn date)"
             />
@@ -496,8 +496,8 @@ export function WalletSummaryStats({
               style={{
                 width: 24,
                 height: 9,
-                backgroundColor: '#818cf833',
-                border: '1px solid #818cf8',
+                backgroundColor: 'color-mix(in oklab, var(--chart-points) 20%, transparent)',
+                border: '1px solid var(--chart-points)',
               }}
               title="Coloured bar shows when the card is active (open and not closed)"
             />
