@@ -28,9 +28,6 @@
   --radius-lg: 12px;
   --radius-xl: 14px;
 
-  /* Type axes (Fraunces SOFT: 0=sharp, 100=warm/humanist) */
-  --font-display-soft: 40;
-
   /* Shadows — editorial leans on borders, shadows are minimal */
   --shadow-card: 0 1px 2px rgba(26, 26, 26, 0.04), 0 1px 1px rgba(26, 26, 26, 0.02);
   --shadow-modal: 0 24px 48px -12px rgba(26, 26, 26, 0.18), 0 8px 16px -8px rgba(26, 26, 26, 0.10);

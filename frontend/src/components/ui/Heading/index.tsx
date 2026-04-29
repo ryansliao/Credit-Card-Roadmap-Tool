@@ -27,7 +27,7 @@ export function Heading({ level = 2, children, className = '', as }: Props) {
         fontSize: s.fontSize,
         lineHeight: s.lineHeight,
         letterSpacing: s.letterSpacing,
-        fontVariationSettings: `"opsz" ${s.opsz}, "SOFT" var(--font-display-soft)`,
+        fontVariationSettings: `"opsz" ${s.opsz}`,
       }}
     >
       {children}
