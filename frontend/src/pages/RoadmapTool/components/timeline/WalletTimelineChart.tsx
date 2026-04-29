@@ -219,10 +219,11 @@ export function WalletTimelineChart({
               style={{ height: AXIS_HEIGHT }}
             >
               <h2 className="text-base font-semibold text-ink">Cards</h2>
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="sm"
                 onClick={onAddCard}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-accent hover:bg-accent text-page transition-colors"
                 aria-label="Add card"
                 title="Add card"
               >
@@ -240,7 +241,7 @@ export function WalletTimelineChart({
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
                 Add Card
-              </button>
+              </Button>
               {applicableRules.length > 0 && (
                 <Popover
                   side="bottom"
