@@ -5,7 +5,8 @@ import {
   type ScenarioPortalShareRead,
   scenarioPortalShareApi,
 } from '../../../../api/client'
-import { InfoIconButton, InfoQuoteBox } from '../../../../components/InfoPopover'
+import { Popover } from '../../../../components/ui/Popover'
+import { Eyebrow } from '../../../../components/ui/Eyebrow'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
 import { useTravelPortals } from '../../../../hooks/useTravelPortals'
 import { queryKeys } from '../../../../lib/queryKeys'
@@ -95,7 +96,6 @@ export function WalletPortalSharesEditor({
 
   // Local edit buffer so the slider doesn't fire requests on every drag.
   const [pendingByPortal, setPendingByPortal] = useState<Record<number, number>>({})
-  const [infoAnchor, setInfoAnchor] = useState<HTMLElement | null>(null)
 
   if (scenarioId == null || visiblePortals.length === 0) return null
 
@@ -108,24 +108,51 @@ export function WalletPortalSharesEditor({
           const pct = Math.round(value * 100)
           return (
             <li key={portal.id}>
-              <div className="flex items-center justify-between text-[11px] text-slate-300 mb-1.5">
+              <div className="flex items-center justify-between text-[11px] text-ink-muted mb-1.5">
                 <div className="flex items-center gap-1">
-                  <span className="text-slate-400 uppercase tracking-wider">
-                    Travel Portal Spend
-                  </span>
-                  <InfoIconButton
-                    onClick={(e) => {
-                      const anchor = e.currentTarget
-                      setInfoAnchor((cur) => (cur ? null : anchor))
-                    }}
-                    label="About travel portal shares"
-                    size={11}
-                    active={!!infoAnchor}
-                  />
+                  <Eyebrow>Travel Portal Spend</Eyebrow>
+                  <Popover
+                    side="bottom"
+                    portal
+                    trigger={({ onClick, ref }) => (
+                      <button
+                        ref={ref as React.RefObject<HTMLButtonElement>}
+                        onClick={onClick}
+                        type="button"
+                        aria-label="About travel portal shares"
+                        className="shrink-0 text-ink-faint hover:text-accent transition-colors"
+                      >
+                        <svg
+                          width={11}
+                          height={11}
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </button>
+                    )}
+                  >
+                    <div className="space-y-3 text-xs text-ink-muted leading-relaxed">
+                      <p>
+                        What share of your travel spend do you book through each
+                        travel portal (like Chase Travel or Amex Travel)? Cards only
+                        earn their boosted portal rate on the portion you actually
+                        book through the portal — the rest earns the normal travel
+                        rate.
+                      </p>
+                    </div>
+                  </Popover>
                 </div>
                 <span>
                   {portal.name}:{' '}
-                  <span className="text-indigo-300 tabular-nums">{pct}%</span>
+                  <span className="text-accent tabular-nums">{pct}%</span>
                 </span>
               </div>
               <input
@@ -158,28 +185,12 @@ export function WalletPortalSharesEditor({
                     })
                   }
                 }}
-                className="w-full h-1.5 accent-indigo-500 cursor-pointer block my-0"
+                className="w-full h-1.5 accent-accent cursor-pointer block my-0"
               />
             </li>
           )
         })}
       </ul>
-
-      {infoAnchor && (
-        <InfoQuoteBox
-          anchorEl={infoAnchor}
-          title="Travel Portal Spend"
-          onClose={() => setInfoAnchor(null)}
-        >
-          <p>
-            What share of your travel spend do you book through each
-            travel portal (like Chase Travel or Amex Travel)? Cards only
-            earn their boosted portal rate on the portion you actually
-            book through the portal — the rest earns the normal travel
-            rate.
-          </p>
-        </InfoQuoteBox>
-      )}
     </div>
   )
 }

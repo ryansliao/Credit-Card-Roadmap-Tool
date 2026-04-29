@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { InfoIconButton, InfoQuoteBox } from '../../../../components/InfoPopover'
+import { Popover } from '../../../../components/ui/Popover'
+import { Eyebrow } from '../../../../components/ui/Eyebrow'
 import { scenarioCppApi, type WalletCard } from '../../../../api/client'
 import { queryKeys } from '../../../../lib/queryKeys'
 import { WalletPortalSharesEditor } from './WalletPortalSharesEditor'
@@ -32,7 +33,6 @@ export function CurrencySettingsDropdown({ scenarioId, walletCards, currencyId, 
   const hasNoTransferInfo =
     currency != null && (currency.no_transfer_rate != null || currency.no_transfer_cpp != null)
 
-  const [noTransferAnchor, setNoTransferAnchor] = useState<HTMLElement | null>(null)
   // Local drag buffer so the CPP slider updates the label continuously while
   // dragging, but only commits on release (mirrors the portal-share slider).
   const [pendingCpp, setPendingCpp] = useState<number | null>(null)
@@ -68,33 +68,84 @@ export function CurrencySettingsDropdown({ scenarioId, walletCards, currencyId, 
 
   return (
     <div
-      className="relative z-20 bg-slate-800/70 border-b border-slate-700 px-5 pt-2 pb-4"
+      className="relative z-20 bg-surface/70 border-b border-divider px-5 pt-2 pb-4"
       style={{ gridColumn: '1 / -1', width: leftGutterPx }}
     >
       {isLoading || !currency ? (
-        <div className="text-slate-500 text-sm">Loading…</div>
+        <div className="text-ink-faint text-sm">Loading…</div>
       ) : (
         <div className="space-y-3">
           {!isCash && (
             <div>
-              <div className="flex items-center justify-between text-[11px] text-slate-300 mb-1.5">
+              <div className="flex items-center justify-between text-[11px] text-ink-muted mb-1.5">
                 <div className="flex items-center gap-1">
-                  <span className="text-slate-400 uppercase tracking-wider">
-                    Cents Per Point
-                  </span>
+                  <Eyebrow>Cents Per Point</Eyebrow>
                   {hasNoTransferInfo && (
-                    <InfoIconButton
-                      onClick={(e) => {
-                        const anchor = e.currentTarget
-                        setNoTransferAnchor((cur) => (cur ? null : anchor))
-                      }}
-                      label="Without a premium card"
-                      size={11}
-                      active={!!noTransferAnchor}
-                    />
+                    <Popover
+                      side="bottom"
+                      portal
+                      trigger={({ onClick, ref }) => (
+                        <button
+                          ref={ref as React.RefObject<HTMLButtonElement>}
+                          onClick={onClick}
+                          type="button"
+                          aria-label="Without a premium card"
+                          className="shrink-0 text-ink-faint hover:text-accent transition-colors"
+                        >
+                          <svg
+                            width={11}
+                            height={11}
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="16" x2="12" y2="12" />
+                            <line x1="12" y1="8" x2="12.01" y2="8" />
+                          </svg>
+                        </button>
+                      )}
+                    >
+                      <div className="space-y-3 text-xs text-ink-muted leading-relaxed">
+                        <p>
+                          These points reach their full value when you can transfer them
+                          to airline and hotel partners, which requires a specific
+                          premium card in your wallet (e.g. a Sapphire for Chase UR).
+                        </p>
+                        <p>
+                          {currency.no_transfer_rate != null ? (
+                            <>
+                              Without one, points can only be redeemed as cash back, so
+                              they're worth{' '}
+                              <span className="text-warn font-medium">
+                                {Math.round(currency.no_transfer_rate * 100)}%
+                              </span>{' '}
+                              of their full value (
+                              <span className="text-warn font-medium">
+                                {(myCpp * currency.no_transfer_rate).toFixed(2)}¢
+                              </span>{' '}
+                              per point).
+                            </>
+                          ) : (
+                            <>
+                              Without one, points can only be redeemed as cash back, so
+                              they're worth{' '}
+                              <span className="text-warn font-medium">
+                                {currency.no_transfer_cpp}¢
+                              </span>{' '}
+                              per point.
+                            </>
+                          )}
+                        </p>
+                        <p>Add the premium card to the wallet to unlock full value.</p>
+                      </div>
+                    </Popover>
                   )}
                 </div>
-                <span className="text-indigo-300 tabular-nums">
+                <span className="text-accent tabular-nums">
                   {clampedCpp.toFixed(2)}¢
                 </span>
               </div>
@@ -115,7 +166,7 @@ export function CurrencySettingsDropdown({ scenarioId, walletCards, currencyId, 
                 onKeyUp={(e) =>
                   commitCpp(Number((e.target as HTMLInputElement).value))
                 }
-                className="w-full h-1.5 accent-indigo-500 cursor-pointer block my-0"
+                className="w-full h-1.5 accent-accent cursor-pointer block my-0"
               />
             </div>
           )}
@@ -126,45 +177,6 @@ export function CurrencySettingsDropdown({ scenarioId, walletCards, currencyId, 
             filterByCurrencyId={currencyId}
           />
         </div>
-      )}
-      {noTransferAnchor && currency && (
-        <InfoQuoteBox
-          anchorEl={noTransferAnchor}
-          title="Without a Premium Card"
-          onClose={() => setNoTransferAnchor(null)}
-        >
-          <p>
-            These points reach their full value when you can transfer them
-            to airline and hotel partners, which requires a specific
-            premium card in your wallet (e.g. a Sapphire for Chase UR).
-          </p>
-          <p>
-            {currency.no_transfer_rate != null ? (
-              <>
-                Without one, points can only be redeemed as cash back, so
-                they're worth{' '}
-                <span className="text-amber-300 font-medium">
-                  {Math.round(currency.no_transfer_rate * 100)}%
-                </span>{' '}
-                of their full value (
-                <span className="text-amber-300 font-medium">
-                  {(myCpp * currency.no_transfer_rate).toFixed(2)}¢
-                </span>{' '}
-                per point).
-              </>
-            ) : (
-              <>
-                Without one, points can only be redeemed as cash back, so
-                they're worth{' '}
-                <span className="text-amber-300 font-medium">
-                  {currency.no_transfer_cpp}¢
-                </span>{' '}
-                per point.
-              </>
-            )}
-          </p>
-          <p>Add the premium card to the wallet to unlock full value.</p>
-        </InfoQuoteBox>
       )}
     </div>
   )
