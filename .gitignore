@@ -56,6 +56,9 @@ Thumbs.db
 # Brainstorming (visual companion)
 .superpowers/
 
+# Git worktrees
+.worktrees/
+
 # Alembic
 alembic/__pycache__/
 
