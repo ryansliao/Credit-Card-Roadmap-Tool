@@ -293,7 +293,7 @@ export function WalletSummaryStats({
 
       {/* Middle: duration slider */}
       <div
-        className={`shrink-0 w-60 lg:w-72 bg-surface border rounded-xl px-4 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
+        className={`shrink-0 w-56 lg:w-64 bg-surface border rounded-xl px-4 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
         <div className="flex items-baseline justify-between mb-2">
           <div className="flex items-center gap-1">
