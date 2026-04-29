@@ -20,6 +20,7 @@ import { Toggle } from '../../components/ui/Toggle'
 import { DataTable } from '../../components/ui/DataTable'
 import { Badge } from '../../components/ui/Badge'
 import { Tabs } from '../../components/ui/Tabs'
+import { CardTile } from '../../components/cards/CardTile'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -351,6 +352,21 @@ export default function Styleguide() {
         <section id="tabs" className="space-y-4">
           <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Tabs</p>
           <TabsDemo />
+        </section>
+        <section id="cardtile" className="space-y-4 max-w-md">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">CardTile</p>
+          <CardTile
+            issuer="Chase"
+            network="Visa Infinite"
+            cardName="Sapphire Reserve"
+            netEvAnnual={1284.5}
+            badge={{ tone: 'accent', label: 'Top pick' }}
+            breakdown={[
+              { label: 'Earn', value: <Money value={2134} mono={false} /> },
+              { label: 'Credits', value: <Money value={700} mono={false} /> },
+              { label: 'AF', value: <Money value={-795} mono={false} tone="auto" /> },
+            ]}
+          />
         </section>
       </main>
     </div>
