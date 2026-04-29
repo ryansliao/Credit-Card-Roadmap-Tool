@@ -431,6 +431,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
       // Owned-base add seeds the same defaults as the future-add flow —
       // SUB/fee fields plus library credits in the picker.
       if (isOwnedBase) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot hydration from library lookup when card_id changes; refactoring to render-time would require lifting form state into the parent
         setOpeningDate(today())
         setSubPoints(lib.sub_points != null ? String(lib.sub_points) : '')
         setSubMinSpend(lib.sub_min_spend != null ? String(lib.sub_min_spend) : '')
@@ -452,7 +453,6 @@ export function WalletCardModal(props: WalletCardModalProps) {
       }
       // Future add flow: PC zeroes SUB defaults; otherwise inherit library.
       const isPc = acquisitionMode === 'pc'
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSubPoints(isPc ? '0' : (lib.sub_points != null ? String(lib.sub_points) : ''))
       setSubMinSpend(isPc ? '0' : (lib.sub_min_spend != null ? String(lib.sub_min_spend) : ''))
       setSubMonths(isPc ? '0' : (lib.sub_months != null ? String(lib.sub_months) : ''))
@@ -917,6 +917,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
   // If the user deselects a card while on a card-dependent tab, snap back to Lifecycle.
   useEffect(() => {
     if (!cardSelected && activeTab !== 'lifecycle') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync active tab to valid state when card selection changes; render-time derivation would lose user intent on re-select
       setActiveTab('lifecycle')
     }
   }, [cardSelected, activeTab])

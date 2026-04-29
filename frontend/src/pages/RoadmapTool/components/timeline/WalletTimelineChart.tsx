@@ -87,7 +87,10 @@ export function WalletTimelineChart({
   // Wallet window (fractional years) from the backend; falls back to the
   // duration slider when not provided (e.g. pre-calc render).
   const walletWindowYears = result?.wallet_window_years || totalYears
-  const currencyWindowYearsById = result?.currency_window_years ?? {}
+  const currencyWindowYearsById = useMemo(
+    () => result?.currency_window_years ?? {},
+    [result],
+  )
 
   const cardResultById = useMemo(() => {
     const m = new Map<number, CardResult>()

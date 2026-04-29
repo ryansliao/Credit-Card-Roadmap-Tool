@@ -682,6 +682,7 @@ export default function RoadmapToolPage() {
     setDurationYears(scenarioDetail.duration_years)
     setDurationMonths(scenarioDetail.duration_months)
     setIncludeSubs(scenarioDetail.include_subs)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only respond to scenario id changes; other fields are user-editable
   }, [scenarioDetail?.id])
 
   // Hydrate result state from the persisted snapshot exactly once per mount.
