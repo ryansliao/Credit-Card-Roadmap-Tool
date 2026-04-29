@@ -19,6 +19,7 @@ import { Checkbox } from '../../components/ui/Checkbox'
 import { Toggle } from '../../components/ui/Toggle'
 import { DataTable } from '../../components/ui/DataTable'
 import { Badge } from '../../components/ui/Badge'
+import { Tabs } from '../../components/ui/Tabs'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -96,6 +97,21 @@ function ToastDemo() {
         Error
       </button>
     </div>
+  )
+}
+
+function TabsDemo() {
+  const [active, setActive] = useState<'wallet' | 'spending' | 'settings'>('wallet')
+  return (
+    <Tabs
+      items={[
+        { id: 'wallet', label: 'Wallet' },
+        { id: 'spending', label: 'Spending' },
+        { id: 'settings', label: 'Settings' },
+      ]}
+      active={active}
+      onChange={setActive}
+    />
   )
 }
 
@@ -331,6 +347,10 @@ export default function Styleguide() {
             <Badge tone="warn">Pending</Badge>
             <Badge tone="info">No SUB</Badge>
           </div>
+        </section>
+        <section id="tabs" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Tabs</p>
+          <TabsDemo />
         </section>
       </main>
     </div>
