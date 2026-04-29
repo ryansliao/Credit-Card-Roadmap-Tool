@@ -23,7 +23,7 @@ from .card import (
 from .credit import Credit, CardCredit
 from .travel_portal import TravelPortal
 from .wallet import Wallet
-from .wallet_spend import WalletSpendItem
+from .wallet_spend import WalletSpendItem, WalletUserSpendCategoryWeight
 from .user_spend import UserSpendCategory, UserSpendCategoryMapping
 from .scenario import Scenario
 from .card_instance import CardInstance
@@ -70,6 +70,7 @@ __all__ = [
     "ScenarioCurrencyBalance",
     "ScenarioPortalShare",
     "WalletSpendItem",
+    "WalletUserSpendCategoryWeight",
     "UserSpendCategory",
     "UserSpendCategoryMapping",
     "WalletCardCredit",
