@@ -31,25 +31,6 @@ interface Props {
   resultsError?: Error | null
 }
 
-/** Inline info icon SVG used inside each Popover trigger. */
-function InfoIcon({ size = 15 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="16" x2="12" y2="12" />
-      <line x1="12" y1="8" x2="12.01" y2="8" />
-    </svg>
-  )
-}
 
 export function WalletSummaryStats({
   result,
@@ -124,9 +105,7 @@ export function WalletSummaryStats({
             }`}
           >
             <div className="px-1 py-0.5 text-center min-w-0 flex flex-col justify-center gap-1">
-              <div className="flex items-center justify-center gap-1 h-5">
-                <Eyebrow accent>Effective Annual Fee</Eyebrow>
-                <Popover
+              <Popover
                   side="bottom"
                   portal
                   trigger={({ onClick, ref }) => (
@@ -135,9 +114,9 @@ export function WalletSummaryStats({
                       onClick={onClick}
                       type="button"
                       aria-label="How Effective Annual Fee is calculated"
-                      className="shrink-0 text-ink-faint hover:text-accent transition-colors"
+                      className="cursor-help hover:[&_span]:text-ink-muted transition-colors"
                     >
-                      <InfoIcon size={15} />
+                      <Eyebrow accent>Effective Annual Fee</Eyebrow>
                     </button>
                   )}
                 >
@@ -167,7 +146,6 @@ export function WalletSummaryStats({
                     </div>
                   </div>
                 </Popover>
-              </div>
               {result ? (
                 <p className={`text-xl font-bold tabular-nums truncate ${totalEffectiveAF < 0 ? 'text-pos' : 'text-ink'}`}>{formatMoney(totalEffectiveAF)}</p>
               ) : (
@@ -178,9 +156,7 @@ export function WalletSummaryStats({
             </div>
             <div className="bg-divider/60 self-stretch my-1" />
             <div className="px-1 py-0.5 text-center min-w-0 flex flex-col justify-center gap-1">
-              <div className="flex items-center justify-center gap-1 h-5">
-                <Eyebrow>Annual Fees</Eyebrow>
-                <Popover
+              <Popover
                   side="bottom"
                   portal
                   trigger={({ onClick, ref }) => (
@@ -189,9 +165,9 @@ export function WalletSummaryStats({
                       onClick={onClick}
                       type="button"
                       aria-label="How Annual Fees is calculated"
-                      className="shrink-0 text-ink-faint hover:text-accent transition-colors"
+                      className="cursor-help hover:[&_span]:text-ink-muted transition-colors"
                     >
-                      <InfoIcon size={15} />
+                      <Eyebrow>Annual Fees</Eyebrow>
                     </button>
                   )}
                 >
@@ -220,7 +196,6 @@ export function WalletSummaryStats({
                     </div>
                   </div>
                 </Popover>
-              </div>
               {result ? (
                 <p className="text-xl font-bold text-ink tabular-nums truncate">{formatMoney(totalAnnualFees)}</p>
               ) : (
@@ -231,9 +206,7 @@ export function WalletSummaryStats({
             </div>
             <div className="bg-divider/60 self-stretch my-1" />
             <div className="px-1 py-0.5 text-center min-w-0 flex flex-col justify-center gap-1">
-              <div className="flex items-center justify-center gap-1 h-5">
-                <Eyebrow>Point Income</Eyebrow>
-                <Popover
+              <Popover
                   side="bottom"
                   portal
                   trigger={({ onClick, ref }) => (
@@ -242,9 +215,9 @@ export function WalletSummaryStats({
                       onClick={onClick}
                       type="button"
                       aria-label="How Income is calculated"
-                      className="shrink-0 text-ink-faint hover:text-accent transition-colors"
+                      className="cursor-help hover:[&_span]:text-ink-muted transition-colors"
                     >
-                      <InfoIcon size={15} />
+                      <Eyebrow>Point Income</Eyebrow>
                     </button>
                   )}
                 >
@@ -275,7 +248,6 @@ export function WalletSummaryStats({
                     </div>
                   </div>
                 </Popover>
-              </div>
               {result ? (
                 <p className="text-xl font-bold text-ink tabular-nums truncate">
                   {formatPointsExact(Math.round(totalAnnualPoints))}
@@ -296,9 +268,7 @@ export function WalletSummaryStats({
         className={`shrink-0 w-60 lg:w-72 bg-surface border rounded-xl px-4 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1">
-            <Eyebrow>Time Horizon</Eyebrow>
-            <Popover
+          <Popover
               side="bottom"
               portal
               trigger={({ onClick, ref }) => (
@@ -307,9 +277,9 @@ export function WalletSummaryStats({
                   onClick={onClick}
                   type="button"
                   aria-label="How time horizon affects calculation"
-                  className="shrink-0 text-ink-faint hover:text-accent transition-colors"
+                  className="cursor-help hover:[&_span]:text-ink-muted transition-colors"
                 >
-                  <InfoIcon size={15} />
+                  <Eyebrow>Time Horizon</Eyebrow>
                 </button>
               )}
             >
@@ -339,7 +309,6 @@ export function WalletSummaryStats({
                 </div>
               </div>
             </Popover>
-          </div>
           <span className="text-xs font-medium text-ink tabular-nums">
             {formatDuration(durationYears, durationMonths)}
           </span>
@@ -386,9 +355,7 @@ export function WalletSummaryStats({
       <div
         className={`shrink-0 w-44 bg-surface border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
-        <div className="flex items-center justify-center gap-1 mb-2.5">
-          <Eyebrow>Sign-Up Bonuses</Eyebrow>
-          <Popover
+        <Popover
             side="bottom"
             portal
             trigger={({ onClick, ref }) => (
@@ -397,9 +364,9 @@ export function WalletSummaryStats({
                 onClick={onClick}
                 type="button"
                 aria-label="How the Sign Up Bonus toggle affects calculation"
-                className="shrink-0 text-ink-faint hover:text-accent transition-colors"
+                className="cursor-help hover:[&_span]:text-ink-muted transition-colors mb-2.5 block"
               >
-                <InfoIcon size={15} />
+                <Eyebrow>Sign-Up Bonuses</Eyebrow>
               </button>
             )}
           >
@@ -436,7 +403,6 @@ export function WalletSummaryStats({
               </div>
             </div>
           </Popover>
-        </div>
         <div
           role="radiogroup"
           aria-label="Include Sign Up Bonuses in calculation"
