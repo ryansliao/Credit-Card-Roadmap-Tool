@@ -226,7 +226,6 @@ export function WalletTimelineChart({
                 onClick={onAddCard}
                 aria-label="Add card"
                 title="Add card"
-                className="h-7"
               >
                 <svg
                   width="12"
