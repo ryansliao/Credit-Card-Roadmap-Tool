@@ -234,15 +234,15 @@ export function CardRow({
     <div className="group contents">
       {/* Left gutter */}
       <div
-        className={`flex items-center gap-2 px-3 ${DIVIDER_CLASS} transition-colors group-hover:bg-surface-2/60 ${
-          enabled ? '' : 'opacity-50'
-        }`}
+        className={`flex items-center gap-2 px-3 ${DIVIDER_CLASS} transition-colors group-hover:bg-surface-2/60`}
         style={{ height: rowHeight }}
       >
         <button
           type="button"
           onClick={() => onEditCard(wc)}
-          className="flex-1 min-w-0 text-left flex items-center gap-3 group-hover:text-accent transition-colors"
+          className={`flex-1 min-w-0 text-left flex items-center gap-3 group-hover:text-accent transition-colors ${
+            enabled ? '' : 'opacity-50'
+          }`}
           title="Edit card"
         >
           <CardThumb slug={wc.photo_slug} name={wc.card_name ?? ''} />

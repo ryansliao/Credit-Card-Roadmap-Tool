@@ -26,8 +26,8 @@
   /* Chart palette — saturated, distinct from muted semantic tokens.
      Used by the wallet timeline bars / SUB segments. */
   --chart-cash: #16a34a;
-  --chart-points: #4f46e5;
-  --chart-sub: #fbbf24;
+  --chart-points: #1d4ed8;
+  --chart-sub: #9333ea;
 
   /* Radii */
   --radius-sm: 4px;
@@ -62,8 +62,8 @@
   --color-info: #9eb3d6;
 
   --chart-cash: #4ade80;
-  --chart-points: #818cf8;
-  --chart-sub: #fbbf24;
+  --chart-points: #60a5fa;
+  --chart-sub: #c084fc;
 
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 1px rgba(0, 0, 0, 0.2);
   --shadow-modal: 0 24px 48px -12px rgba(0, 0, 0, 0.6), 0 8px 16px -8px rgba(0, 0, 0, 0.4);

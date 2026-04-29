@@ -111,13 +111,7 @@ export function WalletTimelineChart({
     return m
   }, [roadmap])
 
-  const visibleCards = useMemo(() => {
-    return (walletCards ?? []).filter((wc) => {
-      const addedMs = parseDate(wc.added_date).getTime()
-      if (addedMs >= range.endMs) return false
-      return true
-    })
-  }, [walletCards, range])
+  const visibleCards = useMemo(() => walletCards ?? [], [walletCards])
 
   const groups = useMemo<GroupData[]>(() => {
     const rawGroups = buildGroupsFromVisibleCards(
@@ -226,10 +220,11 @@ export function WalletTimelineChart({
                 onClick={onAddCard}
                 aria-label="Add card"
                 title="Add card"
+                className="!py-1"
               >
                 <svg
-                  width="12"
-                  height="12"
+                  width="10"
+                  height="10"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -251,7 +246,7 @@ export function WalletTimelineChart({
                       ref={ref as React.RefObject<HTMLButtonElement>}
                       type="button"
                       onClick={onClick}
-                      className={`ml-auto mr-3 shrink-0 transition-colors ${
+                      className={`shrink-0 transition-colors ${
                         maxSeverity === 'violated'
                           ? 'text-neg'
                           : maxSeverity === 'in_effect'
@@ -287,9 +282,9 @@ export function WalletTimelineChart({
                       {applicableRules.map((r) => {
                         const containerClass =
                           r.severity === 'violated'
-                            ? 'border-neg/40 bg-neg/10'
+                            ? 'border-neg/50 bg-neg/20'
                             : r.severity === 'in_effect'
-                              ? 'border-warn/40 bg-warn/10'
+                              ? 'border-warn/60 bg-warn/25'
                               : 'border-divider bg-surface-2/40'
                         const titleClass =
                           r.severity === 'violated'
