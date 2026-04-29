@@ -9,9 +9,9 @@ function formatDuration(years: number, months: number): string {
   const total = years * 12 + months
   const y = Math.floor(total / 12)
   const m = total % 12
-  if (y === 0) return `${m} Months`
+  if (y === 0) return `${m} Mo.`
   if (m === 0) return `${y} Years`
-  return `${y} Years, ${m} Months`
+  return `${y} Years, ${m} Mo.`
 }
 
 interface Props {
