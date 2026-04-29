@@ -1,4 +1,4 @@
-import { useTheme } from '../../hooks/useTheme'
+import { ThemeToggle } from '../../components/ui/ThemeToggle'
 
 /**
  * Internal styleguide route — gated by VITE_SHOW_STYLEGUIDE=1.
@@ -6,7 +6,6 @@ import { useTheme } from '../../hooks/useTheme'
  * sections mean you can deep-link to a primitive: /styleguide#modal.
  */
 export default function Styleguide() {
-  const { theme, toggle } = useTheme()
   return (
     <div className="min-h-dvh bg-page text-ink">
       <header className="border-b border-divider px-8 py-6 flex items-center justify-between">
@@ -16,12 +15,7 @@ export default function Styleguide() {
             Styleguide
           </h1>
         </div>
-        <button
-          onClick={toggle}
-          className="text-sm border border-divider rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors"
-        >
-          {theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
-        </button>
+        <ThemeToggle />
       </header>
       <main className="px-8 py-10 max-w-5xl mx-auto space-y-16">
         <section id="overview">
