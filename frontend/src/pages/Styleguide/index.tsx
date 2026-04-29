@@ -15,6 +15,7 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Field } from '../../components/ui/Field'
 import { Select } from '../../components/ui/Select'
+import { Checkbox } from '../../components/ui/Checkbox'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -282,6 +283,13 @@ export default function Styleguide() {
             <option>What-if A</option>
             <option>What-if B</option>
           </Select>
+        </section>
+        <section id="checkbox" className="space-y-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Checkbox</p>
+          <Checkbox label="Include SUBs" />
+          <Checkbox label="Checked" defaultChecked />
+          <Checkbox label="Indeterminate" indeterminate />
+          <Checkbox label="Disabled" disabled />
         </section>
       </main>
     </div>
