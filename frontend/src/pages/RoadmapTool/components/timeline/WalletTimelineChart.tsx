@@ -1,23 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import type {
   CardResult,
   RoadmapResponse,
   WalletResult,
 } from '../../../../api/client'
 import type { ResolvedCard } from '../../lib/resolveScenarioCards'
-import { formatMoney, formatMoneyCompact, formatPoints, formatPointsExact, pointsUnitLabel, today } from '../../../../utils/format'
-import {
-  cardAnnualPointIncomeActive,
-  cardAnnualPointIncomeCurrencyWindow,
-  cardEafActive,
-  cardEafWindow,
-} from '../../../../utils/cardIncome'
+import { today } from '../../../../utils/format'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
-import { CurrencySettingsDropdown } from '../summary/CurrencySettingsDropdown'
 import { Popover } from '../../../../components/ui/Popover'
 import { Button } from '../../../../components/ui/Button'
-import { Toggle } from '../../../../components/ui/Toggle'
+import { TimelineAxis } from '../../../../components/cards/TimelineAxis'
+import { GroupSection } from './GroupSection'
+import type { GroupData } from './GroupSection'
+import { parseDate, addMonths, pctOf } from './lib/timelineUtils'
+import type { Range } from './lib/timelineUtils'
+import {
+  groupAnnualDollars,
+  groupBalanceDollars,
+  groupCombinedEaf,
+  formatDate,
+} from './lib/timelineFormatters'
+import {
+  buildGroupsFromVisibleCards,
+  enrichRuleStatuses,
+} from './lib/timelineGroups'
 
 interface Props {
   /** Active scenario id — drives the per-currency CPP / portal-share editors. */
@@ -40,236 +46,8 @@ interface Props {
 }
 
 const LEFT_GUTTER = 420 // px
-const CURRENCY_ROW_HEIGHT = 45
-const CARD_ROW_HEIGHT = 50
 const AXIS_HEIGHT = 50
 const DIVIDER_CLASS = 'border-b border-divider'
-
-/**
- * Small hover tooltip for icon badges. Renders a portal-mounted label
- * positioned above the wrapped element on hover/focus. Uses a portal
- * because the chart container has overflow:hidden, which clips any
- * in-flow tooltip.
- */
-function IconHoverLabel({
-  label,
-  className,
-  children,
-}: {
-  label: string
-  className?: string
-  children: React.ReactNode
-}) {
-  const ref = useRef<HTMLSpanElement>(null)
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
-
-  const show = () => {
-    const el = ref.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    setPos({ top: r.top - 4, left: r.left + r.width / 2 })
-  }
-  const hide = () => setPos(null)
-
-  return (
-    <>
-      <span
-        ref={ref}
-        className={className}
-        onMouseEnter={show}
-        onMouseLeave={hide}
-        onFocus={show}
-        onBlur={hide}
-        aria-label={label}
-        tabIndex={0}
-      >
-        {children}
-      </span>
-      {pos &&
-        createPortal(
-          <div
-            role="tooltip"
-            className="pointer-events-none fixed z-[60] -translate-x-1/2 -translate-y-full whitespace-nowrap text-[10px] font-normal normal-case tracking-normal bg-page text-ink border border-divider rounded px-1.5 py-0.5 shadow-lg"
-            style={{ top: pos.top, left: pos.left }}
-          >
-            {label}
-          </div>,
-          document.body,
-        )}
-    </>
-  )
-}
-
-interface Range {
-  startMs: number
-  endMs: number
-  spanMs: number
-}
-
-function parseDate(s: string): Date {
-  const [y, m, d] = s.split('-').map(Number)
-  return new Date(y, (m ?? 1) - 1, d ?? 1)
-}
-
-function addMonths(d: Date, months: number): Date {
-  const r = new Date(d)
-  r.setMonth(r.getMonth() + months)
-  return r
-}
-
-function clamp01(x: number): number {
-  return Math.min(1, Math.max(0, x))
-}
-
-function pctOf(range: Range, ms: number): number {
-  return clamp01((ms - range.startMs) / range.spanMs) * 100
-}
-
-/** Format a card's annual income. Cash cards: "$X/yr". Points/miles
- * cards: "X/yr" (unit label omitted to match the currency rows). */
-function formatCardIncome(c: CardResult | null, includeSubs: boolean): string | null {
-  const pts = cardAnnualPointIncomeActive(c, includeSubs)
-  if (pts == null || c == null) return null
-  if (c.effective_reward_kind === 'cash') {
-    const dollars = (pts * c.cents_per_point) / 100
-    return `${formatMoney(dollars)}/yr`
-  }
-  const rounded = Math.round(pts)
-  return `${formatPoints(rounded)}/yr`
-}
-
-/** Annual dollar value of a group, regardless of reward kind. Sums only
- * cards that were included in the last calc (have a `cr`). Does NOT gate
- * by live `is_enabled` so group totals/ordering stay stable until the
- * user clicks Calculate again. Uses the currency's own window (earliest
- * card open → latest close among cards earning the currency) for
- * annualization when available. */
-function groupAnnualDollars(
-  group: GroupData,
-  includeSubs: boolean,
-  walletWindowYears: number | undefined,
-  currencyWindowYears: number | undefined,
-): number {
-  return group.cards.reduce((s, { cr }) => {
-    if (!cr) return s
-    const pts =
-      cardAnnualPointIncomeCurrencyWindow(
-        cr,
-        includeSubs,
-        walletWindowYears,
-        currencyWindowYears,
-      ) ?? 0
-    return s + (pts * cr.cents_per_point) / 100
-  }, 0)
-}
-
-/** End-of-projection dollar value of a group's balance. Used to order
- * groups by projected balance. Falls back to the first card's CPP when
- * `balanceCpp` isn't set (i.e. points-kind groups). */
-function groupBalanceDollars(group: GroupData): number {
-  if (group.totalBalance == null) return 0
-  const cpp =
-    group.balanceCpp ??
-    group.cards.find((e) => e.cr != null)?.cr?.cents_per_point ??
-    null
-  if (cpp == null) return 0
-  return (group.totalBalance * cpp) / 100
-}
-
-/** Sum of per-card EAF across all cards earning this currency. Uses the
- * window-basis flavor (not the active-year one) so the sum stays on the
- * wallet window. Used as a tiebreaker when ordering zero-balance
- * currencies, so it always honors the "include SUBs" toggle as a display
- * switch — passing `true` mirrors the backend's SUB-inclusive value. */
-function groupCombinedEaf(group: GroupData): number {
-  return group.cards.reduce(
-    (s, { cr }) => s + (cardEafWindow(cr ?? null, true) ?? 0),
-    0,
-  )
-}
-
-
-function formatGroupIncome(
-  group: GroupData,
-  includeSubs: boolean,
-  walletWindowYears: number | undefined,
-  currencyWindowYears: number | undefined,
-): string | null {
-  const { rewardKind, cards } = group
-  if (!rewardKind) return null
-  const included = cards.filter(({ cr }) => cr != null)
-  if (included.length === 0) return null
-  const scaledPts = (c: CardResult | null | undefined): number =>
-    cardAnnualPointIncomeCurrencyWindow(
-      c ?? null,
-      includeSubs,
-      walletWindowYears,
-      currencyWindowYears,
-    ) ?? 0
-  if (rewardKind === 'cash') {
-    const dollars = included.reduce((s, { cr }) => {
-      const pts = scaledPts(cr)
-      return s + (pts * (cr?.cents_per_point ?? 1)) / 100
-    }, 0)
-    return `${formatMoney(dollars)}/yr`
-  }
-  const pts = included.reduce((s, { cr }) => s + scaledPts(cr), 0)
-  const rounded = Math.round(pts)
-  return `${formatPoints(rounded)}/yr`
-}
-
-/** Format a single secondary-currency annual total, e.g. "$25 Bilt Cash/yr".
- * Group-level aggregates use summed per-card annualised rates (each
- * card's `secondary_currency_net_earn / card_active_years`). */
-function formatSecondaryAnnual(secondary: SecondaryAnnual): string {
-  if (secondary.rewardKind === 'cash') {
-    return `${formatMoneyCompact(secondary.dollars)} ${secondary.name}/yr`
-  }
-  const rounded = Math.round(secondary.units)
-  return `${formatPoints(rounded)} ${secondary.name}/yr`
-}
-
-/** Format a currency's end-of-projection balance. Uses the same
- * pts-vs-dollars split as the per-year figure so the two read consistently. */
-function formatGroupBalance(group: GroupData): string | null {
-  if (group.totalBalance == null) return null
-  if (group.rewardKind === 'cash' && group.balanceCpp != null) {
-    const dollars = (group.totalBalance * group.balanceCpp) / 100
-    return `${formatMoney(dollars)}`
-  }
-  const rounded = Math.round(group.totalBalance)
-  return formatPointsExact(rounded)
-}
-
-function formatSecondaryBalance(
-  secondary: { name: string; units: number; dollars: number; rewardKind: 'points' | 'cash' },
-): string {
-  if (secondary.rewardKind === 'cash') {
-    return `${formatMoneyCompact(secondary.dollars)} ${secondary.name}/yr`
-  }
-  const rounded = Math.round(secondary.units)
-  return `${formatPoints(rounded)} ${secondary.name}/yr`
-}
-
-function formatDate(s: string | null): string {
-  if (!s) return '—'
-  const d = parseDate(s)
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-}
-
-/** Measure rendered text width via a shared offscreen canvas. The font
- * string matches the bar label (text-xs, semibold, default sans-serif). */
-let _measureCtx: CanvasRenderingContext2D | null = null
-function measureEafLabelPx(text: string): number {
-  if (typeof document === 'undefined') return text.length * 7
-  if (!_measureCtx) {
-    const canvas = document.createElement('canvas')
-    _measureCtx = canvas.getContext('2d')
-  }
-  if (!_measureCtx) return text.length * 7
-  _measureCtx.font = '600 12px ui-sans-serif, system-ui, sans-serif'
-  return _measureCtx.measureText(text).width
-}
 
 export function WalletTimelineChart({
   scenarioId,
@@ -289,84 +67,11 @@ export function WalletTimelineChart({
   const toggleExpanded = (cid: number) =>
     setExpandedCurrencyId((prev) => (prev === cid ? null : cid))
 
-  // Issuer-specific application rules whose issuer has at least one card
-  // in this wallet. Global (issuer-less) rules are intentionally excluded —
-  // these warnings are scoped to issuer velocity rules. Each rule is
-  // enriched with a severity:
-  //   - 'inactive': count below max.
-  //   - 'in_effect': count at/over max with no violating issuer card yet.
-  //   - 'violated': a card from the rule's issuer is present past the
-  //     limit (e.g. a Chase card added while already over 5/24).
-  const ruleData = useMemo(() => {
-    type Severity = 'inactive' | 'in_effect' | 'violated'
-    const empty = { rules: [] as (RoadmapResponse['rule_statuses'][number] & { severity: Severity })[], maxSeverity: 'inactive' as Severity }
-    if (!roadmap) return empty
-    const walletIssuers = new Set<string>()
-    for (const c of roadmap.cards ?? []) {
-      if (c.issuer_name) walletIssuers.add(c.issuer_name)
-    }
-    const applicable = roadmap.rule_statuses.filter(
-      (r) => r.issuer_name != null && walletIssuers.has(r.issuer_name),
-    )
-    const enriched = applicable.map((r) => {
-      let severity: Severity = 'inactive'
-      if (r.current_count >= r.max_count) {
-        // Limit reached. A rule is *violated* only when a card from the
-        // rule's issuer was approved while the count — within that card's
-        // own trailing period window — was already at or over max. We
-        // have to do the per-card date check on every rule, not just
-        // scope_all_issuers ones: short cooldowns like Citi 1/8 anchor
-        // `counted_cards` to today with no upper bound, so two issuer
-        // cards more than `period_days` apart can both land in
-        // `counted_cards` without actually violating each other.
-        const counted = new Set(r.counted_cards)
-        const periodMs = r.period_days * 86400000
-        const cards = roadmap.cards ?? []
-        const candidateCards = cards.filter((c) => {
-          if (!counted.has(c.card_name)) return false
-          // For scope_all_issuers rules (e.g. Chase 5/24) only the rule's
-          // own issuer can violate it; non-issuer cards in the count just
-          // contribute to the trigger threshold.
-          if (r.issuer_name && c.issuer_name !== r.issuer_name) return false
-          return true
-        })
-        const violated = candidateCards.some((c) => {
-          const cMs = parseDate(c.added_date).getTime()
-          const windowStartMs = cMs - periodMs
-          let priorCount = 0
-          for (const other of cards) {
-            if (other === c) continue
-            if (!counted.has(other.card_name)) continue
-            const oMs = parseDate(other.added_date).getTime()
-            // <= cMs because we don't have intraday ordering — treat
-            // same-day adds as already in the count when c is approved.
-            if (oMs >= windowStartMs && oMs <= cMs) priorCount++
-          }
-          return priorCount >= r.max_count
-        })
-        severity = violated ? 'violated' : 'in_effect'
-      }
-      return { ...r, severity }
-    })
-    const rank: Record<Severity, number> = { inactive: 0, in_effect: 1, violated: 2 }
-    const maxSeverity = enriched.reduce<Severity>(
-      (m, r) => (rank[r.severity] > rank[m] ? r.severity : m),
-      'inactive',
-    )
-    // Sort highest-risk first: violated → in effect → inactive, then by
-    // how close to the limit (count/max), then alphabetically for
-    // stability.
-    const sorted = [...enriched].sort((a, b) => {
-      const ds = rank[b.severity] - rank[a.severity]
-      if (ds !== 0) return ds
-      const dr = b.current_count / b.max_count - a.current_count / a.max_count
-      if (Math.abs(dr) > 1e-9) return dr
-      return a.rule_name.localeCompare(b.rule_name)
-    })
-    return { rules: sorted, maxSeverity }
-  }, [roadmap])
-  const applicableRules = ruleData.rules
-  const maxSeverity = ruleData.maxSeverity
+  const { rules: applicableRules, maxSeverity } = useMemo(
+    () => enrichRuleStatuses(roadmap),
+    [roadmap],
+  )
+
   const range = useMemo<Range>(() => {
     const start = parseDate(today())
     const end = addMonths(start, durationYears * 12 + durationMonths)
@@ -412,136 +117,16 @@ export function WalletTimelineChart({
   }, [walletCards, range])
 
   const groups = useMemo<GroupData[]>(() => {
-    const byCurrency = new Map<string, GroupData>()
-    for (const wc of visibleCards) {
-      // Pull cr directly from the last calc's result — don't gate by the
-      // live `wc.is_enabled`. The backend only emits CardResults for cards
-      // that were enabled *at calc time*, so toggling now must not make cr
-      // flip in/out of existence (that would reorder currency groups and
-      // change their totals between calcs).
-      // CardResult.card_id is the synthetic instance id (= ResolvedCard.id),
-      // not the library card_id — see ScenarioResolver.build_compute_inputs.
-      const cr = cardResultById.get(wc.id) ?? null
-      let name: string
-      let currencyId: number | null
-      let photoSlug: string | null
-      let rewardKind: 'points' | 'cash' | null
-      if (cr) {
-        name = cr.effective_currency_name
-        currencyId = cr.effective_currency_id ?? null
-        photoSlug = cr.effective_currency_photo_slug ?? null
-        rewardKind = cr.effective_reward_kind ?? 'points'
-      } else {
-        const lib = libraryById.get(wc.card_id)
-        const cur = lib?.currency_obj
-        if (cur) {
-          name = cur.name
-          currencyId = cur.id
-          photoSlug = cur.photo_slug ?? null
-          rewardKind = cur.reward_kind === 'cash' ? 'cash' : 'points'
-        } else {
-          // Library not loaded yet or card missing — skip so we never show
-          // a stray "Unknown" group.
-          continue
-        }
-      }
-      if (!byCurrency.has(name)) {
-        byCurrency.set(name, {
-          name,
-          currencyId,
-          photoSlug,
-          color: rewardKind === 'cash' ? '#4ade80' : '#818cf8',
-          rewardKind,
-          cards: [],
-          secondaries: [],
-          totalBalance: null,
-          balanceCpp: null,
-        })
-      }
-      const g = byCurrency.get(name)!
-      // Precompute per-card secondary annual earn so both card rows and the
-      // group header can render it without extra lookups.
-      //
-      // Note: the calculator deliberately zeroes ``secondary_currency_value_dollars``
-      // when a card is in Bilt 2.0 "Bilt Cash mode" (to avoid double-counting
-      // against the lump-sum annual_bonus). For display we want the true
-      // dollar value, so we re-derive it from the library secondary
-      // currency's cents_per_point × the net-pts figure.
-      // Filter by `cr` presence (i.e. "was included in the last calc"),
-      // not live `wc.is_enabled`, so toggling a card doesn't change the
-      // group's aggregated secondary-currency totals until recalc.
-      let secondary: SecondaryAnnual | null = null
-      if (
-        cr &&
-        cr.secondary_currency_id &&
-        cr.secondary_currency_net_earn !== 0
-      ) {
-        const lib = libraryById.get(wc.card_id)
-        const secObj = lib?.secondary_currency_obj
-        const kind: 'points' | 'cash' = secObj?.reward_kind === 'cash' ? 'cash' : 'points'
-        const secCpp = secObj?.cents_per_point ?? 1
-        const years = cr.card_active_years || totalYears || 1
-        const annualUnits = cr.secondary_currency_net_earn / years
-        secondary = {
-          id: cr.secondary_currency_id,
-          name: cr.secondary_currency_name,
-          units: annualUnits,
-          dollars: (annualUnits * secCpp) / 100,
-          rewardKind: kind,
-          totalUnits: cr.secondary_currency_net_earn,
-          totalDollars: (cr.secondary_currency_net_earn * secCpp) / 100,
-        }
-      }
-      g.cards.push({ wc, cr, secondary })
-    }
-    for (const g of byCurrency.values()) {
-      g.cards.sort((a, b) => {
-        const ea = a.cr?.card_effective_annual_fee ?? Number.POSITIVE_INFINITY
-        const eb = b.cr?.card_effective_annual_fee ?? Number.POSITIVE_INFINITY
-        return ea - eb
-      })
-
-      // Aggregate primary-currency balance and secondary totals based on
-      // calc results only. Don't gate by live `is_enabled` — the results
-      // must stay stable (including currency group order) until the user
-      // clicks Calculate again. Cards that weren't enabled at calc time
-      // won't have a `cr` anyway.
-      let balanceSum = 0
-      let balanceCount = 0
-      const byId = new Map<number, SecondaryAnnual>()
-      for (const entry of g.cards) {
-        if (!entry.cr) continue
-        balanceSum += entry.cr.total_points
-        balanceCount += 1
-        const s = entry.secondary
-        if (s) {
-          const prev = byId.get(s.id) ?? {
-            ...s,
-            units: 0,
-            dollars: 0,
-            totalUnits: 0,
-            totalDollars: 0,
-          }
-          prev.units += s.units
-          prev.dollars += s.dollars
-          prev.totalUnits += s.totalUnits
-          prev.totalDollars += s.totalDollars
-          byId.set(s.id, prev)
-        }
-      }
-      if (balanceCount > 0) {
-        g.totalBalance = balanceSum
-        if (g.rewardKind === 'cash') {
-          g.balanceCpp = g.cards.find((e) => e.cr != null)?.cr?.cents_per_point ?? null
-        }
-      }
-      g.secondaries = Array.from(byId.values())
-    }
-
+    const rawGroups = buildGroupsFromVisibleCards(
+      visibleCards,
+      cardResultById,
+      libraryById,
+      totalYears,
+    )
     // Sort by end-of-projection balance (in dollars) descending. Fall back
     // to annual dollar value when balances are absent or equal so groups
     // without calc results still order sensibly.
-    return Array.from(byCurrency.values()).sort((a, b) => {
+    return rawGroups.sort((a, b) => {
       const ba = groupBalanceDollars(a)
       const bb = groupBalanceDollars(b)
       if (ba !== bb) return bb - ba
@@ -594,12 +179,17 @@ export function WalletTimelineChart({
         <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto">
           <div className="flex flex-col items-center gap-3 py-10">
             <p className="text-ink-faint text-sm">No cards yet.</p>
-            <Button
-              type="button"
-              variant="primary"
-              onClick={onAddCard}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <Button type="button" variant="primary" onClick={onAddCard}>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
@@ -633,7 +223,16 @@ export function WalletTimelineChart({
                 aria-label="Add card"
                 title="Add card"
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
@@ -658,7 +257,16 @@ export function WalletTimelineChart({
                       aria-label="Application rule status"
                       title="Application rule status"
                     >
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                         <line x1="12" y1="9" x2="12" y2="13" />
                         <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -735,35 +343,7 @@ export function WalletTimelineChart({
               className={`bg-surface ${DIVIDER_CLASS} relative`}
               style={{ height: AXIS_HEIGHT }}
             >
-              {yearTicks.map((t) => (
-                <div
-                  key={t.label}
-                  className="absolute top-0 bottom-0 flex items-center text-[11px] text-ink-faint"
-                  style={{ left: `${t.pct}%`, transform: 'translateX(-50%)' }}
-                >
-                  {t.label}
-                </div>
-              ))}
-              <div
-                className="absolute flex items-center text-[11px] text-ink-muted font-semibold whitespace-nowrap pointer-events-none"
-                style={{ left: 0, top: 0, bottom: 0, transform: 'translateX(-50%)' }}
-              >
-                Today
-              </div>
-              <div
-                className="absolute flex items-center text-[11px] text-ink-muted font-semibold whitespace-nowrap pointer-events-none"
-                style={{ right: 0, top: 0, bottom: 0, transform: 'translateX(50%)' }}
-                title={new Date(range.endMs).toLocaleDateString(undefined, {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              >
-                {new Date(range.endMs).toLocaleDateString(undefined, {
-                  year: 'numeric',
-                  month: 'short',
-                })}
-              </div>
+              <TimelineAxis yearTicks={yearTicks} endMs={range.endMs} />
             </div>
           </div>
 
@@ -810,720 +390,35 @@ export function WalletTimelineChart({
 
               {/* Groups */}
               {groups.map((g) => (
-              <GroupSection
-                key={g.name}
-                group={g}
-                range={range}
-                roadmapById={roadmapById}
-                isUpdating={isUpdating}
-                isStale={isStale}
-                includeSubs={includeSubs}
-                rightColumnPx={rightColumnPx}
-                walletWindowYears={walletWindowYears}
-                currencyWindowYears={
-                  g.currencyId ? currencyWindowYearsById[String(g.currencyId)] : undefined
-                }
-                onToggleEnabled={onToggleEnabled}
-                onEditCard={onEditCard}
-                scenarioId={scenarioId}
-                walletCards={walletCards ?? []}
-                isExpanded={
-                  g.currencyId != null && expandedCurrencyId === g.currencyId
-                }
-                onToggleExpanded={toggleExpanded}
-              />
-            ))}
+                <GroupSection
+                  key={g.name}
+                  group={g}
+                  range={range}
+                  roadmapById={roadmapById}
+                  isUpdating={isUpdating}
+                  isStale={isStale}
+                  includeSubs={includeSubs}
+                  rightColumnPx={rightColumnPx}
+                  walletWindowYears={walletWindowYears}
+                  currencyWindowYears={
+                    g.currencyId
+                      ? currencyWindowYearsById[String(g.currencyId)]
+                      : undefined
+                  }
+                  onToggleEnabled={onToggleEnabled}
+                  onEditCard={onEditCard}
+                  scenarioId={scenarioId}
+                  walletCards={walletCards ?? []}
+                  isExpanded={
+                    g.currencyId != null && expandedCurrencyId === g.currencyId
+                  }
+                  onToggleExpanded={toggleExpanded}
+                />
+              ))}
             </div>
           </div>
         </>
       )}
     </div>
-  )
-}
-
-interface SecondaryAnnual {
-  id: number
-  name: string
-  units: number
-  dollars: number
-  rewardKind: 'points' | 'cash'
-  /** Total projected balance (not annualised). At the per-card entry it
-   * holds `cr.secondary_currency_net_earn`; the group header sums those
-   * across enabled cards. */
-  totalUnits: number
-  totalDollars: number
-}
-
-interface GroupCardEntry {
-  wc: ResolvedCard
-  cr: CardResult | null
-  /** Annualized secondary-currency earn for this card (e.g. Bilt Cash on a
-   * Bilt Rewards card). Null when the card has no secondary earn. */
-  secondary: SecondaryAnnual | null
-}
-
-interface GroupData {
-  name: string
-  currencyId: number | null
-  photoSlug: string | null
-  color: string
-  rewardKind: 'points' | 'cash' | null
-  cards: GroupCardEntry[]
-  /** Aggregated secondary-currency totals across enabled cards in this
-   * group (e.g. Bilt Cash under Bilt Rewards). Shown as extra income
-   * figures alongside the primary total. */
-  secondaries: SecondaryAnnual[]
-  /** End-of-projection balance in this currency: sum of per-card
-   * `cr.total_points` across enabled cards (`annual_point_earn_for_balance
-   * × card_active_years + SUB`). Null when the calc hasn't run or no
-   * enabled card in this group has a result. */
-  totalBalance: number | null
-  /** CPP to value the balance against when rendering a cash group. */
-  balanceCpp: number | null
-}
-
-interface GroupSectionProps {
-  group: GroupData
-  range: Range
-  roadmapById: Map<number, RoadmapResponse['cards'][number]>
-  isUpdating: boolean
-  isStale: boolean
-  includeSubs: boolean
-  rightColumnPx: number
-  walletWindowYears: number
-  currencyWindowYears: number | undefined
-  scenarioId: number
-  walletCards: ResolvedCard[]
-  isExpanded: boolean
-  onToggleEnabled: (cardId: number, enabled: boolean) => void
-  onEditCard: (wc: ResolvedCard) => void
-  onToggleExpanded: (currencyId: number) => void
-}
-
-function GroupSection({
-  group,
-  range,
-  roadmapById,
-  isUpdating,
-  isStale,
-  includeSubs,
-  rightColumnPx,
-  walletWindowYears,
-  currencyWindowYears,
-  scenarioId,
-  walletCards,
-  isExpanded,
-  onToggleEnabled,
-  onEditCard,
-  onToggleExpanded,
-}: GroupSectionProps) {
-  // When the group has no contributing CardResults yet — fresh wallet, every
-  // card just added, or every card disabled — fall back to dashed placeholders
-  // so the balance/income labels still anchor the row instead of disappearing.
-  const balanceLabel = formatGroupBalance(group) ?? '—'
-  const incomeLabel =
-    formatGroupIncome(group, includeSubs, walletWindowYears, currencyWindowYears) ??
-    '—/yr'
-
-  return (
-    <>
-      {/* Group header: split into two cells so the gear lives inside the
-          left (Cards) column, right-aligned. Opaque bg + z-20 so the
-          Today line / year gridlines stop at this row rather than crossing
-          through the text. */}
-      <div
-        className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} bg-surface-2`}
-        style={{ height: CURRENCY_ROW_HEIGHT, borderLeft: `3px solid ${group.color}` }}
-      >
-        <CurrencyPhoto slug={group.photoSlug} name={group.name} fallbackColor={group.color} isCash={group.rewardKind === 'cash'} />
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-ink truncate">{group.name}</div>
-          {(balanceLabel || incomeLabel || group.secondaries.length > 0) && (
-            <div
-              className={`flex items-center gap-1.5 text-xs text-ink-muted truncate transition-opacity ${isStale ? 'opacity-50' : ''}`}
-              title={isStale ? 'Results are out of date — click Calculate to refresh' : undefined}
-            >
-              {balanceLabel && <span>{balanceLabel}</span>}
-              {incomeLabel && (
-                <>
-                  {balanceLabel && <span className="text-ink-faint text-sm leading-none">·</span>}
-                  <span className="text-ink-faint">{incomeLabel}</span>
-                </>
-              )}
-              {group.secondaries.map((s) => (
-                <span key={`bal-${s.id}`} className="text-ink-faint">
-                  <span className="mr-1 text-ink-faint">·</span>
-                  {formatSecondaryBalance(s)}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        {group.currencyId != null && group.rewardKind !== 'cash' && (
-          <button
-            type="button"
-            onClick={() => onToggleExpanded(group.currencyId!)}
-            className={`ml-auto p-1.5 rounded transition-colors shrink-0 ${
-              isExpanded
-                ? 'bg-surface text-accent'
-                : 'text-ink-faint hover:text-accent hover:bg-surface-2'
-            }`}
-            title={
-              isExpanded
-                ? `Close ${group.name} settings`
-                : `Edit ${group.name} settings`
-            }
-            aria-label={`Edit ${group.name} settings`}
-            aria-expanded={isExpanded}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="4" y1="6" x2="20" y2="6" />
-              <line x1="4" y1="12" x2="20" y2="12" />
-              <line x1="4" y1="18" x2="20" y2="18" />
-              <circle cx="8" cy="6" r="2" fill="currentColor" stroke="none" />
-              <circle cx="16" cy="12" r="2" fill="currentColor" stroke="none" />
-              <circle cx="10" cy="18" r="2" fill="currentColor" stroke="none" />
-            </svg>
-          </button>
-        )}
-      </div>
-      {/* Right cell — timeline side of the currency header row; carries the
-          income total (if any) and keeps the background tint aligned. z-20
-          + opaque bg so the Today line and year gridlines don't bleed
-          through the text. */}
-      <div
-        className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} bg-surface-2`}
-        style={{ height: CURRENCY_ROW_HEIGHT }}
-      >
-      </div>
-      {isExpanded && group.currencyId != null && (
-        <CurrencySettingsDropdown
-          scenarioId={scenarioId}
-          walletCards={walletCards}
-          currencyId={group.currencyId}
-          leftGutterPx={LEFT_GUTTER}
-          onClose={() => onToggleExpanded(group.currencyId!)}
-        />
-      )}
-      {group.cards.map(({ wc, cr, secondary }) => (
-        <CardRow
-          key={wc.id}
-          wc={wc}
-          cr={cr}
-          secondary={secondary}
-          color={group.color}
-          range={range}
-          roadmapStatus={roadmapById.get(wc.card_id)}
-          isUpdating={isUpdating}
-          isStale={isStale}
-          includeSubs={includeSubs}
-          rightColumnPx={rightColumnPx}
-          onToggleEnabled={onToggleEnabled}
-          onEditCard={onEditCard}
-        />
-      ))}
-    </>
-  )
-}
-
-interface CardRowProps {
-  wc: ResolvedCard
-  cr: CardResult | null
-  secondary: SecondaryAnnual | null
-  color: string
-  range: Range
-  roadmapStatus: RoadmapResponse['cards'][number] | undefined
-  isUpdating: boolean
-  isStale: boolean
-  includeSubs: boolean
-  rightColumnPx: number
-  onToggleEnabled: (cardId: number, enabled: boolean) => void
-  onEditCard: (wc: ResolvedCard) => void
-}
-
-function CardRow({
-  wc,
-  cr,
-  secondary,
-  color,
-  range,
-  roadmapStatus,
-  isUpdating,
-  isStale,
-  includeSubs,
-  rightColumnPx,
-  onToggleEnabled,
-  onEditCard,
-}: CardRowProps) {
-  // For PC cards, the bar shows when THIS PRODUCT was active — starting at
-  // product_changed_date, not at the original account opening_date (which
-  // is preserved through the PC for 5/24 purposes but isn't when this card
-  // existed). Fresh opens fall through to added_date (= opening_date).
-  const productStartStr = wc.product_changed_date ?? wc.added_date
-  const addedMs = parseDate(productStartStr).getTime()
-  const closedMs = wc.closed_date ? parseDate(wc.closed_date).getTime() : range.endMs
-
-  const barStartPct = pctOf(range, Math.max(addedMs, range.startMs))
-  const barEndPct = pctOf(range, Math.min(closedMs, range.endMs))
-  const barWidthPct = Math.max(0, barEndPct - barStartPct)
-
-  const enabled = wc.is_enabled
-
-  // The projected SUB earn date (auto-computed by the backend from spend
-  // rate, with the SUB-window cap applied) is the single source of truth
-  // for the SUB earn marker.
-  const subProjectedDate = roadmapStatus?.sub_projected_earn_date ?? null
-  const subProjectedMs = subProjectedDate ? parseDate(subProjectedDate).getTime() : null
-
-  // SUB earning segment: anchored at opening_date and ending at the
-  // projected SUB-earn date. Rendered whenever a projected date exists,
-  // even when the card is disabled or the scenario is stale — those cases
-  // gray the segment via ``dimmed`` instead of removing it (mirrors the
-  // lifetime bar's disabled styling). The segment is suppressed only when
-  // the SUB has no projection at all (no SUB, expired, or no calc has
-  // been run yet).
-  const subSegment = (() => {
-    if (!subProjectedMs) return null
-    const startMs = parseDate(wc.added_date).getTime()
-    if (subProjectedMs <= startMs) return null
-    if (subProjectedMs <= range.startMs || startMs >= range.endMs) return null
-    return { startMs, endMs: subProjectedMs }
-  })()
-
-  // Detect "card has a SUB but cannot earn it" — drives the lifetime-bar
-  // warning tooltip. roadmap status carries the authoritative classification:
-  // "expired" (window closed) or "pending" with no projected date (rate too
-  // low to reach the minimum within the window).
-  const subStatus = roadmapStatus?.sub_status
-  const subUnearnable =
-    enabled &&
-    !!wc.sub_points &&
-    !!wc.sub_min_spend &&
-    (subStatus === 'expired' ||
-      (subStatus === 'pending' && roadmapStatus?.sub_projected_earn_date == null))
-
-  // Tooltip text shown on hover over the yellow SUB segment. The segment
-  // itself owns the listener (pointer-events: auto) so the tooltip fires
-  // reliably whenever the cursor is over the yellow region.
-  const subSegmentTitle = subProjectedDate
-    ? subStatus === 'earned'
-      ? `SUB earned ${formatDate(subProjectedDate)}`
-      : `SUB projected to earn ${formatDate(subProjectedDate)}`
-    : null
-  // Per-card income and EAF are driven by the last calc's `cr`, not the live
-  // toggle, so the numbers (and layout) stay stable when the user flips
-  // `is_enabled` — only a recalc refreshes what's shown.
-  //
-  // Show dashed placeholders ("---/yr", "--- EAF") whenever the row has
-  // no real data to display: the card is currently disabled, OR it was added
-  // since the last calc and isn't in `cr`. This is preferred over a bare
-  // em-dash because it keeps the unit labels in place so the columns read
-  // consistently and the user can tell what figure will appear once they
-  // recalc / re-enable.
-  const showPlaceholders = !enabled || !cr
-  const incomeLabel = showPlaceholders
-    ? '—/yr'
-    : formatCardIncome(cr, includeSubs)
-  const eafValue = showPlaceholders ? null : cardEafActive(cr, includeSubs)
-  const eafLabelText = showPlaceholders
-    ? '— EAF'
-    : eafValue != null
-      ? `${formatMoney(eafValue)} EAF`
-      : null
-
-  const subTooltipLine = enabled
-    ? subUnearnable
-      ? subStatus === 'expired'
-        ? 'SUB window expired — cannot be earned'
-        : 'SUB cannot be earned at the current spend rate'
-      : subProjectedDate
-        ? subStatus === 'earned'
-          ? `SUB earned: ${formatDate(subProjectedDate)}`
-          : `SUB projected: ${formatDate(subProjectedDate)}`
-        : 'No SUB'
-    : 'Disabled — not contributing'
-
-  const tooltip = [
-    wc.product_changed_date
-      ? `Product change: ${formatDate(wc.product_changed_date)} (account opened ${formatDate(wc.added_date)})`
-      : `Added: ${formatDate(wc.added_date)}`,
-    wc.closed_date ? `Closed: ${formatDate(wc.closed_date)}` : null,
-    subTooltipLine,
-    enabled && showPlaceholders
-      ? 'Click Calculate to see EAF and income'
-      : null,
-    !showPlaceholders && eafValue != null
-      ? `EAF: ${formatMoney(eafValue)}`
-      : null,
-    !showPlaceholders && incomeLabel
-      ? `Income: ${incomeLabel.replace(/^\+/, '')}`
-      : null,
-  ]
-    .filter(Boolean)
-    .join('\n')
-
-  const barHeight = 24
-  const rowHeight = CARD_ROW_HEIGHT
-
-  // display: contents on the wrapper lets the two children act as direct grid
-  // cells while sharing a hover state so the entire row highlights together.
-  return (
-    <div className="group contents">
-      {/* Left gutter */}
-      <div
-        className={`flex items-center gap-2 px-3 ${DIVIDER_CLASS} transition-colors group-hover:bg-surface-2/60 ${
-          enabled ? '' : 'opacity-50'
-        }`}
-        style={{ height: rowHeight }}
-      >
-        <button
-          type="button"
-          onClick={() => onEditCard(wc)}
-          className="flex-1 min-w-0 text-left flex items-center gap-3 group-hover:text-accent transition-colors"
-          title="Edit card"
-        >
-          <CardThumb slug={wc.photo_slug} name={wc.card_name ?? ''} />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-ink truncate">
-              {wc.card_name ?? `Card #${wc.card_id}`}
-            </div>
-            {incomeLabel && (
-              <div
-                className={`text-xs text-ink-faint truncate transition-opacity ${isStale ? 'opacity-50' : ''}`}
-                title={isStale ? 'Out of date' : undefined}
-              >
-                {incomeLabel}
-                {secondary && (
-                  <>
-                    <span className="mx-1 text-ink-faint">·</span>
-                    {formatSecondaryAnnual(secondary)}
-                  </>
-                )}
-                {wc.credit_totals
-                  .filter((t) => t.value > 0)
-                  .map((t) => (
-                    <span key={`${t.kind}-${t.currency_id ?? 'cash'}`}>
-                      <span className="mx-1 text-ink-faint">·</span>
-                      {t.kind === 'cash'
-                        ? `${formatMoney(t.value)} Credits`
-                        : `${formatPoints(t.value)} ${pointsUnitLabel(t.currency_name)} Credits`}
-                    </span>
-                  ))}
-                {cr && (cr.housing_fee_dollars ?? 0) > 0 && (
-                  <span title="3% rent/mortgage payment processing fee, deducted from EAF">
-                    <span className="mx-1 text-ink-faint">·</span>
-                    <span className="text-neg">
-                      −{formatMoney(cr.housing_fee_dollars ?? 0)} Housing Fee
-                    </span>
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-          <EditAffordance />
-        </button>
-        {/* Owned cards are always part of the wallet — they get a padlock
-            badge in place of the toggle. To remove an owned card from a
-            scenario use the close-date or product-change overlay in the
-            modal. Future cards keep the toggle since they're hypothetical. */}
-        {wc.is_future ? (
-          <Toggle
-            checked={enabled}
-            disabled={isUpdating}
-            onChange={(e) => onToggleEnabled(wc.instance_id, e.target.checked)}
-            aria-label={enabled ? 'Disable card' : 'Enable card'}
-            title={enabled ? 'Disable card' : 'Enable card'}
-          />
-        ) : (
-          <IconHoverLabel
-            label="Owned card — locked from this view"
-            className="shrink-0 text-warn inline-flex items-center justify-center w-9 h-5"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-          </IconHoverLabel>
-        )}
-      </div>
-
-      {/* Right column: timeline bar */}
-      <div
-        className={`relative ${DIVIDER_CLASS}`}
-        style={{ height: rowHeight }}
-        title={tooltip}
-      >
-        {barWidthPct > 0 && (() => {
-          const roundLeft = addedMs > range.startMs
-          const roundRight = closedMs < range.endMs
-          const roundedClass = `${roundLeft ? 'rounded-l-full' : ''} ${roundRight ? 'rounded-r-full' : ''}`.trim()
-          return (
-            <div
-              className={`absolute ${roundedClass}`}
-              style={{
-                left: `${barStartPct}%`,
-                width: `${barWidthPct}%`,
-                top: (rowHeight - barHeight) / 2,
-                height: barHeight,
-                backgroundColor: enabled ? `${color}33` : '#33415533',
-                border: `1px solid ${enabled ? color : '#475569'}`,
-                opacity: enabled ? 1 : 0.55,
-                zIndex: 30,
-              }}
-            />
-          )
-        })()}
-        {barWidthPct > 0 && eafLabelText != null && (() => {
-          const labelText = eafLabelText
-          const baseColor = showPlaceholders
-            ? 'text-ink-faint'
-            : eafValue != null && eafValue < 0
-              ? 'text-pos'
-              : eafValue != null && eafValue > 0
-                ? 'text-neg'
-                : 'text-ink'
-          const labelClass = `${baseColor} ${isStale ? 'opacity-50' : ''}`
-          const PADDING = 8
-          const GAP = 4
-          // When the container isn't measured yet, fall back to drawing the
-          // label inside the bar (matching prior behaviour); truncation will
-          // handle visual overflow until the observer fires.
-          if (rightColumnPx === 0) {
-            return (
-              <div
-                className="absolute flex items-center justify-end text-xs font-semibold pointer-events-none"
-                style={{
-                  left: `${barStartPct}%`,
-                  width: `${barWidthPct}%`,
-                  top: (rowHeight - barHeight) / 2,
-                  height: barHeight,
-                  zIndex: 30,
-                }}
-              >
-                <span className={`truncate px-2 ${labelClass}`}>{labelText}</span>
-              </div>
-            )
-          }
-          const labelPx = measureEafLabelPx(labelText)
-          const barPx = (barWidthPct / 100) * rightColumnPx
-          const barStartPx = (barStartPct / 100) * rightColumnPx
-          const rightRoomPx = rightColumnPx - (barStartPx + barPx)
-          const leftRoomPx = barStartPx
-          let placement: 'inside' | 'right' | 'left' = 'inside'
-          if (barPx < labelPx + PADDING * 2) {
-            if (rightRoomPx >= labelPx + GAP) placement = 'right'
-            else if (leftRoomPx >= labelPx + GAP) placement = 'left'
-            else placement = 'inside'
-          }
-          const top = (rowHeight - barHeight) / 2
-          if (placement === 'inside') {
-            return (
-              <div
-                className="absolute flex items-center justify-end text-xs font-semibold pointer-events-none"
-                style={{
-                  left: `${barStartPct}%`,
-                  width: `${barWidthPct}%`,
-                  top,
-                  height: barHeight,
-                  zIndex: 30,
-                }}
-              >
-                <span className={`truncate px-2 ${labelClass}`}>{labelText}</span>
-              </div>
-            )
-          }
-          if (placement === 'right') {
-            return (
-              <div
-                className="absolute flex items-center text-xs font-semibold whitespace-nowrap pointer-events-none"
-                style={{
-                  left: `${barStartPct + barWidthPct}%`,
-                  top,
-                  height: barHeight,
-                  paddingLeft: GAP,
-                  zIndex: 30,
-                }}
-              >
-                <span className={labelClass}>{labelText}</span>
-              </div>
-            )
-          }
-          // left
-          return (
-            <div
-              className="absolute flex items-center justify-end text-xs font-semibold whitespace-nowrap pointer-events-none"
-              style={{
-                right: `${100 - barStartPct}%`,
-                top,
-                height: barHeight,
-                paddingRight: GAP,
-                zIndex: 30,
-              }}
-            >
-              <span className={labelClass}>{labelText}</span>
-            </div>
-          )
-        })()}
-        {subSegment && (
-          <SubEarningSegment
-            range={range}
-            segmentStartMs={subSegment.startMs}
-            segmentEndMs={subSegment.endMs}
-            lifetimeStartMs={addedMs}
-            lifetimeEndMs={closedMs}
-            rowHeight={rowHeight}
-            barHeight={barHeight}
-            title={subSegmentTitle}
-          />
-        )}
-      </div>
-    </div>
-  )
-}
-
-function EditAffordance() {
-  return (
-    <svg
-      className="shrink-0 ml-1 text-ink-faint opacity-0 group-hover:opacity-100 transition-opacity"
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-    </svg>
-  )
-}
-
-function CardThumb({ slug, name }: { slug: string | null; name: string }) {
-  if (!slug) {
-    return (
-      <div className="w-14 h-9 rounded bg-surface border border-divider shrink-0" />
-    )
-  }
-  return (
-    <img
-      src={`/photos/cards/${slug}.png`}
-      alt={name}
-      className="w-14 h-9 object-contain shrink-0"
-      onError={(e) => {
-        const el = e.currentTarget
-        el.style.display = 'none'
-      }}
-    />
-  )
-}
-
-function CurrencyPhoto({ slug, name, fallbackColor, isCash }: { slug: string | null; name: string; fallbackColor: string; isCash?: boolean }) {
-  const [failed, setFailed] = useState(false)
-  if (!slug || failed) {
-    if (isCash) {
-      return (
-        <div className="w-7 h-7 rounded-full shrink-0 bg-pos flex items-center justify-center">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="1" x2="12" y2="23" />
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-          </svg>
-        </div>
-      )
-    }
-    return (
-      <div className="w-7 h-7 rounded-full shrink-0" style={{ backgroundColor: fallbackColor }} />
-    )
-  }
-  return (
-    <img
-      src={`/photos/currencies/${slug}`}
-      alt={name}
-      className="w-7 h-7 rounded-full object-cover shrink-0"
-      onError={() => setFailed(true)}
-    />
-  )
-}
-
-function SubEarningSegment({
-  range,
-  segmentStartMs,
-  segmentEndMs,
-  lifetimeStartMs,
-  lifetimeEndMs,
-  rowHeight,
-  barHeight,
-  title,
-}: {
-  range: Range
-  /** When the SUB starts being earned (sub_start_date or opening_date). */
-  segmentStartMs: number
-  /** When the SUB is projected to be earned. */
-  segmentEndMs: number
-  /** Lifetime bar bounds — used to round corners only when the segment
-   * touches a rounded edge of the lifetime bar. */
-  lifetimeStartMs: number
-  lifetimeEndMs: number
-  rowHeight: number
-  barHeight: number
-  /** Native tooltip text shown on hover. The segment owns its own
-   * pointer-events handling so this fires reliably regardless of any
-   * parent `title` attributes. */
-  title: string | null
-}) {
-  // Yellow segment of the lifetime bar covering [sub_start_date or opening,
-  // sub_projected_earn_date]. Same y-position and height as the lifetime
-  // bar, opaque fill so the segment reads as part of the bar — not a
-  // separate overlay. Caller suppresses the segment when the SUB cannot be
-  // earned (no projected_earn_date).
-  const visStart = Math.max(segmentStartMs, range.startMs)
-  const visEnd = Math.min(segmentEndMs, range.endMs)
-  if (visEnd <= visStart) return null
-
-  const startPct = pctOf(range, visStart)
-  const widthPct = pctOf(range, visEnd) - startPct
-  if (widthPct <= 0) return null
-
-  const top = (rowHeight - barHeight) / 2
-
-  // Match the lifetime bar's rounded corners only when the SUB segment
-  // actually touches a rounded edge of the lifetime bar (which is itself
-  // only rounded when it sits inside the visible range).
-  const lifetimeRoundsLeft = lifetimeStartMs > range.startMs
-  const lifetimeRoundsRight = lifetimeEndMs < range.endMs
-  const segmentTouchesLifetimeLeft = segmentStartMs <= lifetimeStartMs
-  const segmentTouchesLifetimeRight = segmentEndMs >= lifetimeEndMs
-  const roundLeft = lifetimeRoundsLeft && segmentTouchesLifetimeLeft
-  const roundRight = lifetimeRoundsRight && segmentTouchesLifetimeRight
-  const roundedClass = `${roundLeft ? 'rounded-l-full' : ''} ${roundRight ? 'rounded-r-full' : ''}`.trim()
-
-  // Match the lifetime bar's visual style: semi-transparent fill + 1px
-  // colored border. Uses the same `${color}33` alpha pattern the rest of
-  // the bar uses (33/255 ≈ 20% alpha).
-  const yellow = '#fbbf24'
-  return (
-    <div
-      className={`absolute ${roundedClass}`}
-      style={{
-        left: `${startPct}%`,
-        width: `${widthPct}%`,
-        top,
-        height: barHeight,
-        backgroundColor: `${yellow}33`,
-        border: `1px solid ${yellow}`,
-        zIndex: 31,
-      }}
-      title={title ?? undefined}
-    />
   )
 }
