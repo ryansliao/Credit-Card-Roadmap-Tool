@@ -293,7 +293,7 @@ export function WalletSummaryStats({
 
       {/* Middle: duration slider */}
       <div
-        className={`shrink-0 w-52 lg:w-64 bg-surface border rounded-xl px-4 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
+        className={`shrink-0 w-60 lg:w-72 bg-surface border rounded-xl px-4 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1">
@@ -384,7 +384,7 @@ export function WalletSummaryStats({
       {/* Include SUBs toggle — segmented control, distinct from the per-card
           enable/disable pill toggle in the timeline. */}
       <div
-        className={`shrink-0 w-40 bg-surface border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
+        className={`shrink-0 w-44 bg-surface border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
         <div className="flex items-center justify-center gap-1 mb-2.5">
           <Eyebrow>Sign-Up Bonuses</Eyebrow>
