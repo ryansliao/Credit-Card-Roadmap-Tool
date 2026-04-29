@@ -17,6 +17,7 @@ import { Field } from '../../components/ui/Field'
 import { Select } from '../../components/ui/Select'
 import { Checkbox } from '../../components/ui/Checkbox'
 import { Toggle } from '../../components/ui/Toggle'
+import { DataTable } from '../../components/ui/DataTable'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -297,6 +298,27 @@ export default function Styleguide() {
           <Toggle label="Include SUBs" />
           <Toggle label="On" defaultChecked />
           <Toggle label="Disabled" disabled />
+        </section>
+        <section id="datatable" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">DataTable</p>
+          <DataTable>
+            <DataTable.Head>
+              <DataTable.Row>
+                <DataTable.HeadCell>Card</DataTable.HeadCell>
+                <DataTable.HeadCell numeric>Net EV / yr</DataTable.HeadCell>
+              </DataTable.Row>
+            </DataTable.Head>
+            <DataTable.Body>
+              <DataTable.Row>
+                <DataTable.Cell>Sapphire Reserve</DataTable.Cell>
+                <DataTable.Cell numeric>$1,284.50</DataTable.Cell>
+              </DataTable.Row>
+              <DataTable.Row>
+                <DataTable.Cell>Amex Platinum</DataTable.Cell>
+                <DataTable.Cell numeric>$842.00</DataTable.Cell>
+              </DataTable.Row>
+            </DataTable.Body>
+          </DataTable>
         </section>
       </main>
     </div>
