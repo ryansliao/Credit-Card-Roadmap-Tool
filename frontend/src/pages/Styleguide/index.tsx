@@ -1,4 +1,5 @@
 import { ThemeToggle } from '../../components/ui/ThemeToggle'
+import { Heading } from '../../components/ui/Heading'
 
 /**
  * Internal styleguide route — gated by VITE_SHOW_STYLEGUIDE=1.
@@ -24,6 +25,13 @@ export default function Styleguide() {
             state, in both light and dark. Each primitive section gets added as
             it ships (Phase 1+).
           </p>
+        </section>
+        <section id="heading" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Heading</p>
+          <Heading level={1}>Display — Net EV per year</Heading>
+          <Heading level={2}>Headline — Wallet · Default Scenario</Heading>
+          <Heading level={3}>Title — Sapphire Reserve</Heading>
+          <Heading level={4}>Subtitle — Annual fee waived</Heading>
         </section>
       </main>
     </div>
