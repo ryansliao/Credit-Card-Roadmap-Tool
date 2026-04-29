@@ -15,7 +15,9 @@ import {
 } from '../../../../utils/cardIncome'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
 import { CurrencySettingsDropdown } from '../summary/CurrencySettingsDropdown'
-import { InfoQuoteBox } from '../../../../components/InfoPopover'
+import { Popover } from '../../../../components/ui/Popover'
+import { Button } from '../../../../components/ui/Button'
+import { Toggle } from '../../../../components/ui/Toggle'
 
 interface Props {
   /** Active scenario id — drives the per-currency CPP / portal-share editors. */
@@ -41,7 +43,7 @@ const LEFT_GUTTER = 420 // px
 const CURRENCY_ROW_HEIGHT = 45
 const CARD_ROW_HEIGHT = 50
 const AXIS_HEIGHT = 50
-const DIVIDER_CLASS = 'border-b border-slate-800'
+const DIVIDER_CLASS = 'border-b border-divider'
 
 /**
  * Small hover tooltip for icon badges. Renders a portal-mounted label
@@ -87,7 +89,7 @@ function IconHoverLabel({
         createPortal(
           <div
             role="tooltip"
-            className="pointer-events-none fixed z-[60] -translate-x-1/2 -translate-y-full whitespace-nowrap text-[10px] font-normal normal-case tracking-normal bg-slate-950 text-slate-100 border border-slate-700 rounded px-1.5 py-0.5 shadow-lg"
+            className="pointer-events-none fixed z-[60] -translate-x-1/2 -translate-y-full whitespace-nowrap text-[10px] font-normal normal-case tracking-normal bg-page text-ink border border-divider rounded px-1.5 py-0.5 shadow-lg"
             style={{ top: pos.top, left: pos.left }}
           >
             {label}
@@ -286,7 +288,6 @@ export function WalletTimelineChart({
   const [expandedCurrencyId, setExpandedCurrencyId] = useState<number | null>(null)
   const toggleExpanded = (cid: number) =>
     setExpandedCurrencyId((prev) => (prev === cid ? null : cid))
-  const [rulesAnchor, setRulesAnchor] = useState<HTMLElement | null>(null)
 
   // Issuer-specific application rules whose issuer has at least one card
   // in this wallet. Global (issuer-less) rules are intentionally excluded —
@@ -588,22 +589,22 @@ export function WalletTimelineChart({
   const rightColumnPx = Math.max(0, scrollWidthPx - LEFT_GUTTER)
 
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-xl pt-2 px-4 pb-4 min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
+    <div className="bg-surface border border-divider rounded-xl pt-2 px-4 pb-4 min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
       {visibleCards.length === 0 ? (
         <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto">
           <div className="flex flex-col items-center gap-3 py-10">
-            <p className="text-slate-500 text-sm">No cards yet.</p>
-            <button
+            <p className="text-ink-faint text-sm">No cards yet.</p>
+            <Button
               type="button"
+              variant="primary"
               onClick={onAddCard}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
               Add Card
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
@@ -621,14 +622,14 @@ export function WalletTimelineChart({
             }}
           >
             <div
-              className={`bg-slate-900 ${DIVIDER_CLASS} px-3 flex items-center gap-2`}
+              className={`bg-surface ${DIVIDER_CLASS} px-3 flex items-center gap-2`}
               style={{ height: AXIS_HEIGHT }}
             >
-              <h2 className="text-base font-semibold text-slate-100">Cards</h2>
+              <h2 className="text-base font-semibold text-ink">Cards</h2>
               <button
                 type="button"
                 onClick={onAddCard}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-accent hover:bg-accent text-page transition-colors"
                 aria-label="Add card"
                 title="Add card"
               >
@@ -639,58 +640,118 @@ export function WalletTimelineChart({
                 Add Card
               </button>
               {applicableRules.length > 0 && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    const anchor = e.currentTarget
-                    setRulesAnchor((cur) => (cur ? null : anchor))
-                  }}
-                  className={`ml-auto mr-3 shrink-0 transition-colors ${
-                    rulesAnchor
-                      ? maxSeverity === 'violated'
-                        ? 'text-red-300'
-                        : maxSeverity === 'in_effect'
-                          ? 'text-amber-300'
-                          : 'text-indigo-300'
-                      : maxSeverity === 'violated'
-                        ? 'text-red-400 hover:text-red-300'
-                        : maxSeverity === 'in_effect'
-                          ? 'text-amber-400 hover:text-amber-300'
-                          : 'text-slate-500 hover:text-indigo-300'
-                  }`}
-                  aria-label="Application rule status"
-                  aria-expanded={!!rulesAnchor}
-                  title="Application rule status"
+                <Popover
+                  side="bottom"
+                  portal
+                  trigger={({ onClick, ref }) => (
+                    <button
+                      ref={ref as React.RefObject<HTMLButtonElement>}
+                      type="button"
+                      onClick={onClick}
+                      className={`ml-auto mr-3 shrink-0 transition-colors ${
+                        maxSeverity === 'violated'
+                          ? 'text-neg'
+                          : maxSeverity === 'in_effect'
+                            ? 'text-warn'
+                            : 'text-accent'
+                      }`}
+                      aria-label="Application rule status"
+                      title="Application rule status"
+                    >
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                    </button>
+                  )}
                 >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                    <line x1="12" y1="9" x2="12" y2="13" />
-                    <line x1="12" y1="17" x2="12.01" y2="17" />
-                  </svg>
-                </button>
+                  <div className="min-w-[280px] max-w-sm">
+                    <p className="text-sm font-semibold text-ink mb-2">Application Rules</p>
+                    <p className="text-xs text-ink-muted mb-3">
+                      Issuer velocity rules tracked across your cards.
+                    </p>
+                    <ul className="space-y-2">
+                      {applicableRules.map((r) => {
+                        const containerClass =
+                          r.severity === 'violated'
+                            ? 'border-neg/40 bg-neg/10'
+                            : r.severity === 'in_effect'
+                              ? 'border-warn/40 bg-warn/10'
+                              : 'border-divider bg-surface-2/40'
+                        const titleClass =
+                          r.severity === 'violated'
+                            ? 'text-neg'
+                            : r.severity === 'in_effect'
+                              ? 'text-warn'
+                              : 'text-ink'
+                        const intervalClass =
+                          r.severity === 'violated'
+                            ? 'text-neg'
+                            : r.severity === 'in_effect'
+                              ? 'text-warn'
+                              : 'text-ink-muted'
+                        return (
+                          <li
+                            key={r.rule_id}
+                            className={`rounded-md border px-2.5 py-2 ${containerClass}`}
+                          >
+                            <div className="flex items-baseline gap-1.5 min-w-0">
+                              <span className={`font-medium truncate ${titleClass}`}>
+                                {r.rule_name}
+                              </span>
+                              {r.issuer_name && (
+                                <span className="text-[10px] text-ink-faint shrink-0">
+                                  {r.issuer_name}
+                                </span>
+                              )}
+                            </div>
+                            {r.description && (
+                              <p className="text-[11px] text-ink-muted mt-0.5">
+                                {r.description}
+                              </p>
+                            )}
+                            {r.at_risk_intervals.length > 0 && (
+                              <ul className="mt-1 space-y-0.5">
+                                {r.at_risk_intervals.map((iv, idx) => (
+                                  <li
+                                    key={idx}
+                                    className={`text-[11px] tabular-nums ${intervalClass}`}
+                                  >
+                                    At limit {formatDate(iv.start)} → {formatDate(iv.end)}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                </Popover>
               )}
             </div>
             <div
-              className={`bg-slate-900 ${DIVIDER_CLASS} relative`}
+              className={`bg-surface ${DIVIDER_CLASS} relative`}
               style={{ height: AXIS_HEIGHT }}
             >
               {yearTicks.map((t) => (
                 <div
                   key={t.label}
-                  className="absolute top-0 bottom-0 flex items-center text-[11px] text-slate-500"
+                  className="absolute top-0 bottom-0 flex items-center text-[11px] text-ink-faint"
                   style={{ left: `${t.pct}%`, transform: 'translateX(-50%)' }}
                 >
                   {t.label}
                 </div>
               ))}
               <div
-                className="absolute flex items-center text-[11px] text-slate-300 font-semibold whitespace-nowrap pointer-events-none"
+                className="absolute flex items-center text-[11px] text-ink-muted font-semibold whitespace-nowrap pointer-events-none"
                 style={{ left: 0, top: 0, bottom: 0, transform: 'translateX(-50%)' }}
               >
                 Today
               </div>
               <div
-                className="absolute flex items-center text-[11px] text-slate-300 font-semibold whitespace-nowrap pointer-events-none"
+                className="absolute flex items-center text-[11px] text-ink-muted font-semibold whitespace-nowrap pointer-events-none"
                 style={{ right: 0, top: 0, bottom: 0, transform: 'translateX(50%)' }}
                 title={new Date(range.endMs).toLocaleDateString(undefined, {
                   year: 'numeric',
@@ -725,7 +786,7 @@ export function WalletTimelineChart({
                 {yearTicks.map((t) => (
                   <div
                     key={t.label}
-                    className="absolute top-0 bottom-0 border-l border-slate-700"
+                    className="absolute top-0 bottom-0 border-l border-divider"
                     style={{ left: `${t.pct}%` }}
                   />
                 ))}
@@ -775,73 +836,6 @@ export function WalletTimelineChart({
             </div>
           </div>
         </>
-      )}
-      {rulesAnchor && (
-        <InfoQuoteBox
-          anchorEl={rulesAnchor}
-          title="Application Rules"
-          onClose={() => setRulesAnchor(null)}
-        >
-          <p>
-            Issuer velocity rules tracked across your cards.
-          </p>
-          <ul className="space-y-2">
-            {applicableRules.map((r) => {
-              const containerClass =
-                r.severity === 'violated'
-                  ? 'border-red-700/50 bg-red-900/20'
-                  : r.severity === 'in_effect'
-                    ? 'border-amber-700/50 bg-amber-900/20'
-                    : 'border-slate-700 bg-slate-800/40'
-              const titleClass =
-                r.severity === 'violated'
-                  ? 'text-red-300'
-                  : r.severity === 'in_effect'
-                    ? 'text-amber-300'
-                    : 'text-slate-200'
-              const intervalClass =
-                r.severity === 'violated'
-                  ? 'text-red-300'
-                  : r.severity === 'in_effect'
-                    ? 'text-amber-300'
-                    : 'text-slate-400'
-              return (
-                <li
-                  key={r.rule_id}
-                  className={`rounded-md border px-2.5 py-2 ${containerClass}`}
-                >
-                  <div className="flex items-baseline gap-1.5 min-w-0">
-                    <span className={`font-medium truncate ${titleClass}`}>
-                      {r.rule_name}
-                    </span>
-                    {r.issuer_name && (
-                      <span className="text-[10px] text-slate-500 shrink-0">
-                        {r.issuer_name}
-                      </span>
-                    )}
-                  </div>
-                  {r.description && (
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      {r.description}
-                    </p>
-                  )}
-                  {r.at_risk_intervals.length > 0 && (
-                    <ul className="mt-1 space-y-0.5">
-                      {r.at_risk_intervals.map((iv, idx) => (
-                        <li
-                          key={idx}
-                          className={`text-[11px] tabular-nums ${intervalClass}`}
-                        >
-                          At limit {formatDate(iv.start)} → {formatDate(iv.end)}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </InfoQuoteBox>
       )}
     </div>
   )
@@ -938,27 +932,27 @@ function GroupSection({
           Today line / year gridlines stop at this row rather than crossing
           through the text. */}
       <div
-        className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} bg-slate-800`}
+        className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} bg-surface-2`}
         style={{ height: CURRENCY_ROW_HEIGHT, borderLeft: `3px solid ${group.color}` }}
       >
         <CurrencyPhoto slug={group.photoSlug} name={group.name} fallbackColor={group.color} isCash={group.rewardKind === 'cash'} />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-slate-200 truncate">{group.name}</div>
+          <div className="text-sm font-medium text-ink truncate">{group.name}</div>
           {(balanceLabel || incomeLabel || group.secondaries.length > 0) && (
             <div
-              className={`flex items-center gap-1.5 text-xs text-slate-400 truncate transition-opacity ${isStale ? 'opacity-50' : ''}`}
+              className={`flex items-center gap-1.5 text-xs text-ink-muted truncate transition-opacity ${isStale ? 'opacity-50' : ''}`}
               title={isStale ? 'Results are out of date — click Calculate to refresh' : undefined}
             >
               {balanceLabel && <span>{balanceLabel}</span>}
               {incomeLabel && (
                 <>
-                  {balanceLabel && <span className="text-slate-600 text-sm leading-none">·</span>}
-                  <span className="text-slate-500">{incomeLabel}</span>
+                  {balanceLabel && <span className="text-ink-faint text-sm leading-none">·</span>}
+                  <span className="text-ink-faint">{incomeLabel}</span>
                 </>
               )}
               {group.secondaries.map((s) => (
-                <span key={`bal-${s.id}`} className="text-slate-500">
-                  <span className="mr-1 text-slate-700">·</span>
+                <span key={`bal-${s.id}`} className="text-ink-faint">
+                  <span className="mr-1 text-ink-faint">·</span>
                   {formatSecondaryBalance(s)}
                 </span>
               ))}
@@ -971,8 +965,8 @@ function GroupSection({
             onClick={() => onToggleExpanded(group.currencyId!)}
             className={`ml-auto p-1.5 rounded transition-colors shrink-0 ${
               isExpanded
-                ? 'bg-slate-700 text-indigo-300'
-                : 'text-slate-500 hover:text-indigo-400 hover:bg-slate-700'
+                ? 'bg-surface text-accent'
+                : 'text-ink-faint hover:text-accent hover:bg-surface-2'
             }`}
             title={
               isExpanded
@@ -998,7 +992,7 @@ function GroupSection({
           + opaque bg so the Today line and year gridlines don't bleed
           through the text. */}
       <div
-        className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} bg-slate-800`}
+        className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} bg-surface-2`}
         style={{ height: CURRENCY_ROW_HEIGHT }}
       >
       </div>
@@ -1177,7 +1171,7 @@ function CardRow({
     <div className="group contents">
       {/* Left gutter */}
       <div
-        className={`flex items-center gap-2 px-3 ${DIVIDER_CLASS} transition-colors group-hover:bg-slate-800/60 ${
+        className={`flex items-center gap-2 px-3 ${DIVIDER_CLASS} transition-colors group-hover:bg-surface-2/60 ${
           enabled ? '' : 'opacity-50'
         }`}
         style={{ height: rowHeight }}
@@ -1185,23 +1179,23 @@ function CardRow({
         <button
           type="button"
           onClick={() => onEditCard(wc)}
-          className="flex-1 min-w-0 text-left flex items-center gap-3 group-hover:text-indigo-300 transition-colors"
+          className="flex-1 min-w-0 text-left flex items-center gap-3 group-hover:text-accent transition-colors"
           title="Edit card"
         >
           <CardThumb slug={wc.photo_slug} name={wc.card_name ?? ''} />
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-slate-200 truncate">
+            <div className="text-sm font-medium text-ink truncate">
               {wc.card_name ?? `Card #${wc.card_id}`}
             </div>
             {incomeLabel && (
               <div
-                className={`text-xs text-slate-500 truncate transition-opacity ${isStale ? 'opacity-50' : ''}`}
+                className={`text-xs text-ink-faint truncate transition-opacity ${isStale ? 'opacity-50' : ''}`}
                 title={isStale ? 'Out of date' : undefined}
               >
                 {incomeLabel}
                 {secondary && (
                   <>
-                    <span className="mx-1 text-slate-700">·</span>
+                    <span className="mx-1 text-ink-faint">·</span>
                     {formatSecondaryAnnual(secondary)}
                   </>
                 )}
@@ -1209,7 +1203,7 @@ function CardRow({
                   .filter((t) => t.value > 0)
                   .map((t) => (
                     <span key={`${t.kind}-${t.currency_id ?? 'cash'}`}>
-                      <span className="mx-1 text-slate-700">·</span>
+                      <span className="mx-1 text-ink-faint">·</span>
                       {t.kind === 'cash'
                         ? `${formatMoney(t.value)} Credits`
                         : `${formatPoints(t.value)} ${pointsUnitLabel(t.currency_name)} Credits`}
@@ -1217,8 +1211,8 @@ function CardRow({
                   ))}
                 {cr && (cr.housing_fee_dollars ?? 0) > 0 && (
                   <span title="3% rent/mortgage payment processing fee, deducted from EAF">
-                    <span className="mx-1 text-slate-700">·</span>
-                    <span className="text-rose-400">
+                    <span className="mx-1 text-ink-faint">·</span>
+                    <span className="text-neg">
                       −{formatMoney(cr.housing_fee_dollars ?? 0)} Housing Fee
                     </span>
                   </span>
@@ -1233,16 +1227,17 @@ function CardRow({
             scenario use the close-date or product-change overlay in the
             modal. Future cards keep the toggle since they're hypothetical. */}
         {wc.is_future ? (
-          <ToggleSwitch
-            enabled={enabled}
+          <Toggle
+            checked={enabled}
             disabled={isUpdating}
-            onChange={(next) => onToggleEnabled(wc.instance_id, next)}
-            label={enabled ? 'Disable card' : 'Enable card'}
+            onChange={(e) => onToggleEnabled(wc.instance_id, e.target.checked)}
+            aria-label={enabled ? 'Disable card' : 'Enable card'}
+            title={enabled ? 'Disable card' : 'Enable card'}
           />
         ) : (
           <IconHoverLabel
             label="Owned card — locked from this view"
-            className="shrink-0 text-amber-400 inline-flex items-center justify-center w-9 h-5"
+            className="shrink-0 text-warn inline-flex items-center justify-center w-9 h-5"
           >
             <svg
               width="18"
@@ -1290,12 +1285,12 @@ function CardRow({
         {barWidthPct > 0 && eafLabelText != null && (() => {
           const labelText = eafLabelText
           const baseColor = showPlaceholders
-            ? 'text-slate-500'
+            ? 'text-ink-faint'
             : eafValue != null && eafValue < 0
-              ? 'text-emerald-400'
+              ? 'text-pos'
               : eafValue != null && eafValue > 0
-                ? 'text-red-400'
-                : 'text-slate-200'
+                ? 'text-neg'
+                : 'text-ink'
           const labelClass = `${baseColor} ${isStale ? 'opacity-50' : ''}`
           const PADDING = 8
           const GAP = 4
@@ -1398,7 +1393,7 @@ function CardRow({
 function EditAffordance() {
   return (
     <svg
-      className="shrink-0 ml-1 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity"
+      className="shrink-0 ml-1 text-ink-faint opacity-0 group-hover:opacity-100 transition-opacity"
       width="14"
       height="14"
       viewBox="0 0 24 24"
@@ -1417,7 +1412,7 @@ function EditAffordance() {
 function CardThumb({ slug, name }: { slug: string | null; name: string }) {
   if (!slug) {
     return (
-      <div className="w-14 h-9 rounded bg-slate-800 border border-slate-700 shrink-0" />
+      <div className="w-14 h-9 rounded bg-surface border border-divider shrink-0" />
     )
   }
   return (
@@ -1438,7 +1433,7 @@ function CurrencyPhoto({ slug, name, fallbackColor, isCash }: { slug: string | n
   if (!slug || failed) {
     if (isCash) {
       return (
-        <div className="w-7 h-7 rounded-full shrink-0 bg-emerald-600 flex items-center justify-center">
+        <div className="w-7 h-7 rounded-full shrink-0 bg-pos flex items-center justify-center">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="1" x2="12" y2="23" />
             <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
@@ -1457,38 +1452,6 @@ function CurrencyPhoto({ slug, name, fallbackColor, isCash }: { slug: string | n
       className="w-7 h-7 rounded-full object-cover shrink-0"
       onError={() => setFailed(true)}
     />
-  )
-}
-
-function ToggleSwitch({
-  enabled,
-  disabled,
-  onChange,
-  label,
-}: {
-  enabled: boolean
-  disabled: boolean
-  onChange: (next: boolean) => void
-  label?: string
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={enabled}
-      disabled={disabled}
-      onClick={() => onChange(!enabled)}
-      className={`relative shrink-0 w-8 h-4 rounded-full transition-colors ${
-        enabled ? 'bg-indigo-500' : 'bg-slate-700'
-      } ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-      title={label ?? (enabled ? 'Click to disable' : 'Click to enable')}
-      aria-label={label ?? (enabled ? 'Disable' : 'Enable')}
-    >
-      <span
-        className="absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all"
-        style={{ left: enabled ? 16 : 2 }}
-      />
-    </button>
   )
 }
 
