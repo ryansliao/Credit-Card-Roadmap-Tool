@@ -16,7 +16,7 @@ export default function Styleguide() {
       <header className="border-b border-divider px-8 py-6 flex items-center justify-between">
         <div>
           <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Internal</p>
-          <h1 className="font-display text-3xl" style={{ fontVariationSettings: '"opsz" 96' }}>
+          <h1 className="font-display text-3xl" style={{ fontVariationSettings: '"opsz" 96, "SOFT" var(--font-display-soft)' }}>
             Styleguide
           </h1>
         </div>
