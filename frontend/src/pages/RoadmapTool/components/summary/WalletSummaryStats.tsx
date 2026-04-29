@@ -449,7 +449,7 @@ export function WalletSummaryStats({
             onClick={() => onIncludeSubsChange(true)}
             className={`flex-1 px-2 py-1 transition-colors ${
               includeSubs
-                ? 'bg-accent/90 text-white'
+                ? 'bg-accent/90 text-page'
                 : 'bg-surface text-ink-muted hover:text-ink'
             }`}
           >
@@ -462,7 +462,7 @@ export function WalletSummaryStats({
             onClick={() => onIncludeSubsChange(false)}
             className={`flex-1 px-2 py-1 transition-colors border-l border-divider ${
               !includeSubs
-                ? 'bg-accent/90 text-white'
+                ? 'bg-accent/90 text-page'
                 : 'bg-surface text-ink-muted hover:text-ink'
             }`}
           >
