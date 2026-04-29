@@ -112,3 +112,36 @@ class WalletSpendItemCreate(BaseModel):
 class WalletSpendItemUpdate(BaseModel):
     """Update spend amount."""
     amount: float = Field(..., ge=0.0)
+
+
+class WalletCategoryWeightRowRead(BaseModel):
+    """One row in the per-user-category weight editor response."""
+    model_config = ConfigDict(from_attributes=True)
+
+    earn_category_id: int
+    earn_category_name: str
+    default_weight: float
+    override_weight: Optional[float] = None
+    effective_weight: float
+
+
+class WalletCategoryWeightsRead(BaseModel):
+    """Per-user-category weight editor response."""
+    user_category_id: int
+    user_category_name: str
+    mappings: list[WalletCategoryWeightRowRead]
+
+
+class WalletCategoryWeightsWriteRow(BaseModel):
+    """One row in the PUT body."""
+    earn_category_id: int
+    weight: float = Field(..., ge=0.0)
+
+
+class WalletCategoryWeightsWrite(BaseModel):
+    """PUT body: a list of (earn_category_id, weight) pairs to persist.
+
+    Server normalizes weights to sum to 1.0 before persisting. Each
+    earn_category_id must be in the user category's default mapping set.
+    """
+    weights: list[WalletCategoryWeightsWriteRow]
