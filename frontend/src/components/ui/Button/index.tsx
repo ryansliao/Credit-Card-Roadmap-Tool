@@ -1,6 +1,6 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'link' | 'icon'
+type Variant = 'primary' | 'secondary' | 'ghost' | 'link' | 'icon' | 'warn'
 type Size = 'sm' | 'md' | 'lg'
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -12,6 +12,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANT: Record<Variant, string> = {
   primary:   'bg-accent text-page hover:opacity-90',
+  warn:      'bg-warn text-page hover:opacity-90',
   secondary: 'bg-transparent text-ink border border-ink hover:bg-surface-2',
   ghost:     'bg-transparent text-ink hover:bg-surface-2',
   link:      'bg-transparent text-accent underline underline-offset-2 hover:opacity-80 px-0 py-0',

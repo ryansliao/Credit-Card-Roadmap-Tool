@@ -268,6 +268,7 @@ export default function Styleguide() {
           <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Button</p>
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="primary">Primary</Button>
+            <Button variant="warn">Warn</Button>
             <Button variant="secondary">Secondary</Button>
             <Button variant="ghost">Ghost</Button>
             <Button variant="link">Link</Button>
