@@ -11,6 +11,10 @@ interface Props {
 }
 
 /**
+ * @deprecated Use `Modal` from `components/ui/Modal` instead.
+ * This component is preserved unchanged during the design-system migration;
+ * Phase 7 replaces call sites with `Modal` + slot helpers and deletes this file.
+ *
  * Shared modal backdrop with consistent styling, backdrop-click dismiss,
  * and Escape key handling. Wrap dialog content as children.
  *

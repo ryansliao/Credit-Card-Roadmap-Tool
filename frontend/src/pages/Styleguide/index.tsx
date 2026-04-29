@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { ThemeToggle } from '../../components/ui/ThemeToggle'
 import { Heading } from '../../components/ui/Heading'
 import { Eyebrow } from '../../components/ui/Eyebrow'
@@ -5,6 +6,40 @@ import { Money } from '../../components/ui/Money'
 import { Points } from '../../components/ui/Points'
 import { Stat } from '../../components/ui/Stat'
 import { Surface } from '../../components/ui/Surface'
+import { Modal, ModalHeader, ModalBody, ModalFooter } from '../../components/ui/Modal'
+
+function ModalDemo() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="text-sm border border-divider rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors text-ink"
+      >
+        Open modal
+      </button>
+      <Modal open={open} onClose={() => setOpen(false)} ariaLabel="Modal demo">
+        <ModalHeader>
+          <Heading level={3}>Modal title</Heading>
+        </ModalHeader>
+        <ModalBody>
+          <p className="text-ink-muted text-sm">
+            The modal supports header / body / footer slots and sizes xs/sm/md/lg.
+            Press Esc or click the backdrop to dismiss.
+          </p>
+        </ModalBody>
+        <ModalFooter>
+          <button
+            onClick={() => setOpen(false)}
+            className="text-sm border border-divider rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors text-ink"
+          >
+            Close
+          </button>
+        </ModalFooter>
+      </Modal>
+    </>
+  )
+}
 
 /**
  * Internal styleguide route — gated by VITE_SHOW_STYLEGUIDE=1.
@@ -87,6 +122,10 @@ export default function Styleguide() {
             <Surface variant="bare">Bare</Surface>
           </div>
           <Surface elevated>Elevated panel</Surface>
+        </section>
+        <section id="modal" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Modal</p>
+          <ModalDemo />
         </section>
       </main>
     </div>
