@@ -14,6 +14,7 @@ import { Tooltip } from '../../components/ui/Tooltip'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Field } from '../../components/ui/Field'
+import { Select } from '../../components/ui/Select'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -272,6 +273,15 @@ export default function Styleguide() {
           <Field label="Email" error="Not a valid email">
             <Input defaultValue="bad" />
           </Field>
+        </section>
+        <section id="select" className="space-y-4 max-w-sm">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Select</p>
+          <Select defaultValue="">
+            <option value="" disabled>Pick a scenario</option>
+            <option>Default</option>
+            <option>What-if A</option>
+            <option>What-if B</option>
+          </Select>
         </section>
       </main>
     </div>
