@@ -94,7 +94,7 @@ function SubEarningSegment({
   // Match the lifetime bar's visual style: semi-transparent fill + 1px
   // colored border. Uses the same `${color}33` alpha pattern the rest of
   // the bar uses (33/255 ≈ 20% alpha).
-  const yellow = 'var(--color-warn)'
+  const yellow = 'var(--chart-sub)'
   return (
     <div
       className={`absolute ${roundedClass}`}

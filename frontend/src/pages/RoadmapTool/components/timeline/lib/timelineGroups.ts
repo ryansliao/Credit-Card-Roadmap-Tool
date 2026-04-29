@@ -49,7 +49,7 @@ export function buildGroupsFromVisibleCards(
         name,
         currencyId,
         photoSlug,
-        color: rewardKind === 'cash' ? 'var(--color-pos)' : 'var(--color-info)',
+        color: rewardKind === 'cash' ? 'var(--chart-cash)' : 'var(--chart-points)',
         rewardKind,
         cards: [],
         secondaries: [],
