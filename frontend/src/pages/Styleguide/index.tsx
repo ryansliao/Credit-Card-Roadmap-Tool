@@ -23,6 +23,7 @@ import { Tabs } from '../../components/ui/Tabs'
 import { CardTile } from '../../components/cards/CardTile'
 import { CategoryRow } from '../../components/cards/CategoryRow'
 import { CreditRow } from '../../components/cards/CreditRow'
+import { IssuerRuleBanner } from '../../components/cards/IssuerRuleBanner'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -387,6 +388,11 @@ export default function Styleguide() {
           <CreditRow name="$300 travel credit" valuation={300} note="Statement credit, recurring annually" />
           <CreditRow name="$200 hotel credit" valuation={150} note="Counted at $150 — partial value" />
           <CreditRow name="Lyft credit" valuation={0} zeroedOut note="User-zeroed" />
+        </section>
+        <section id="issuerrulebanner" className="space-y-3 max-w-xl">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">IssuerRuleBanner</p>
+          <IssuerRuleBanner rule="Chase 5/24" message="You've opened 6 personal cards in the last 24 months. Adding this card may be auto-declined." />
+          <IssuerRuleBanner rule="Amex 1/90" message="Last Amex application was 42 days ago — wait 48 more days before applying." />
         </section>
       </main>
     </div>
