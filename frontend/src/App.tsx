@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes, Navigate, NavLink, Link } from 'react-rou
 import RoadmapTool from './pages/RoadmapTool/index'
 import Home from './pages/Home'
 import Profile from './pages/Profile'
+import Styleguide from './pages/Styleguide'
 import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
 
@@ -415,6 +416,9 @@ export default function App() {
                         </AuthGate>
                       }
                     />
+                    {import.meta.env.VITE_SHOW_STYLEGUIDE === '1' && (
+                      <Route path="/styleguide" element={<Styleguide />} />
+                    )}
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </div>
