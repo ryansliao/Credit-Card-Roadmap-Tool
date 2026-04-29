@@ -1,24 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-
-type Tone = 'info' | 'success' | 'error'
+import { ToastContext, type Tone } from './useToast'
 
 interface Toast {
   id: number
   tone: Tone
   message: string
-}
-
-interface ToastContextValue {
-  show: (message: string, tone?: Tone) => void
-}
-
-const ToastContext = createContext<ToastContextValue | null>(null)
-
-export function useToast(): ToastContextValue {
-  const ctx = useContext(ToastContext)
-  if (!ctx) throw new Error('useToast must be used inside <ToastProvider>')
-  return ctx
 }
 
 interface ProviderProps {
@@ -56,10 +43,6 @@ export function ToastProvider({ children }: ProviderProps) {
 }
 
 function ToastItem({ toast }: { toast: Toast }) {
-  const [enter, setEnter] = useState(false)
-  useEffect(() => {
-    setEnter(true)
-  }, [])
   const toneClass: Record<Tone, string> = {
     info: 'border-info/40',
     success: 'border-pos/40',
@@ -68,9 +51,7 @@ function ToastItem({ toast }: { toast: Toast }) {
   return (
     <div
       role="status"
-      className={`bg-surface border ${toneClass[toast.tone]} rounded-md px-4 py-3 text-sm text-ink shadow-card transition-all duration-200 ${
-        enter ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
-      }`}
+      className={`bg-surface border ${toneClass[toast.tone]} rounded-md px-4 py-3 text-sm text-ink shadow-card animate-toast-in`}
     >
       {toast.message}
     </div>

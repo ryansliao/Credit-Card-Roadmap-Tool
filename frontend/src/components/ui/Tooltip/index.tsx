@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactElement, cloneElement } from 'react'
+import { useCallback, useState, type ReactElement, cloneElement } from 'react'
 import { createPortal } from 'react-dom'
 
 interface Props {
@@ -9,12 +9,16 @@ interface Props {
 }
 
 export function Tooltip({ label, side = 'top', children }: Props) {
-  const ref = useRef<HTMLElement | null>(null)
+  const [target, setTarget] = useState<HTMLElement | null>(null)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
 
+  const setTargetRef = useCallback((el: HTMLElement | null) => {
+    setTarget(el)
+  }, [])
+
   const show = () => {
-    if (!ref.current) return
-    const r = ref.current.getBoundingClientRect()
+    if (!target) return
+    const r = target.getBoundingClientRect()
     const m = 6
     let top = 0
     let left = 0
@@ -42,7 +46,7 @@ export function Tooltip({ label, side = 'top', children }: Props) {
 
   // Clone the child to attach ref + handlers without imposing structure.
   const child = cloneElement(children as ReactElement<Record<string, unknown>>, {
-    ref,
+    ref: setTargetRef,
     onMouseEnter: show,
     onMouseLeave: hide,
     onFocus: show,

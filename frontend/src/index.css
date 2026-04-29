@@ -83,3 +83,9 @@ body {
   100% { width: 95%; opacity: 1; }
 }
 .animate-progress-bar { animation: progress-bar 2s ease-out forwards; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(1rem); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-toast-in { animation: toast-in 200ms ease-out forwards; }

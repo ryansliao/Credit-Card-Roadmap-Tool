@@ -29,10 +29,7 @@ export function Popover({
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
 
   useEffect(() => {
-    if (!open) {
-      setPos(null)
-      return
-    }
+    if (!open) return
     const computePosition = () => {
       if (!triggerRef.current) return
       const r = triggerRef.current.getBoundingClientRect()
