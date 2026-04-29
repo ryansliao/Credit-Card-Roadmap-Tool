@@ -509,7 +509,7 @@ export function WalletSummaryStats({
               title="Per-card toggle in the timeline includes the card in calculation"
             >
               <span
-                className="absolute w-2.5 h-2.5 rounded-full bg-white"
+                className="absolute w-2.5 h-2.5 rounded-full bg-surface"
                 style={{ left: 14, top: 2 }}
               />
             </span>
