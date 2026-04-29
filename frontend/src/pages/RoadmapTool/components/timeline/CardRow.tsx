@@ -103,7 +103,7 @@ function SubEarningSegment({
         width: `${widthPct}%`,
         top,
         height: barHeight,
-        backgroundColor: `color-mix(in oklab, ${yellow} 20%, transparent)`,
+        backgroundColor: yellow,
         border: `1px solid ${yellow}`,
         zIndex: 31,
       }}
