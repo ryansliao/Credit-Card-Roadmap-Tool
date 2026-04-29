@@ -9,6 +9,7 @@ import { Surface } from '../../components/ui/Surface'
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../../components/ui/Modal'
 import { Popover } from '../../components/ui/Popover'
 import { Drawer } from '../../components/ui/Drawer'
+import { useToast } from '../../components/ui/Toast'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -60,6 +61,32 @@ function DrawerDemo() {
         </div>
       </Drawer>
     </>
+  )
+}
+
+function ToastDemo() {
+  const { show } = useToast()
+  return (
+    <div className="flex gap-2">
+      <button
+        onClick={() => show('Hello — info toast', 'info')}
+        className="text-sm border border-divider rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors text-ink"
+      >
+        Info
+      </button>
+      <button
+        onClick={() => show('Saved successfully', 'success')}
+        className="text-sm border border-divider rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors text-ink"
+      >
+        Success
+      </button>
+      <button
+        onClick={() => show('Something broke', 'error')}
+        className="text-sm border border-divider rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors text-ink"
+      >
+        Error
+      </button>
+    </div>
   )
 }
 
@@ -188,6 +215,10 @@ export default function Styleguide() {
         <section id="drawer" className="space-y-4">
           <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Drawer</p>
           <DrawerDemo />
+        </section>
+        <section id="toast" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Toast</p>
+          <ToastDemo />
         </section>
       </main>
     </div>

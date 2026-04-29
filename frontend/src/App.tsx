@@ -7,6 +7,7 @@ import Profile from './pages/Profile'
 import Styleguide from './pages/Styleguide'
 import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
+import { ToastProvider } from './components/ui/Toast'
 
 declare global {
   interface Window {
@@ -384,6 +385,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
+        <ToastProvider>
           <div className="h-dvh min-h-0 flex flex-col overflow-hidden bg-slate-950 text-slate-100">
             <Nav />
             <UsernameGate />
@@ -425,6 +427,7 @@ export default function App() {
               </ErrorBoundary>
             </main>
           </div>
+        </ToastProvider>
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>
