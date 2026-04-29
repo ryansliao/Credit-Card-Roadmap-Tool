@@ -125,7 +125,7 @@ export function WalletSummaryStats({
           >
             <div className="px-1 py-0.5 text-center min-w-0 flex flex-col justify-center gap-1">
               <div className="flex items-center justify-center gap-1 h-5">
-                <Eyebrow accent className="whitespace-nowrap">Effective Annual Fee</Eyebrow>
+                <Eyebrow className="whitespace-nowrap">Effective Annual Fee</Eyebrow>
                 <Popover
                   side="bottom"
                   portal
