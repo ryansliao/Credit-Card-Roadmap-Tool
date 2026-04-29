@@ -49,7 +49,7 @@ export function ScenarioPicker({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-medium transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-surface hover:bg-surface-2 border border-divider text-ink text-sm font-medium transition-colors"
         aria-haspopup="listbox"
         aria-expanded={open}
         title="Switch scenario"
@@ -60,7 +60,7 @@ export function ScenarioPicker({
             height="12"
             viewBox="0 0 24 24"
             fill="currentColor"
-            className="text-amber-400 shrink-0"
+            className="text-warn shrink-0"
             aria-hidden
           >
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -85,15 +85,15 @@ export function ScenarioPicker({
       {open && (
         <div
           role="listbox"
-          className="absolute top-full mt-1 left-0 z-50 min-w-[18rem] max-h-72 overflow-auto rounded-md bg-slate-800 border border-slate-700 shadow-lg py-1"
+          className="absolute top-full mt-1 left-0 z-50 min-w-[18rem] max-h-72 overflow-auto rounded-md bg-surface border border-divider shadow-lg py-1"
         >
           {scenarios.map((s) => (
             <div
               key={s.id}
               role="option"
               aria-selected={s.id === currentId}
-              className={`group flex items-center gap-1 px-2 py-1.5 text-sm transition-colors hover:bg-slate-700 ${
-                s.id === currentId ? 'text-indigo-300 font-semibold' : 'text-slate-200'
+              className={`group flex items-center gap-1 px-2 py-1.5 text-sm transition-colors hover:bg-surface-2 ${
+                s.id === currentId ? 'text-accent font-semibold' : 'text-ink'
               }`}
             >
               <button
@@ -111,7 +111,7 @@ export function ScenarioPicker({
                     height="12"
                     viewBox="0 0 24 24"
                     fill="currentColor"
-                    className="text-amber-400 shrink-0"
+                    className="text-warn shrink-0"
                     aria-hidden
                   >
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -128,7 +128,7 @@ export function ScenarioPicker({
                     e.stopPropagation()
                     onMakeDefault(s.id)
                   }}
-                  className="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-300 hover:bg-amber-500/10 rounded transition-opacity"
+                  className="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-warn hover:bg-warn/10 rounded transition-opacity"
                   title="Make default"
                 >
                   Default
@@ -140,7 +140,7 @@ export function ScenarioPicker({
                   e.stopPropagation()
                   onDelete(s.id)
                 }}
-                className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 rounded transition-opacity"
+                className="opacity-0 group-hover:opacity-100 p-1 text-ink-faint hover:text-neg rounded transition-opacity"
                 title="Delete scenario"
                 aria-label="Delete scenario"
               >
@@ -151,14 +151,14 @@ export function ScenarioPicker({
               </button>
             </div>
           ))}
-          <div className="border-t border-slate-700/60 my-1" />
+          <div className="border-t border-divider/60 my-1" />
           <button
             type="button"
             onClick={() => {
               setOpen(false)
               onAddScenario()
             }}
-            className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-sm text-indigo-300 hover:bg-slate-700 transition-colors"
+            className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-sm text-accent hover:bg-surface-2 transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <line x1="12" y1="5" x2="12" y2="19" />

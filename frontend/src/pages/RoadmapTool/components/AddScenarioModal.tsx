@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ScenarioSummary } from '../../../api/client'
-import { ModalBackdrop } from '../../../components/ModalBackdrop'
+import { Modal, ModalHeader, ModalBody, ModalFooter } from '../../../components/ui/Modal'
+import { Heading } from '../../../components/ui/Heading'
+import { Field } from '../../../components/ui/Field'
+import { Input } from '../../../components/ui/Input'
+import { Select } from '../../../components/ui/Select'
+import { Button } from '../../../components/ui/Button'
 
 interface Props {
   isSubmitting: boolean
@@ -32,95 +37,83 @@ export function AddScenarioModal({
   const canSubmit = trimmed.length > 0 && !isSubmitting
 
   return (
-    <ModalBackdrop
-      onClose={isSubmitting ? () => undefined : onClose}
-      label="Add scenario"
-      className="bg-slate-900 border border-slate-700 rounded-xl shadow-xl w-full max-w-md p-5"
-    >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (canSubmit) {
-            onSubmit({
-              name: trimmed,
-              description: description.trim() || null,
-              copy_from_scenario_id: copyFromId === '' ? null : copyFromId,
-            })
-          }
-        }}
-      >
-        <h2 className="text-lg font-semibold text-slate-100 mb-3">New Scenario</h2>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
-          Name
-        </label>
-        <input
-          ref={inputRef}
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={120}
-          placeholder="e.g. Add Sapphire Reserve"
-          className="w-full px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
-          disabled={isSubmitting}
-        />
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 mt-3">
-          Description
-        </label>
-        <input
-          type="text"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          maxLength={240}
-          placeholder="Optional"
-          className="w-full px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
-          disabled={isSubmitting}
-        />
-        {scenarios.length > 0 && (
-          <>
-            <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 mt-3">
-              Copy from (optional)
-            </label>
-            <select
-              value={copyFromId}
-              onChange={(e) =>
-                setCopyFromId(e.target.value === '' ? '' : Number(e.target.value))
-              }
+    <Modal open={true} onClose={isSubmitting ? () => undefined : onClose} size="sm" ariaLabel="Add scenario">
+      <ModalHeader>
+        <Heading level={3}>New Scenario</Heading>
+      </ModalHeader>
+      <ModalBody>
+        <form
+          id="add-scenario-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (canSubmit) {
+              onSubmit({
+                name: trimmed,
+                description: description.trim() || null,
+                copy_from_scenario_id: copyFromId === '' ? null : copyFromId,
+              })
+            }
+          }}
+          className="space-y-4"
+        >
+          <Field label="Name">
+            <Input
+              ref={inputRef}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={120}
+              placeholder="e.g. Add Sapphire Reserve"
               disabled={isSubmitting}
-              className="w-full px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
-            >
-              <option value="">Start fresh</option>
-              {scenarios.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                  {s.is_default ? ' (default)' : ''}
-                </option>
-              ))}
-            </select>
-          </>
-        )}
-        {errorMessage && <p className="mt-2 text-sm text-red-400">{errorMessage}</p>}
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="px-3 py-1.5 rounded-md text-sm text-slate-300 hover:bg-slate-800 transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
-              canSubmit
-                ? 'bg-indigo-500 hover:bg-indigo-400 text-white'
-                : 'bg-slate-700 text-slate-500 cursor-not-allowed'
-            }`}
-          >
-            {isSubmitting ? 'Creating…' : 'Create'}
-          </button>
-        </div>
-      </form>
-    </ModalBackdrop>
+            />
+          </Field>
+          <Field label="Description">
+            <Input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={240}
+              placeholder="Optional"
+              disabled={isSubmitting}
+            />
+          </Field>
+          {scenarios.length > 0 && (
+            <Field label="Copy from (optional)">
+              <Select
+                value={copyFromId}
+                onChange={(e) =>
+                  setCopyFromId(e.target.value === '' ? '' : Number(e.target.value))
+                }
+                disabled={isSubmitting}
+              >
+                <option value="">Start fresh</option>
+                {scenarios.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                    {s.is_default ? ' (default)' : ''}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          {errorMessage && <p className="mt-2 text-sm text-neg">{errorMessage}</p>}
+        </form>
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="ghost" size="sm" type="button" onClick={onClose} disabled={isSubmitting}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          type="submit"
+          form="add-scenario-form"
+          disabled={!canSubmit || isSubmitting}
+          loading={isSubmitting}
+        >
+          Create
+        </Button>
+      </ModalFooter>
+    </Modal>
   )
 }
