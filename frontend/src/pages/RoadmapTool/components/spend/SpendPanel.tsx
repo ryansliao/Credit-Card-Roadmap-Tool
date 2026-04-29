@@ -18,7 +18,7 @@ export function SpendPanel({
   isStale,
 }: Props) {
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
+    <div className="bg-surface border border-divider rounded-xl p-4 min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0 overflow-auto">
         <SpendTabContent
           selectedCards={selectedCards}

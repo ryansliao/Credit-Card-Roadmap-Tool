@@ -10,7 +10,8 @@ import type {
 } from '../../../../api/client'
 import { walletApi, walletSpendApi } from '../../../../api/client'
 import type { ResolvedCard } from '../../lib/resolveScenarioCards'
-import { InfoQuoteBox } from '../../../../components/InfoPopover'
+import { Popover } from '../../../../components/ui/Popover'
+import { Badge } from '../../../../components/ui/Badge'
 import { formatMoneyExact, formatPointsExact } from '../../../../utils/format'
 import { queryKeys } from '../../../../lib/queryKeys'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
@@ -28,8 +29,8 @@ function CardPhoto({ slug, name }: { slug: string | null; name: string }) {
   const [failed, setFailed] = useState(false)
   if (!slug || failed) {
     return (
-      <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">
+      <div className="w-full h-full bg-gradient-to-br from-surface-2 to-surface flex items-center justify-center">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-ink-faint">
           <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
           <line x1="1" y1="10" x2="23" y2="10" />
         </svg>
@@ -86,10 +87,6 @@ export function SpendTabContent({
   }
 
   const { data: cardLibrary = [] } = useCardLibrary()
-
-  const [infoCategory, setInfoCategory] = useState<
-    { cat: UserSpendCategory; anchor: HTMLElement } | null
-  >(null)
 
   const cardLibById = useMemo(() => {
     const m = new Map<number, Card>()
@@ -496,12 +493,12 @@ export function SpendTabContent({
   return (
     <div className="flex flex-col flex-1 min-h-0 min-w-0">
       {isLoading ? (
-        <div className="text-slate-500 text-sm">Loading…</div>
+        <div className="text-ink-faint text-sm">Loading…</div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-slate-800">
+        <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-divider">
           {showCalculatePrompt && (
-            <div className="px-3 py-2 text-xs text-indigo-200 bg-indigo-900/20 border-b border-indigo-700/40">
-              Click <span className="font-semibold text-indigo-300">Calculate</span> to see your top earning card per category.
+            <div className="px-3 py-2 text-xs text-accent bg-accent/10 border-b border-accent/40">
+              Click <span className="font-semibold text-accent">Calculate</span> to see your top earning card per category.
             </div>
           )}
           <table className="w-full text-sm border-collapse table-fixed">
@@ -511,45 +508,45 @@ export function SpendTabContent({
               <col className="w-72" />
               <col className="w-80" />
             </colgroup>
-            <thead className="sticky top-0 bg-slate-900 z-10">
+            <thead className="sticky top-0 bg-surface z-10">
               <tr>
-                <th className="text-left text-sm font-semibold text-slate-300 px-3 py-2.5 border-b border-r border-slate-800">
+                <th className="text-left text-sm font-semibold text-ink-muted px-3 py-2.5 border-b border-r border-divider">
                   Category
                 </th>
-                <th className="text-center text-sm font-semibold text-slate-300 px-3 py-2.5 border-b border-r border-slate-800 whitespace-nowrap">
+                <th className="text-center text-sm font-semibold text-ink-muted px-3 py-2.5 border-b border-r border-divider whitespace-nowrap">
                   Annual Spend
                 </th>
-                <th className="text-center text-sm font-semibold text-slate-300 px-3 py-2.5 border-b border-r border-slate-800 whitespace-nowrap">
+                <th className="text-center text-sm font-semibold text-ink-muted px-3 py-2.5 border-b border-r border-divider whitespace-nowrap">
                   Annual Point Income
                 </th>
                 <th
                   rowSpan={2}
-                  className="text-center text-sm font-semibold text-slate-300 px-3 py-2.5 border-b-2 border-slate-700 bg-slate-900 whitespace-nowrap"
+                  className="text-center text-sm font-semibold text-ink-muted px-3 py-2.5 border-b-2 border-divider bg-surface whitespace-nowrap"
                 >
                   Top ROS Card
                 </th>
               </tr>
               {/* Total row — kept inside thead so it sticks together with
                   the header row when the table body scrolls. */}
-              <tr className="border-b-2 border-slate-700 bg-slate-800/50">
+              <tr className="border-b-2 border-divider bg-surface-2/50">
                 <th
                   scope="row"
-                  className="text-left px-3 py-2 text-slate-100 font-semibold border-r border-slate-800/60"
+                  className="text-left px-3 py-2 text-ink font-semibold border-r border-divider/60"
                 >
                   Total
                 </th>
-                <td className="text-center px-2 py-2 tabular-nums border-r border-slate-800/60">
-                  <div className="text-slate-100 font-semibold">
+                <td className="text-center px-2 py-2 tabular-nums border-r border-divider/60">
+                  <div className="text-ink font-semibold">
                     ${spendItems.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
                   </div>
                 </td>
-                <td className="px-2 py-2 text-slate-300 border-r border-slate-800/60">
+                <td className="px-2 py-2 text-ink-muted border-r border-divider/60">
                   <div className="flex items-center justify-between gap-2 w-full">
                     <button
                       type="button"
                       onClick={() => cycleCard(-1)}
                       disabled={cardCount < 2}
-                      className="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 disabled:hover:text-slate-500 disabled:hover:bg-transparent"
+                      className="shrink-0 p-0.5 rounded text-ink-faint hover:text-ink hover:bg-surface-2 disabled:opacity-30 disabled:hover:text-ink-faint disabled:hover:bg-transparent"
                       aria-label="Previous card"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -563,7 +560,7 @@ export function SpendTabContent({
                       type="button"
                       onClick={() => cycleCard(1)}
                       disabled={cardCount < 2}
-                      className="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 disabled:hover:text-slate-500 disabled:hover:bg-transparent"
+                      className="shrink-0 p-0.5 rounded text-ink-faint hover:text-ink hover:bg-surface-2 disabled:opacity-30 disabled:hover:text-ink-faint disabled:hover:bg-transparent"
                       aria-label="Next card"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -580,47 +577,69 @@ export function SpendTabContent({
                 const topEntries = topCardsForCategory(item.user_spend_category)
                 const noTop = topEntries.length === 0
                 return (
-                  <tr key={item.id} className="border-b border-slate-800/60">
-                    <td className="text-left px-3 py-2 text-slate-200 border-r border-slate-800/60">
+                  <tr key={item.id} className="border-b border-divider/60">
+                    <td className="text-left px-3 py-2 text-ink border-r border-divider/60">
                       <div className="flex items-center gap-1.5">
                         <span className="truncate" title={catName}>
                           {catName}
                         </span>
                         {item.user_spend_category && item.user_spend_category.mappings.length > 0 && (() => {
                           const cat = item.user_spend_category
-                          const isOpen = infoCategory?.cat.id === cat.id
+                          const isHousing = cat.name.trim().toLowerCase() === 'housing'
+                          const displayMappings = effectiveMappings(cat)
                           return (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                const anchor = e.currentTarget
-                                setInfoCategory(isOpen ? null : { cat, anchor })
-                              }}
-                              aria-expanded={isOpen}
-                              className={`shrink-0 p-0.5 rounded transition-colors ${
-                                isOpen
-                                  ? 'text-indigo-300 bg-indigo-500/10'
-                                  : 'text-slate-500 hover:text-slate-300 hover:bg-slate-700/50'
-                              }`}
-                              title="View category details"
+                            <Popover
+                              side="bottom"
+                              portal
+                              trigger={({ onClick, ref }) => (
+                                <button
+                                  ref={ref as React.RefObject<HTMLButtonElement>}
+                                  type="button"
+                                  onClick={onClick}
+                                  className="shrink-0 p-0.5 rounded transition-colors text-ink-faint hover:text-ink-muted hover:bg-surface-2/50"
+                                  title="View category details"
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path d="M12 16v-4" />
+                                    <path d="M12 8h.01" />
+                                  </svg>
+                                </button>
+                              )}
                             >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="10" />
-                                <path d="M12 16v-4" />
-                                <path d="M12 8h.01" />
-                              </svg>
-                            </button>
+                              {cat.description && <p className="text-xs text-ink-muted mb-1.5">{cat.description}</p>}
+                              <p className="text-ink-muted font-medium mb-1.5">{cat.name}</p>
+                              <p className="text-ink-muted font-medium mb-1.5">Includes spend on:</p>
+                              <ul className="space-y-1">
+                                {displayMappings
+                                  .slice()
+                                  .sort((a, b) => b.default_weight - a.default_weight)
+                                  .map((mapping) => (
+                                    <li key={mapping.id} className="flex items-center justify-between gap-3">
+                                      <span className="text-ink-muted">{mapping.earn_category.category}</span>
+                                      <span className="text-ink-faint tabular-nums">
+                                        {Math.round(mapping.default_weight * 100)}%
+                                      </span>
+                                    </li>
+                                  ))}
+                              </ul>
+                              {isHousing && (
+                                <p className="text-xs text-ink-faint mt-2">
+                                  Set by Housing Type in the Profile / Spending tab.
+                                </p>
+                              )}
+                            </Popover>
                           )
                         })()}
                       </div>
                     </td>
-                    <td className="text-center px-2 py-2 tabular-nums border-r border-slate-800/60">
-                      <span className="text-slate-200">
+                    <td className="text-center px-2 py-2 tabular-nums border-r border-divider/60">
+                      <span className="text-ink">
                         ${item.amount === 0 ? '0' : Math.round(item.amount).toLocaleString()}
                       </span>
                     </td>
                     <td
-                      className={`text-center tabular-nums px-3 py-2 text-slate-200 border-r border-slate-800/60 transition-opacity ${isStale ? 'opacity-50' : ''}`}
+                      className={`text-center tabular-nums px-3 py-2 text-ink border-r border-divider/60 transition-opacity ${isStale ? 'opacity-50' : ''}`}
                       title={isStale ? 'Out of date' : undefined}
                     >
                       {currentCard ? (
@@ -629,19 +648,19 @@ export function SpendTabContent({
                           return pts > 0 ? (
                             formatCardEarn(currentCard, pts)
                           ) : (
-                            <span className="text-slate-700">—</span>
+                            <span className="text-ink-faint">—</span>
                           )
                         })()
                       ) : (
-                        <span className="text-slate-700">—</span>
+                        <span className="text-ink-faint">—</span>
                       )}
                     </td>
                     <td
-                      className={`px-3 py-2 text-slate-200 transition-opacity ${isStale ? 'opacity-50' : ''}`}
+                      className={`px-3 py-2 text-ink transition-opacity ${isStale ? 'opacity-50' : ''}`}
                       title={isStale ? 'Out of date' : undefined}
                     >
                       {noTop ? (
-                        <div className="text-center text-slate-700">—</div>
+                        <div className="text-center text-ink-faint">—</div>
                       ) : (
                         <div className="flex flex-col gap-1.5">
                           {topEntries.map((entry) => (
@@ -649,40 +668,40 @@ export function SpendTabContent({
                               key={`${entry.card.card_id}-${entry.tag}`}
                               className="flex items-center gap-2 min-w-0"
                             >
-                              <div className="w-[60px] h-9 shrink-0 rounded overflow-hidden bg-slate-700/50">
+                              <div className="w-[60px] h-9 shrink-0 rounded overflow-hidden bg-surface-2/50">
                                 <CardPhoto slug={entry.card.photo_slug} name={entry.card.card_name} />
                               </div>
                               <div className="min-w-0 flex-1 text-left">
-                                <div className="text-xs text-slate-200 truncate mb-0.5" title={entry.card.card_name}>
+                                <div className="text-xs text-ink truncate mb-0.5" title={entry.card.card_name}>
                                   {entry.card.card_name}
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                  <div className="text-xs font-semibold text-indigo-300 tabular-nums">
+                                  <div className="text-xs font-semibold text-accent tabular-nums">
                                     {formatRos(entry.ros)}
                                   </div>
                                   {entry.tag === 'portal' && (
-                                    <span
-                                      className="text-[10px] uppercase tracking-wide text-amber-300/90 bg-amber-500/10 border border-amber-500/30 rounded px-1 py-[1px]"
+                                    <Badge
+                                      tone="warn"
                                       title="Requires booking through this card's travel portal"
                                     >
                                       Portal
-                                    </span>
+                                    </Badge>
                                   )}
                                   {entry.tag === 'rotating' && (
-                                    <span
-                                      className="text-[10px] uppercase tracking-wide text-violet-300/90 bg-violet-500/10 border border-violet-500/30 rounded px-1 py-[1px]"
+                                    <Badge
+                                      tone="info"
                                       title="Only applies when this category is in the card's active rotating bonus"
                                     >
                                       Rotating
-                                    </span>
+                                    </Badge>
                                   )}
                                   {entry.tag === 'override' && (
-                                    <span
-                                      className="text-[10px] uppercase tracking-wide text-emerald-300/90 bg-emerald-500/10 border border-emerald-500/30 rounded px-1 py-[1px]"
+                                    <Badge
+                                      tone="pos"
                                       title="This card is manually pinned for this category in the current scenario"
                                     >
                                       Override
-                                    </span>
+                                    </Badge>
                                   )}
                                 </div>
                               </div>
@@ -698,41 +717,6 @@ export function SpendTabContent({
           </table>
         </div>
       )}
-
-      {infoCategory && (() => {
-        const isHousing = infoCategory.cat.name.trim().toLowerCase() === 'housing'
-        const displayMappings = effectiveMappings(infoCategory.cat)
-        return (
-          <InfoQuoteBox
-            anchorEl={infoCategory.anchor}
-            title={infoCategory.cat.name}
-            onClose={() => setInfoCategory(null)}
-          >
-            {infoCategory.cat.description && <p>{infoCategory.cat.description}</p>}
-            <div>
-              <p className="text-slate-300 font-medium mb-1.5">Includes spend on:</p>
-              <ul className="space-y-1">
-                {displayMappings
-                  .slice()
-                  .sort((a, b) => b.default_weight - a.default_weight)
-                  .map((mapping) => (
-                    <li key={mapping.id} className="flex items-center justify-between">
-                      <span className="text-slate-300">{mapping.earn_category.category}</span>
-                      <span className="text-slate-500 tabular-nums">
-                        {Math.round(mapping.default_weight * 100)}%
-                      </span>
-                    </li>
-                  ))}
-              </ul>
-              {isHousing && (
-                <p className="text-xs text-slate-500 mt-2">
-                  Set by Housing Type in the Profile / Spending tab.
-                </p>
-              )}
-            </div>
-          </InfoQuoteBox>
-        )
-      })()}
     </div>
   )
 }
