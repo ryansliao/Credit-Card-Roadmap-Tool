@@ -296,7 +296,7 @@ export function WalletSummaryStats({
         className={`shrink-0 w-60 lg:w-72 bg-surface border rounded-xl px-4 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
         <div className="flex items-baseline justify-between mb-2">
-          <div className="flex items-baseline gap-1">
+          <div className="flex items-center gap-1">
             <Eyebrow className="whitespace-nowrap">Time Horizon</Eyebrow>
             <Popover
               side="bottom"
