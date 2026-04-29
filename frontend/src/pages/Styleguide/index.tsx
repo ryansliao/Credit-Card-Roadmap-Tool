@@ -1,5 +1,6 @@
 import { ThemeToggle } from '../../components/ui/ThemeToggle'
 import { Heading } from '../../components/ui/Heading'
+import { Eyebrow } from '../../components/ui/Eyebrow'
 
 /**
  * Internal styleguide route — gated by VITE_SHOW_STYLEGUIDE=1.
@@ -32,6 +33,11 @@ export default function Styleguide() {
           <Heading level={2}>Headline — Wallet · Default Scenario</Heading>
           <Heading level={3}>Title — Sapphire Reserve</Heading>
           <Heading level={4}>Subtitle — Annual fee waived</Heading>
+        </section>
+        <section id="eyebrow" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Eyebrow</p>
+          <Eyebrow>Net EV / yr</Eyebrow>
+          <Eyebrow accent>With accent rule</Eyebrow>
         </section>
       </main>
     </div>
