@@ -8,6 +8,12 @@ import Styleguide from './pages/Styleguide'
 import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
 import { ToastProvider } from './components/ui/Toast'
+import { Button } from './components/ui/Button'
+import { Input } from './components/ui/Input'
+import { Field } from './components/ui/Field'
+import { Modal, ModalHeader, ModalBody } from './components/ui/Modal'
+import { Heading } from './components/ui/Heading'
+import { ThemeToggle } from './components/ui/ThemeToggle'
 
 declare global {
   interface Window {
@@ -57,14 +63,14 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
     if (this.state.hasError) {
       return (
         <div className="p-8 text-center">
-          <h2 className="text-xl font-bold text-red-400 mb-2">Something went wrong</h2>
-          <p className="text-slate-400 text-sm mb-4">{this.state.error?.message}</p>
-          <button
-            className="px-4 py-2 bg-slate-700 rounded text-sm hover:bg-slate-600"
+          <h2 className="text-xl font-bold text-neg mb-2">Something went wrong</h2>
+          <p className="text-ink-muted text-sm mb-4">{this.state.error?.message}</p>
+          <Button
+            variant="secondary"
             onClick={() => this.setState({ hasError: false, error: null })}
           >
             Try again
-          </button>
+          </Button>
         </div>
       )
     }
@@ -149,28 +155,25 @@ function SignInDropdown() {
     }
   }
 
-  const inputClass =
-    'w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500'
-
   return (
     <div className="relative" ref={dropdownRef}>
       <button
         type="button"
         onClick={() => { setOpen(!open); resetForm() }}
-        className="text-sm font-medium px-5 py-2 rounded-full text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+        className="text-sm font-medium px-5 py-2 rounded-full text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors"
       >
         Sign in
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-72 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-50">
-          <div className="flex border-b border-slate-700">
+        <div className="absolute right-0 mt-2 w-72 bg-surface border border-divider rounded-xl shadow-xl z-50">
+          <div className="flex border-b border-divider">
             <button
               type="button"
               onClick={() => { setTab('signin'); setError('') }}
               className={`flex-1 text-sm py-2.5 font-medium transition-colors ${
                 tab === 'signin'
-                  ? 'text-white border-b-2 border-indigo-500'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'text-ink border-b-2 border-accent'
+                  : 'text-ink-muted hover:text-ink'
               }`}
             >
               Sign in
@@ -180,8 +183,8 @@ function SignInDropdown() {
               onClick={() => { setTab('signup'); setError('') }}
               className={`flex-1 text-sm py-2.5 font-medium transition-colors ${
                 tab === 'signup'
-                  ? 'text-white border-b-2 border-indigo-500'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'text-ink border-b-2 border-accent'
+                  : 'text-ink-muted hover:text-ink'
               }`}
             >
               Sign up
@@ -191,59 +194,56 @@ function SignInDropdown() {
           <form onSubmit={handleSubmit} className="p-4 space-y-3">
             {tab === 'signup' ? (
               <>
-                <input
+                <Input
                   type="text"
                   placeholder="Username"
                   value={username}
                   onChange={(e) => setLocalUsername(e.target.value)}
-                  className={inputClass}
                   required
                   minLength={3}
                   maxLength={30}
                 />
-                <input
+                <Input
                   type="email"
                   placeholder="Email (optional)"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={inputClass}
                 />
               </>
             ) : (
-              <input
+              <Input
                 type="text"
                 placeholder="Username or email"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                className={inputClass}
                 required
                 autoComplete="username"
               />
             )}
-            <input
+            <Input
               type="password"
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className={inputClass}
               required
               minLength={tab === 'signup' ? 8 : undefined}
             />
-            {error && <p className="text-red-400 text-xs">{error}</p>}
-            <button
+            {error && <p className="text-neg text-xs">{error}</p>}
+            <Button
+              variant="primary"
               type="submit"
-              disabled={loading}
-              className="w-full text-sm font-medium py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white transition-colors"
+              className="w-full"
+              loading={loading}
             >
-              {loading ? '...' : tab === 'signin' ? 'Sign in' : 'Create account'}
-            </button>
+              {tab === 'signin' ? 'Sign in' : 'Create account'}
+            </Button>
           </form>
 
           <div className="px-4 pb-4">
             <div className="flex items-center gap-3 mb-3">
-              <div className="flex-1 border-t border-slate-700" />
-              <span className="text-slate-500 text-xs">or</span>
-              <div className="flex-1 border-t border-slate-700" />
+              <div className="flex-1 border-t border-divider" />
+              <span className="text-ink-faint text-xs">or</span>
+              <div className="flex-1 border-t border-divider" />
             </div>
             <div ref={googleBtnRef} />
           </div>
@@ -273,35 +273,34 @@ function UsernamePrompt() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-6 w-80">
-        <h2 className="text-lg font-bold text-white mb-1">Choose a username</h2>
-        <p className="text-slate-400 text-sm mb-4">Pick a username to finish setting up your account.</p>
+    <Modal open={true} onClose={() => undefined} dismissible={false} size="xs">
+      <ModalHeader>
+        <Heading level={3}>Choose a username</Heading>
+      </ModalHeader>
+      <ModalBody>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input
-            type="text"
-            placeholder="Username"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-            required
-            minLength={3}
-            maxLength={30}
-            pattern="[a-zA-Z0-9_]{3,30}"
-            title="3-30 characters: letters, numbers, underscores"
-            autoFocus
-          />
-          {error && <p className="text-red-400 text-xs">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full text-sm font-medium py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white transition-colors"
-          >
+          <p className="text-ink-muted text-sm">Pick a username to finish setting up your account.</p>
+          <Field label="Username">
+            <Input
+              type="text"
+              placeholder="Username"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              required
+              minLength={3}
+              maxLength={30}
+              pattern="[a-zA-Z0-9_]{3,30}"
+              title="3-30 characters: letters, numbers, underscores"
+              autoFocus
+            />
+          </Field>
+          {error && <p className="text-neg text-xs mt-2">{error}</p>}
+          <Button variant="primary" type="submit" className="w-full" loading={loading}>
             {loading ? '...' : 'Continue'}
-          </button>
+          </Button>
         </form>
-      </div>
-    </div>
+      </ModalBody>
+    </Modal>
   )
 }
 
@@ -309,8 +308,8 @@ function Nav() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth()
 
   return (
-    <nav className="bg-slate-900 border-b border-slate-700 px-6 py-2.5 flex items-center gap-2">
-      <Link to="/" className="text-white font-bold text-lg mr-6 hover:text-slate-200 transition-colors">
+    <nav className="bg-surface border-b border-divider px-6 py-2.5 flex items-center gap-2">
+      <Link to="/" className="text-ink font-bold text-lg mr-6 hover:text-ink-muted transition-colors">
         CardSolver
       </Link>
       {isAuthenticated && (
@@ -319,8 +318,8 @@ function Nav() {
           className={({ isActive }) =>
             `text-sm font-medium px-5 py-2 rounded-full transition-colors ${
               isActive
-                ? 'text-white bg-slate-800'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                ? 'text-ink bg-surface-2'
+                : 'text-ink-muted hover:text-ink hover:bg-surface-2'
             }`
           }
         >
@@ -331,7 +330,7 @@ function Nav() {
       {!isLoading && (
         isAuthenticated && user ? (
           <div className="flex items-center gap-3">
-            <Link to="/profile" className="flex items-center gap-2 px-3 py-1 rounded-full text-slate-300 hover:text-white hover:bg-slate-800 transition-colors -mr-2">
+            <Link to="/profile" className="flex items-center gap-2 px-3 py-1 rounded-full text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors -mr-2">
               {user.picture && (
                 <img
                   src={user.picture}
@@ -345,13 +344,17 @@ function Nav() {
             <button
               type="button"
               onClick={signOut}
-              className="text-sm font-medium px-5 py-2 rounded-full text-slate-300 hover:text-white hover:bg-slate-800 transition-colors ml-2"
+              className="text-sm font-medium px-5 py-2 rounded-full text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors ml-2"
             >
               Sign out
             </button>
+            <ThemeToggle />
           </div>
         ) : (
-          <SignInDropdown />
+          <>
+            <SignInDropdown />
+            <ThemeToggle />
+          </>
         )
       )}
     </nav>
@@ -386,7 +389,7 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
         <ToastProvider>
-          <div className="h-dvh min-h-0 flex flex-col overflow-hidden bg-slate-950 text-slate-100">
+          <div className="h-dvh min-h-0 flex flex-col overflow-hidden bg-page text-ink">
             <Nav />
             <UsernameGate />
             <main className="flex-1 min-h-0 p-6 flex flex-col overflow-hidden">
