@@ -94,7 +94,7 @@ function SubEarningSegment({
   // Match the lifetime bar's visual style: semi-transparent fill + 1px
   // colored border. Uses the same `${color}33` alpha pattern the rest of
   // the bar uses (33/255 ≈ 20% alpha).
-  const yellow = '#fbbf24'
+  const yellow = 'var(--color-warn)'
   return (
     <div
       className={`absolute ${roundedClass}`}
@@ -103,7 +103,7 @@ function SubEarningSegment({
         width: `${widthPct}%`,
         top,
         height: barHeight,
-        backgroundColor: `${yellow}33`,
+        backgroundColor: `color-mix(in oklab, ${yellow} 20%, transparent)`,
         border: `1px solid ${yellow}`,
         zIndex: 31,
       }}
@@ -338,8 +338,10 @@ export function CardRow({
                   width: `${barWidthPct}%`,
                   top: (rowHeight - barHeight) / 2,
                   height: barHeight,
-                  backgroundColor: enabled ? `${color}33` : '#33415533',
-                  border: `1px solid ${enabled ? color : '#475569'}`,
+                  backgroundColor: enabled
+                    ? `color-mix(in oklab, ${color} 20%, transparent)`
+                    : `color-mix(in oklab, var(--color-divider-strong) 25%, transparent)`,
+                  border: `1px solid ${enabled ? color : 'var(--color-divider-strong)'}`,
                   opacity: enabled ? 1 : 0.55,
                   zIndex: 30,
                 }}

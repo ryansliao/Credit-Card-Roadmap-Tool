@@ -383,11 +383,11 @@ export function WalletTimelineChart({
               >
                 <div
                   className="absolute top-0 bottom-0"
-                  style={{ left: 0, width: 2, backgroundColor: '#64748b' }}
+                  style={{ left: 0, width: 2, backgroundColor: 'var(--color-ink-muted)' }}
                 />
                 <div
                   className="absolute top-0 bottom-0"
-                  style={{ right: 0, width: 2, backgroundColor: '#64748b' }}
+                  style={{ right: 0, width: 2, backgroundColor: 'var(--color-ink-muted)' }}
                 />
               </div>
 

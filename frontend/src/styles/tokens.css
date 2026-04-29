@@ -7,14 +7,14 @@
 
 :root {
   /* Color — semantic, role-based naming */
-  --color-page: #f4f4f5;
+  --color-page: #faf8f3;
   --color-surface: #ffffff;
-  --color-surface-2: #e4e4e7;
-  --color-ink: #18181b;
-  --color-ink-muted: #52525b;
-  --color-ink-faint: #71717a;
-  --color-divider: #bababd;
-  --color-divider-strong: #a1a1aa;
+  --color-surface-2: #ebe5d6;
+  --color-ink: #1a1a1a;
+  --color-ink-muted: #3f3a30;
+  --color-ink-faint: #6e6452;
+  --color-divider: #c2b89e;
+  --color-divider-strong: #a09173;
   --color-accent: #7a1c2c;
   --color-accent-soft: rgba(122, 28, 44, 0.08);
   --color-pos: #2e7d49;
