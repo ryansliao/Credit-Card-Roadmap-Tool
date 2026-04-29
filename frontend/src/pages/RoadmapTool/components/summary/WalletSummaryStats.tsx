@@ -307,7 +307,7 @@ export function WalletSummaryStats({
                   onClick={onClick}
                   type="button"
                   aria-label="How time horizon affects calculation"
-                  className="shrink-0 text-ink-faint hover:text-accent transition-colors"
+                  className="shrink-0 translate-y-px text-ink-faint hover:text-accent transition-colors"
                 >
                   <InfoIcon size={15} />
                 </button>
