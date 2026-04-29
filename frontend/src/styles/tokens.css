@@ -61,9 +61,9 @@
   --color-warn: #d6a85b;
   --color-info: #9eb3d6;
 
-  --chart-cash: #4ade80;
-  --chart-points: #818cf8;
-  --chart-sub: #fbbf24;
+  --chart-cash: #16a34a;
+  --chart-points: #4f46e5;
+  --chart-sub: #d97706;
 
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 1px rgba(0, 0, 0, 0.2);
   --shadow-modal: 0 24px 48px -12px rgba(0, 0, 0, 0.6), 0 8px 16px -8px rgba(0, 0, 0, 0.4);
