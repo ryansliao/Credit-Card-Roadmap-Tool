@@ -125,7 +125,7 @@ export function WalletSummaryStats({
           >
             <div className="px-1 py-0.5 text-center min-w-0 flex flex-col justify-center gap-1">
               <div className="flex items-center justify-center gap-1 h-5">
-                <Eyebrow accent>Effective Annual Fee</Eyebrow>
+                <Eyebrow accent className="whitespace-nowrap">Effective Annual Fee</Eyebrow>
                 <Popover
                   side="bottom"
                   portal
@@ -179,7 +179,7 @@ export function WalletSummaryStats({
             <div className="bg-divider/60 self-stretch my-1" />
             <div className="px-1 py-0.5 text-center min-w-0 flex flex-col justify-center gap-1">
               <div className="flex items-center justify-center gap-1 h-5">
-                <Eyebrow>Annual Fees</Eyebrow>
+                <Eyebrow className="whitespace-nowrap">Annual Fees</Eyebrow>
                 <Popover
                   side="bottom"
                   portal
@@ -232,7 +232,7 @@ export function WalletSummaryStats({
             <div className="bg-divider/60 self-stretch my-1" />
             <div className="px-1 py-0.5 text-center min-w-0 flex flex-col justify-center gap-1">
               <div className="flex items-center justify-center gap-1 h-5">
-                <Eyebrow>Point Income</Eyebrow>
+                <Eyebrow className="whitespace-nowrap">Point Income</Eyebrow>
                 <Popover
                   side="bottom"
                   portal
@@ -297,7 +297,7 @@ export function WalletSummaryStats({
       >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1">
-            <Eyebrow>Time Horizon</Eyebrow>
+            <Eyebrow className="whitespace-nowrap">Time Horizon</Eyebrow>
             <Popover
               side="bottom"
               portal
@@ -387,7 +387,7 @@ export function WalletSummaryStats({
         className={`shrink-0 w-44 bg-surface border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
         <div className="flex items-center justify-center gap-1 mb-2.5">
-          <Eyebrow>Sign-Up Bonuses</Eyebrow>
+          <Eyebrow className="whitespace-nowrap">Sign-Up Bonuses</Eyebrow>
           <Popover
             side="bottom"
             portal
