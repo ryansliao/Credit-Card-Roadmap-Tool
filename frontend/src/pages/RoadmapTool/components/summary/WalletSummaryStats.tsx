@@ -358,20 +358,13 @@ export function WalletSummaryStats({
         <div className="relative h-4 mt-2">
           {durationTicks.map((t) => {
             const pct = ((t.months - 6) / 30) * 100
-            // Anchor end ticks to the bar edges so the row width matches
-            // the slider — leftmost left-aligns, rightmost right-aligns,
-            // interior ticks are center-aligned on their position.
-            const isFirst = pct <= 0
-            const isLast = pct >= 100
-            const translate = isFirst
-              ? 'translate-x-0'
-              : isLast
-              ? '-translate-x-full'
-              : '-translate-x-1/2'
+            // All labels center-aligned on their position so the visual
+            // spacing between labels is even. End labels overflow slightly
+            // into the panel's px-4 padding — acceptable.
             return (
               <span
                 key={t.label}
-                className={`absolute text-[10px] text-ink-faint tabular-nums ${translate}`}
+                className="absolute text-[10px] text-ink-faint tabular-nums -translate-x-1/2"
                 style={{ left: `${pct}%` }}
               >
                 {t.label}
