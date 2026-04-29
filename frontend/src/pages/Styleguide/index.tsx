@@ -7,6 +7,7 @@ import { Points } from '../../components/ui/Points'
 import { Stat } from '../../components/ui/Stat'
 import { Surface } from '../../components/ui/Surface'
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../../components/ui/Modal'
+import { Popover } from '../../components/ui/Popover'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -126,6 +127,42 @@ export default function Styleguide() {
         <section id="modal" className="space-y-4">
           <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Modal</p>
           <ModalDemo />
+        </section>
+        <section id="popover" className="space-y-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Popover</p>
+          <div className="flex gap-3">
+            <Popover
+              side="bottom"
+              trigger={({ onClick, ref }) => (
+                <button
+                  ref={ref as React.RefObject<HTMLButtonElement>}
+                  onClick={onClick}
+                  className="text-sm border border-divider rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors text-ink"
+                >
+                  Bottom popover
+                </button>
+              )}
+            >
+              <p className="text-sm text-ink">
+                Popover anchored bottom. Click outside or press Esc to dismiss.
+              </p>
+            </Popover>
+            <Popover
+              side="right"
+              portal
+              trigger={({ onClick, ref }) => (
+                <button
+                  ref={ref as React.RefObject<HTMLButtonElement>}
+                  onClick={onClick}
+                  className="text-sm border border-divider rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors text-ink"
+                >
+                  Right (portal)
+                </button>
+              )}
+            >
+              <p className="text-sm text-ink">Portaled — escapes overflow:hidden parents.</p>
+            </Popover>
+          </div>
         </section>
       </main>
     </div>

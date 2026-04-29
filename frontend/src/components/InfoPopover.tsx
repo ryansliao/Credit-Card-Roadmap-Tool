@@ -9,6 +9,16 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 
+/**
+ * @deprecated Use `Popover` from `components/ui/Popover` instead.
+ * This file is preserved unchanged during the design-system migration;
+ * Phase 7 replaces call sites with `Popover` and deletes this file.
+ *
+ * Exports `InfoIconButton` (styled "?" icon button) and `InfoQuoteBox`
+ * (positioned popover panel with arrow). Caller manages open state
+ * and anchor ref; the panel auto-flips to top/bottom based on viewport space.
+ */
+
 export const InfoIconButton = forwardRef<
   HTMLButtonElement,
   {
