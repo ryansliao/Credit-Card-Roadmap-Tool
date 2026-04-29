@@ -135,7 +135,7 @@ export function WalletSummaryStats({
                       onClick={onClick}
                       type="button"
                       aria-label="How Effective Annual Fee is calculated"
-                      className="shrink-0 text-ink-faint hover:text-accent transition-colors"
+                      className="shrink-0 translate-y-px text-ink-faint hover:text-accent transition-colors"
                     >
                       <InfoIcon size={15} />
                     </button>
@@ -189,7 +189,7 @@ export function WalletSummaryStats({
                       onClick={onClick}
                       type="button"
                       aria-label="How Annual Fees is calculated"
-                      className="shrink-0 text-ink-faint hover:text-accent transition-colors"
+                      className="shrink-0 translate-y-px text-ink-faint hover:text-accent transition-colors"
                     >
                       <InfoIcon size={15} />
                     </button>
@@ -242,7 +242,7 @@ export function WalletSummaryStats({
                       onClick={onClick}
                       type="button"
                       aria-label="How Income is calculated"
-                      className="shrink-0 text-ink-faint hover:text-accent transition-colors"
+                      className="shrink-0 translate-y-px text-ink-faint hover:text-accent transition-colors"
                     >
                       <InfoIcon size={15} />
                     </button>
@@ -397,7 +397,7 @@ export function WalletSummaryStats({
                 onClick={onClick}
                 type="button"
                 aria-label="How the Sign Up Bonus toggle affects calculation"
-                className="shrink-0 text-ink-faint hover:text-accent transition-colors"
+                className="shrink-0 translate-y-px text-ink-faint hover:text-accent transition-colors"
               >
                 <InfoIcon size={15} />
               </button>
