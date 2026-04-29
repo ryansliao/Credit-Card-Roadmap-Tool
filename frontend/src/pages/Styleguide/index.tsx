@@ -16,6 +16,7 @@ import { Input } from '../../components/ui/Input'
 import { Field } from '../../components/ui/Field'
 import { Select } from '../../components/ui/Select'
 import { Checkbox } from '../../components/ui/Checkbox'
+import { Toggle } from '../../components/ui/Toggle'
 
 function ModalDemo() {
   const [open, setOpen] = useState(false)
@@ -290,6 +291,12 @@ export default function Styleguide() {
           <Checkbox label="Checked" defaultChecked />
           <Checkbox label="Indeterminate" indeterminate />
           <Checkbox label="Disabled" disabled />
+        </section>
+        <section id="toggle" className="space-y-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Toggle</p>
+          <Toggle label="Include SUBs" />
+          <Toggle label="On" defaultChecked />
+          <Toggle label="Disabled" disabled />
         </section>
       </main>
     </div>
