@@ -179,8 +179,9 @@ class CalculatorDataService:
             if item.user_spend_category_id is not None
         }
 
-        # Load mappings for all user categories in one query, plus the
-        # wallet's per-(user_cat, earn_cat) weight overrides.
+        # Load mappings for all user categories, plus the wallet's
+        # per-(user_cat, earn_cat) weight overrides. Both queries are
+        # gated on user_cat_ids so an empty-spend wallet does no I/O.
         defaults_by_user_cat: dict[int, list[tuple[int, str, float]]] = {}
         housing_user_cat_ids: set[int] = set()
         if user_cat_ids:
@@ -206,18 +207,18 @@ class CalculatorDataService:
                 ):
                     housing_user_cat_ids.add(mapping.user_category_id)
 
-        override_result = await self.db.execute(
-            select(WalletUserSpendCategoryWeight).where(
-                WalletUserSpendCategoryWeight.wallet_id == wallet_id,
-                WalletUserSpendCategoryWeight.user_category_id.in_(
-                    user_cat_ids or {-1}
-                ),
+        overrides_by_pair: dict[tuple[int, int], float] = {}
+        if user_cat_ids:
+            override_result = await self.db.execute(
+                select(WalletUserSpendCategoryWeight).where(
+                    WalletUserSpendCategoryWeight.wallet_id == wallet_id,
+                    WalletUserSpendCategoryWeight.user_category_id.in_(user_cat_ids),
+                )
             )
-        )
-        overrides_by_pair: dict[tuple[int, int], float] = {
-            (o.user_category_id, o.earn_category_id): o.weight
-            for o in override_result.scalars().all()
-        }
+            overrides_by_pair = {
+                (o.user_category_id, o.earn_category_id): o.weight
+                for o in override_result.scalars().all()
+            }
 
         mappings_by_user_cat = apply_weight_overrides(
             defaults_by_user_cat, overrides_by_pair
