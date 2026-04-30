@@ -3,6 +3,8 @@ export const queryKeys = {
   myWalletWithScenarios: () => ['wallet-with-scenarios'] as const,
   ownedCardInstances: () => ['wallet-card-instances'] as const,
   walletSpendItemsSingular: () => ['wallet-spend-items-singular'] as const,
+  walletCategoryWeights: (userCategoryId: number) =>
+    ['wallet-category-weights', userCategoryId] as const,
 
   // Scenarios.
   scenarios: () => ['scenarios'] as const,
