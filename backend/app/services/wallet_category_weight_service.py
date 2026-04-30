@@ -7,8 +7,6 @@ expansion before normalization.
 """
 from __future__ import annotations
 
-from typing import Iterable
-
 from fastapi import Depends, HTTPException
 from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -134,7 +132,7 @@ class WalletCategoryWeightService(BaseService[WalletUserSpendCategoryWeight]):
             )
         }
         rows: list[WalletCategoryWeightRowRead] = []
-        for mapping in usc.mappings:
+        for mapping in sorted(usc.mappings, key=lambda m: m.earn_category.category):
             override_weight = overrides.get(mapping.earn_category_id)
             effective = (
                 override_weight if override_weight is not None else mapping.default_weight
