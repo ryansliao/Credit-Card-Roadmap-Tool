@@ -315,7 +315,7 @@ class WalletCategoryWeightsRead(BaseModel):
     mappings: list[WalletCategoryWeightRowRead]
 
 
-class WalletCategoryWeightsWriteRow(BaseModel):
+class WalletCategoryWeightRowWrite(BaseModel):
     """One row in the PUT body."""
     earn_category_id: int
     weight: float = Field(..., ge=0.0)
@@ -327,7 +327,7 @@ class WalletCategoryWeightsWrite(BaseModel):
     Server normalizes weights to sum to 1.0 before persisting. Each
     earn_category_id must be in the user category's default mapping set.
     """
-    weights: list[WalletCategoryWeightsWriteRow]
+    weights: list[WalletCategoryWeightRowWrite]
 ```
 
 The imports at the top of the file (`BaseModel`, `ConfigDict`, `Field`, `Optional`) are already present.
@@ -342,9 +342,9 @@ from .spend import (
     UserSpendCategoryMappingRead,
     UserSpendCategoryRead,
     WalletCategoryWeightRowRead,
+    WalletCategoryWeightRowWrite,
     WalletCategoryWeightsRead,
     WalletCategoryWeightsWrite,
-    WalletCategoryWeightsWriteRow,
     WalletSpendItemCreate,
     WalletSpendItemRead,
     WalletSpendItemUpdate,
@@ -358,9 +358,9 @@ In the `__all__` list, in the "Spend" section, add the four new names alphabetic
     "UserSpendCategoryMappingRead",
     "UserSpendCategoryRead",
     "WalletCategoryWeightRowRead",
+    "WalletCategoryWeightRowWrite",
     "WalletCategoryWeightsRead",
     "WalletCategoryWeightsWrite",
-    "WalletCategoryWeightsWriteRow",
     "WalletSpendItemCreate",
     "WalletSpendItemRead",
     "WalletSpendItemUpdate",

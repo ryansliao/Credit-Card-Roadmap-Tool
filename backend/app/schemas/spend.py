@@ -132,7 +132,7 @@ class WalletCategoryWeightsRead(BaseModel):
     mappings: list[WalletCategoryWeightRowRead]
 
 
-class WalletCategoryWeightsWriteRow(BaseModel):
+class WalletCategoryWeightRowWrite(BaseModel):
     """One row in the PUT body."""
     earn_category_id: int
     weight: float = Field(..., ge=0.0)
@@ -144,4 +144,4 @@ class WalletCategoryWeightsWrite(BaseModel):
     Server normalizes weights to sum to 1.0 before persisting. Each
     earn_category_id must be in the user category's default mapping set.
     """
-    weights: list[WalletCategoryWeightsWriteRow]
+    weights: list[WalletCategoryWeightRowWrite]
