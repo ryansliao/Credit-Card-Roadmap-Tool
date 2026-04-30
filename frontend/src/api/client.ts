@@ -297,6 +297,24 @@ export interface UpdateWalletSpendItemPayload {
   amount: number
 }
 
+export interface WalletCategoryWeightRow {
+  earn_category_id: number
+  earn_category_name: string
+  default_weight: number
+  override_weight: number | null
+  effective_weight: number
+}
+
+export interface WalletCategoryWeights {
+  user_category_id: number
+  user_category_name: string
+  mappings: WalletCategoryWeightRow[]
+}
+
+export interface SaveWalletCategoryWeightsPayload {
+  weights: { earn_category_id: number; weight: number }[]
+}
+
 export interface CategoryEarnItem {
   category: string
   points: number
@@ -857,6 +875,28 @@ export const walletSpendApi = {
     }),
   delete: (itemId: number) =>
     request<void>(`/wallet/spend-items/${itemId}`, { method: 'DELETE' }),
+}
+
+// ─── Wallet category weight overrides (Spending tab editor) ──────────────────
+
+export const walletCategoryWeightsApi = {
+  get: (userCategoryId: number) =>
+    request<WalletCategoryWeights>(
+      `/wallet/category-weights/${userCategoryId}`,
+    ),
+  save: (userCategoryId: number, payload: SaveWalletCategoryWeightsPayload) =>
+    request<WalletCategoryWeights>(
+      `/wallet/category-weights/${userCategoryId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+    ),
+  reset: (userCategoryId: number) =>
+    request<WalletCategoryWeights>(
+      `/wallet/category-weights/${userCategoryId}`,
+      { method: 'DELETE' },
+    ),
 }
 
 // ─── Scenarios ────────────────────────────────────────────────────────────────
