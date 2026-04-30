@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import {
   walletApi,
   walletSpendApi,
@@ -9,6 +9,7 @@ import {
 import { useMyWallet } from '../hooks/useMyWallet'
 import { queryKeys } from '../../../lib/queryKeys'
 import { Popover } from '../../../components/ui/Popover'
+import { CategoryWeightEditor } from './CategoryWeightEditor'
 
 export function SpendingTab() {
   const queryClient = useQueryClient()
@@ -16,6 +17,7 @@ export function SpendingTab() {
   const [amountDraft, setAmountDraft] = useState('')
   // In-flight slider drag; null means "show committed value from wallet".
   const [draftForeignPct, setDraftForeignPct] = useState<number | null>(null)
+  const [expandedCategoryId, setExpandedCategoryId] = useState<number | null>(null)
 
   const { data: wallet } = useMyWallet()
 
@@ -250,14 +252,51 @@ export function SpendingTab() {
                   const isEditing = editingAmountId === item.id
                   const catName = item.user_spend_category?.name ?? 'Unknown'
                   const isLocked = item.user_spend_category?.is_system && catName === 'All Other'
+                  const isExpanded =
+                    item.user_spend_category != null &&
+                    expandedCategoryId === item.user_spend_category.id
                   return (
-                    <tr key={item.id} className="border-b border-surface-2/60 last:border-b-0">
+                    <Fragment key={item.id}>
+                    <tr className="border-b border-surface-2/60 last:border-b-0">
                       <td className="text-left px-3 py-2 text-ink-muted">
                         <div className="flex items-center gap-1.5">
                           <span>{catName}</span>
                           {item.user_spend_category && item.user_spend_category.mappings.length > 0 && (() => {
                             const cat = item.user_spend_category
                             const isHousing = cat.name.trim().toLowerCase() === 'housing'
+                            const isAllOther = cat.is_system && cat.name === 'All Other'
+                            const editable = !isHousing && !isAllOther
+
+                            if (editable) {
+                              const isOpen = expandedCategoryId === cat.id
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedCategoryId(isOpen ? null : cat.id)
+                                  }
+                                  className="shrink-0 p-0.5 rounded transition-colors text-ink-faint hover:text-ink-muted hover:bg-surface-2/50"
+                                  title={isOpen ? 'Close mix editor' : 'Edit category mix'}
+                                  aria-expanded={isOpen}
+                                >
+                                  <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className={`transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                                  >
+                                    <polyline points="9 18 15 12 9 6" />
+                                  </svg>
+                                </button>
+                              )
+                            }
+
+                            // Housing / All Other — keep the existing read-only info popover.
                             const housingTarget = housingType === 'mortgage' ? 'Mortgage' : 'Rent'
                             const displayMappings = isHousing
                               ? cat.mappings.map((m) => ({
@@ -357,6 +396,17 @@ export function SpendingTab() {
                         )}
                       </td>
                     </tr>
+                    {isExpanded && item.user_spend_category && (
+                      <tr className="border-b border-surface-2/60">
+                        <td colSpan={3} className="p-0">
+                          <CategoryWeightEditor
+                            userCategoryId={item.user_spend_category.id}
+                            onClose={() => setExpandedCategoryId(null)}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   )
                 })}
               </tbody>
