@@ -27,8 +27,10 @@ from ..models import (
     UserSpendCategoryMapping,
     Wallet,
     WalletSpendItem,
+    WalletUserSpendCategoryWeight,
     travel_portal_cards,
 )
+from .wallet_category_weight_service import apply_weight_overrides
 
 
 def _currency_data(
@@ -177,8 +179,9 @@ class CalculatorDataService:
             if item.user_spend_category_id is not None
         }
 
-        # Load mappings for all user categories in one query
-        mappings_by_user_cat: dict[int, list[tuple[str, float]]] = {}
+        # Load mappings for all user categories in one query, plus the
+        # wallet's per-(user_cat, earn_cat) weight overrides.
+        defaults_by_user_cat: dict[int, list[tuple[int, str, float]]] = {}
         housing_user_cat_ids: set[int] = set()
         if user_cat_ids:
             mapping_result = await self.db.execute(
@@ -190,17 +193,40 @@ class CalculatorDataService:
                 .where(UserSpendCategoryMapping.user_category_id.in_(user_cat_ids))
             )
             for mapping in mapping_result.scalars().all():
-                earn_cat_name = mapping.earn_category.category
-                mappings_by_user_cat.setdefault(mapping.user_category_id, []).append(
-                    (earn_cat_name, mapping.default_weight)
+                defaults_by_user_cat.setdefault(mapping.user_category_id, []).append(
+                    (
+                        mapping.earn_category_id,
+                        mapping.earn_category.category,
+                        mapping.default_weight,
+                    )
                 )
                 if (
                     mapping.user_category is not None
                     and mapping.user_category.name.strip().lower() == "housing"
                 ):
                     housing_user_cat_ids.add(mapping.user_category_id)
+
+        override_result = await self.db.execute(
+            select(WalletUserSpendCategoryWeight).where(
+                WalletUserSpendCategoryWeight.wallet_id == wallet_id,
+                WalletUserSpendCategoryWeight.user_category_id.in_(
+                    user_cat_ids or {-1}
+                ),
+            )
+        )
+        overrides_by_pair: dict[tuple[int, int], float] = {
+            (o.user_category_id, o.earn_category_id): o.weight
+            for o in override_result.scalars().all()
+        }
+
+        mappings_by_user_cat = apply_weight_overrides(
+            defaults_by_user_cat, overrides_by_pair
+        )
+
         # Override the Housing USC's mappings with a 100% weight on the
-        # user's chosen earn category. Other USCs are unchanged.
+        # user's chosen earn category. Other USCs are unchanged. Housing
+        # is non-editable in the UI, but we still clobber here as a
+        # defensive measure in case any stale override rows exist.
         for housing_uc_id in housing_user_cat_ids:
             mappings_by_user_cat[housing_uc_id] = [(housing_target, 1.0)]
 
