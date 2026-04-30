@@ -43,7 +43,8 @@ Thumbs.db
 
 # IDE
 .cursor/
-.claude/
+.claude/*
+!.claude/CLAUDE.md
 .vscode/*
 !.vscode/extensions.json
 .idea/
