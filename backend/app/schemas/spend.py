@@ -145,3 +145,13 @@ class WalletCategoryWeightsWrite(BaseModel):
     earn_category_id must be in the user category's default mapping set.
     """
     weights: list[WalletCategoryWeightRowWrite]
+
+
+class WalletCategoryWeightOverrideRead(BaseModel):
+    """One persisted override row, exposed on the wallet response so the
+    roadmap's stale-calc signature flips when the user edits weights."""
+    model_config = ConfigDict(from_attributes=True)
+
+    user_category_id: int
+    earn_category_id: int
+    weight: float

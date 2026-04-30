@@ -25,6 +25,7 @@ import {
   type ScenarioPortalShareRead,
   type ScenarioSummary,
   type UpsertOverlayPayload,
+  type WalletCategoryWeightOverride,
   type WalletResultResponse,
   type WalletSpendItem,
   type WalletWithScenarios,
@@ -91,6 +92,7 @@ function scenarioCalcSignature(
   categoryPriorities: ScenarioCardCategoryPriority[] | undefined,
   creditOverridesByInstanceId: Map<number, ScenarioCardCreditOverride[]>,
   creditLibraryById: Map<number, CardCredit>,
+  categoryWeightOverrides: WalletCategoryWeightOverride[] | undefined,
 ): string {
   // ``today`` is intentionally excluded from this signature. The calc uses
   // ``start_date = today()`` so calendar advancement does shift segment
@@ -192,6 +194,20 @@ function scenarioCalcSignature(
     })
   }
   credits.sort((a, b) => a.instance_id - b.instance_id)
+  // Wallet-level per-(user_cat, earn_cat) weight overrides. Editing them
+  // in the spending tab fans out into different earn-category dollars at
+  // calc time, so any change must flip this signature.
+  const weightOverrides = [...(categoryWeightOverrides ?? [])]
+    .map((o) => ({
+      user_category_id: o.user_category_id,
+      earn_category_id: o.earn_category_id,
+      weight: o.weight,
+    }))
+    .sort(
+      (a, b) =>
+        a.user_category_id - b.user_category_id ||
+        a.earn_category_id - b.earn_category_id,
+    )
   return JSON.stringify({
     durationYears,
     durationMonths,
@@ -202,6 +218,7 @@ function scenarioCalcSignature(
     portals,
     priorities,
     credits,
+    weightOverrides,
   })
 }
 
@@ -375,6 +392,7 @@ export default function RoadmapToolPage() {
     return m
   }, [creditLibrary])
 
+  const categoryWeightOverrides = wallet?.category_weight_overrides
   const currentSignature = useMemo(
     () =>
       scenarioCalcSignature(
@@ -388,6 +406,7 @@ export default function RoadmapToolPage() {
         categoryPriorities,
         creditOverridesByInstanceId,
         creditLibraryById,
+        categoryWeightOverrides,
       ),
     [
       resolvedCards,
@@ -400,6 +419,7 @@ export default function RoadmapToolPage() {
       categoryPriorities,
       creditOverridesByInstanceId,
       creditLibraryById,
+      categoryWeightOverrides,
     ],
   )
   const signatureMatchesSnapshot =
@@ -709,6 +729,7 @@ export default function RoadmapToolPage() {
             categoryPriorities,
             creditOverridesByInstanceId,
             creditLibraryById,
+            categoryWeightOverrides,
           ),
       )
     }

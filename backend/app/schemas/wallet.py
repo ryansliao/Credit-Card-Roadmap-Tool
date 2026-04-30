@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .card_instance import CardInstanceRead
 from .scenario import ScenarioSummary
+from .spend import WalletCategoryWeightOverrideRead
 
 
 class WalletBase(BaseModel):
@@ -29,7 +30,12 @@ class WalletUpdate(BaseModel):
 
 class WalletWithScenariosRead(BaseModel):
     """The user's single wallet plus owned CardInstances and a summary of
-    its scenarios. Returned by ``GET /wallet``."""
+    its scenarios. Returned by ``GET /wallet``.
+
+    ``category_weight_overrides`` exposes every persisted per-(user_cat,
+    earn_cat) override on the wallet so the frontend's roadmap stale-calc
+    signature flips when the user edits weights on the spending tab.
+    """
 
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -40,3 +46,4 @@ class WalletWithScenariosRead(BaseModel):
     housing_type: Optional[Literal["rent", "mortgage"]] = None
     card_instances: list[CardInstanceRead] = []
     scenarios: list[ScenarioSummary] = []
+    category_weight_overrides: list[WalletCategoryWeightOverrideRead] = []

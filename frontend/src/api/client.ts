@@ -315,6 +315,12 @@ export interface SaveWalletCategoryWeightsPayload {
   weights: { earn_category_id: number; weight: number }[]
 }
 
+export interface WalletCategoryWeightOverride {
+  user_category_id: number
+  earn_category_id: number
+  weight: number
+}
+
 export interface CategoryEarnItem {
   category: string
   points: number
@@ -822,6 +828,7 @@ export interface WalletWithScenarios {
   housing_type: HousingType | null
   card_instances: CardInstance[]
   scenarios: ScenarioSummary[]
+  category_weight_overrides: WalletCategoryWeightOverride[]
 }
 
 // ─── Wallet (singular) ───────────────────────────────────────────────────────

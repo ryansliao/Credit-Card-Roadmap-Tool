@@ -109,6 +109,23 @@ class WalletCategoryWeightService(BaseService[WalletUserSpendCategoryWeight]):
         )
         return list(result.scalars().all())
 
+    async def list_overrides_for_wallet(
+        self, wallet_id: int,
+    ) -> list[WalletUserSpendCategoryWeight]:
+        """Unfiltered fetch of every override row for the wallet.
+
+        Used by the wallet response so the frontend roadmap signature
+        flips when any weight is edited. (The calculator inlines its own
+        query filtered by the user_cat_ids actually present in spend
+        items — it doesn't need to see overrides for unspent categories.)
+        """
+        result = await self.db.execute(
+            select(WalletUserSpendCategoryWeight).where(
+                WalletUserSpendCategoryWeight.wallet_id == wallet_id,
+            )
+        )
+        return list(result.scalars().all())
+
     async def get_for_editor(
         self, wallet_id: int, user_category_id: int,
     ) -> WalletCategoryWeightsRead:

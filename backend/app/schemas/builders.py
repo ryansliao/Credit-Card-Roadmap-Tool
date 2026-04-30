@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Literal, cast
 
-from ..models import CardInstance, Scenario, Wallet
+from ..models import CardInstance, Scenario, Wallet, WalletUserSpendCategoryWeight
 from .card_instance import (
     CardInstanceRead,
     CreditTotalByCurrency,
@@ -18,6 +18,7 @@ from .card_instance import (
 )
 from .results import CardResultSchema, CategoryEarnItem, WalletResultSchema
 from .scenario import ScenarioRead, ScenarioSummary
+from .spend import WalletCategoryWeightOverrideRead
 from .wallet import WalletWithScenariosRead
 
 
@@ -171,6 +172,7 @@ def wallet_with_scenarios_read(
     wallet: Wallet,
     owned_instances: list[CardInstance],
     scenarios: list[Scenario],
+    category_weight_overrides: list[WalletUserSpendCategoryWeight] = (),
 ) -> WalletWithScenariosRead:
     return WalletWithScenariosRead(
         id=wallet.id,
@@ -181,6 +183,10 @@ def wallet_with_scenarios_read(
         housing_type=wallet.housing_type,
         card_instances=[card_instance_read(i) for i in owned_instances],
         scenarios=[scenario_summary(s) for s in scenarios],
+        category_weight_overrides=[
+            WalletCategoryWeightOverrideRead.model_validate(o)
+            for o in category_weight_overrides
+        ],
     )
 
 

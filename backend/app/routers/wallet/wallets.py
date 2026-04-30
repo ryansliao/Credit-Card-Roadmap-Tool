@@ -22,10 +22,12 @@ from ...schemas import (
 from ...services import (
     CardInstanceService,
     ScenarioService,
+    WalletCategoryWeightService,
     WalletService,
     WalletSpendService,
     get_card_instance_service,
     get_scenario_service,
+    get_wallet_category_weight_service,
     get_wallet_service,
     get_wallet_spend_service,
 )
@@ -79,6 +81,9 @@ async def get_my_wallet(
     spend_service: WalletSpendService = Depends(get_wallet_spend_service),
     instance_service: CardInstanceService = Depends(get_card_instance_service),
     scenario_service: ScenarioService = Depends(get_scenario_service),
+    weight_service: WalletCategoryWeightService = Depends(
+        get_wallet_category_weight_service
+    ),
 ):
     """Return the authenticated user's wallet with owned card instances and
     a list of scenarios. Auto-creates the wallet + default scenario on
@@ -89,7 +94,8 @@ async def get_my_wallet(
     wallet = await wallet_service.get_or_404(wallet_id)
     owned = await instance_service.list_owned(wallet_id)
     scenarios = await scenario_service.list_for_wallet(wallet_id)
-    return wallet_with_scenarios_read(wallet, owned, scenarios)
+    overrides = await weight_service.list_overrides_for_wallet(wallet_id)
+    return wallet_with_scenarios_read(wallet, owned, scenarios, overrides)
 
 
 @router.patch("/wallet", response_model=WalletWithScenariosRead)
@@ -101,6 +107,9 @@ async def update_my_wallet(
     spend_service: WalletSpendService = Depends(get_wallet_spend_service),
     instance_service: CardInstanceService = Depends(get_card_instance_service),
     scenario_service: ScenarioService = Depends(get_scenario_service),
+    weight_service: WalletCategoryWeightService = Depends(
+        get_wallet_category_weight_service
+    ),
 ):
     """Update wallet metadata. Calc-config fields (start_date, duration_*,
     window_mode, include_subs) belong on a Scenario and are silently
@@ -119,4 +128,5 @@ async def update_my_wallet(
     owned = await instance_service.list_owned(wallet_id)
     scenarios = await scenario_service.list_for_wallet(wallet_id)
     wallet_refreshed = await wallet_service.get_or_404(wallet_id)
-    return wallet_with_scenarios_read(wallet_refreshed, owned, scenarios)
+    overrides = await weight_service.list_overrides_for_wallet(wallet_id)
+    return wallet_with_scenarios_read(wallet_refreshed, owned, scenarios, overrides)
