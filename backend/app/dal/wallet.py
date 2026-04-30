@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from .card_instance import CardInstance
     from .scenario import Scenario
     from .user import User
-    from .wallet_spend import WalletSpendItem
+    from .wallet_spend import WalletSpendItem, WalletUserSpendCategoryWeight
 
 
 class Wallet(Base):
@@ -60,6 +60,9 @@ class Wallet(Base):
 
     user: Mapped["User"] = relationship(back_populates="wallets")
     spend_items: Mapped[list["WalletSpendItem"]] = relationship(
+        back_populates="wallet", cascade="all, delete-orphan"
+    )
+    category_weights: Mapped[list["WalletUserSpendCategoryWeight"]] = relationship(
         back_populates="wallet", cascade="all, delete-orphan"
     )
     scenarios: Mapped[list["Scenario"]] = relationship(

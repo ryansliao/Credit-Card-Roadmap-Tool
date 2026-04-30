@@ -109,17 +109,6 @@ class WalletCategoryWeightService(BaseService[WalletUserSpendCategoryWeight]):
         )
         return list(result.scalars().all())
 
-    async def list_overrides_for_wallet(
-        self, wallet_id: int,
-    ) -> list[WalletUserSpendCategoryWeight]:
-        """Bulk fetch — used by CalculatorDataService once per compute."""
-        result = await self.db.execute(
-            select(WalletUserSpendCategoryWeight).where(
-                WalletUserSpendCategoryWeight.wallet_id == wallet_id,
-            )
-        )
-        return list(result.scalars().all())
-
     async def get_for_editor(
         self, wallet_id: int, user_category_id: int,
     ) -> WalletCategoryWeightsRead:

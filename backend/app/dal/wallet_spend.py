@@ -95,6 +95,8 @@ class WalletUserSpendCategoryWeight(Base):
         nullable=False,
     )
 
+    wallet: Mapped["Wallet"] = relationship(back_populates="category_weights")
+
     def __repr__(self) -> str:
         return (
             f"<WalletUserSpendCategoryWeight wallet={self.wallet_id} "
