@@ -278,6 +278,7 @@ export function SpendingTab() {
                                   className="shrink-0 p-0.5 rounded transition-colors text-ink-faint hover:text-ink-muted hover:bg-surface-2/50"
                                   title={isOpen ? 'Close mix editor' : 'Edit category mix'}
                                   aria-expanded={isOpen}
+                                  aria-controls={`weight-editor-${cat.id}`}
                                 >
                                   <svg
                                     width="14"
@@ -397,7 +398,7 @@ export function SpendingTab() {
                       </td>
                     </tr>
                     {isExpanded && item.user_spend_category && (
-                      <tr className="border-b border-surface-2/60">
+                      <tr id={`weight-editor-${item.user_spend_category.id}`} className="border-b border-surface-2/60 last:border-b-0">
                         <td colSpan={3} className="p-0">
                           <CategoryWeightEditor
                             userCategoryId={item.user_spend_category.id}
