@@ -65,11 +65,12 @@ function SubEarningSegment({
    * parent `title` attributes. */
   title: string | null
 }) {
-  // Yellow segment of the lifetime bar covering [sub_start_date or opening,
-  // sub_projected_earn_date]. Same y-position and height as the lifetime
-  // bar, opaque fill so the segment reads as part of the bar — not a
-  // separate overlay. Caller suppresses the segment when the SUB cannot be
-  // earned (no projected_earn_date).
+  // SUB earning segment of the lifetime bar covering
+  // [sub_start_date or opening, sub_projected_earn_date]. Same y-position,
+  // height, and color family as the lifetime bar; differentiated by a
+  // diagonal-stripe pattern so it reads as a textured slice of the same
+  // bar rather than a separate color. Caller suppresses the segment when
+  // the SUB cannot be earned (no projected_earn_date).
   const visStart = Math.max(segmentStartMs, range.startMs)
   const visEnd = Math.min(segmentEndMs, range.endMs)
   if (visEnd <= visStart) return null
@@ -91,11 +92,20 @@ function SubEarningSegment({
   const roundRight = lifetimeRoundsRight && segmentTouchesLifetimeRight
   const roundedClass = `${roundLeft ? 'rounded-l-full' : ''} ${roundRight ? 'rounded-r-full' : ''}`.trim()
 
-  // Match the lifetime bar's visual style: semi-transparent fill + 1px
-  // colored border. Uses the same `${color}33` alpha pattern the rest of
-  // the bar uses (33/255 ≈ 20% alpha).
-  const yellow = 'var(--chart-sub)'
-  // Skip the right border when the indigo lifetime bar abuts this segment —
+  // Same indigo as the lifetime bar, but rendered as diagonal stripes so
+  // the SUB slice reads as a textured region of the same color rather
+  // than a separate hue. Stripe colors alternate between a 35% and 10%
+  // mix of --chart-points so the pattern is visible against any
+  // background but still feels like part of the bar.
+  const stripeColor = 'var(--chart-points)'
+  const stripes = `repeating-linear-gradient(
+    45deg,
+    color-mix(in oklab, ${stripeColor} 38%, transparent) 0,
+    color-mix(in oklab, ${stripeColor} 38%, transparent) 4px,
+    color-mix(in oklab, ${stripeColor} 10%, transparent) 4px,
+    color-mix(in oklab, ${stripeColor} 10%, transparent) 8px
+  )`
+  // Skip the right border when the lifetime bar abuts this segment —
   // otherwise both bars render a 1px border at the seam and it reads as 2px.
   const abutsLifetimeRight = !segmentTouchesLifetimeRight
   return (
@@ -106,11 +116,11 @@ function SubEarningSegment({
         width: `${widthPct}%`,
         top,
         height: barHeight,
-        backgroundColor: `color-mix(in oklab, ${yellow} 20%, transparent)`,
-        borderTop: `1px solid ${yellow}`,
-        borderBottom: `1px solid ${yellow}`,
-        borderLeft: `1px solid ${yellow}`,
-        borderRight: abutsLifetimeRight ? 'none' : `1px solid ${yellow}`,
+        backgroundImage: stripes,
+        borderTop: `1px solid ${stripeColor}`,
+        borderBottom: `1px solid ${stripeColor}`,
+        borderLeft: `1px solid ${stripeColor}`,
+        borderRight: abutsLifetimeRight ? 'none' : `1px solid ${stripeColor}`,
         zIndex: 31,
       }}
       title={title ?? undefined}
@@ -332,9 +342,10 @@ export function CardRow({
       >
         {barWidthPct > 0 &&
           (() => {
-            // When a SUB segment exists, render the lifetime indigo bar
-            // STARTING AT the SUB's end so amber and indigo sit side-by-side
-            // (no transparency stack, no border overlap).
+            // When a SUB segment exists, render the solid lifetime bar
+            // STARTING AT the SUB's end so the striped SUB slice and solid
+            // lifetime fill sit side-by-side (no transparency stack, no
+            // border overlap).
             const cutStartMs = subSegment ? subSegment.endMs : addedMs
             const cutStartPct = pctOf(range, Math.max(cutStartMs, range.startMs))
             const cutWidthPct = Math.max(0, barEndPct - cutStartPct)

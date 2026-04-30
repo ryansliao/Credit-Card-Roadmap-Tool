@@ -53,7 +53,10 @@ export function CurrencyPhoto({
   if (!slug || failed) {
     if (isCash) {
       return (
-        <div className="w-7 h-7 rounded-full shrink-0 bg-pos flex items-center justify-center">
+        <div
+          className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center"
+          style={{ backgroundColor: 'var(--chart-cash)' }}
+        >
           <svg
             width="16"
             height="16"

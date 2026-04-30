@@ -476,10 +476,16 @@ export function WalletSummaryStats({
               style={{
                 width: 32,
                 height: 12,
-                backgroundColor: 'color-mix(in oklab, var(--chart-sub) 20%, transparent)',
-                border: '1px solid var(--chart-sub)',
+                backgroundImage: `repeating-linear-gradient(
+                  45deg,
+                  color-mix(in oklab, var(--chart-points) 38%, transparent) 0,
+                  color-mix(in oklab, var(--chart-points) 38%, transparent) 4px,
+                  color-mix(in oklab, var(--chart-points) 10%, transparent) 4px,
+                  color-mix(in oklab, var(--chart-points) 10%, transparent) 8px
+                )`,
+                border: '1px solid var(--chart-points)',
               }}
-              title="Yellow segment of the bar covers the SUB earning period (anchor → projected earn date)"
+              title="Striped segment of the bar covers the SUB earning period (anchor → projected earn date)"
             />
             <span className="whitespace-nowrap">SUB Earning Period</span>
 
