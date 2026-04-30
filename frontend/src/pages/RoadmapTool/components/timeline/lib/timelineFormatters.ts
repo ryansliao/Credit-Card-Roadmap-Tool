@@ -28,20 +28,31 @@ interface GroupBalanceArgs {
   cards: Array<{ cr: CardResult | null }>
 }
 
-/** Format a card's annual income. Cash cards: "$X/yr". Points/miles
- * cards: "X/yr" (unit label omitted to match the currency rows). */
+/** Format a card's annual income, split into a numeric part and a textual
+ * suffix so callers can typeset the number in tabular mono and keep the
+ * `/yr` suffix in the surrounding sans face. Returns `null` when no value
+ * is available. */
+export interface NumberWithSuffix {
+  number: string
+  suffix: string
+}
+
+export function joinParts(parts: NumberWithSuffix): string {
+  return `${parts.number}${parts.suffix}`
+}
+
 export function formatCardIncome(
   c: CardResult | null,
   includeSubs: boolean,
-): string | null {
+): NumberWithSuffix | null {
   const pts = cardAnnualPointIncomeActive(c, includeSubs)
   if (pts == null || c == null) return null
   if (c.effective_reward_kind === 'cash') {
     const dollars = (pts * c.cents_per_point) / 100
-    return `${formatMoney(dollars)}/yr`
+    return { number: formatMoney(dollars), suffix: '/yr' }
   }
   const rounded = Math.round(pts)
-  return `${formatPoints(rounded)}/yr`
+  return { number: formatPoints(rounded), suffix: '/yr' }
 }
 
 /** Annual dollar value of a group, regardless of reward kind. Sums only
@@ -99,7 +110,7 @@ export function formatGroupIncome(
   includeSubs: boolean,
   walletWindowYears: number | undefined,
   currencyWindowYears: number | undefined,
-): string | null {
+): NumberWithSuffix | null {
   const { rewardKind, cards } = group
   if (!rewardKind) return null
   const included = cards.filter(({ cr }) => cr != null)
@@ -116,11 +127,11 @@ export function formatGroupIncome(
       const pts = scaledPts(cr)
       return s + (pts * (cr?.cents_per_point ?? 1)) / 100
     }, 0)
-    return `${formatMoney(dollars)}/yr`
+    return { number: formatMoney(dollars), suffix: '/yr' }
   }
   const pts = included.reduce((s, { cr }) => s + scaledPts(cr), 0)
   const rounded = Math.round(pts)
-  return `${formatPoints(rounded)}/yr`
+  return { number: formatPoints(rounded), suffix: '/yr' }
 }
 
 /** Format a single secondary-currency annual total, e.g. "$25 Bilt Cash/yr".
@@ -131,12 +142,15 @@ export function formatSecondaryAnnual(secondary: {
   dollars: number
   units: number
   name: string
-}): string {
+}): NumberWithSuffix {
   if (secondary.rewardKind === 'cash') {
-    return `${formatMoneyCompact(secondary.dollars)} ${secondary.name}/yr`
+    return {
+      number: formatMoneyCompact(secondary.dollars),
+      suffix: ` ${secondary.name}/yr`,
+    }
   }
   const rounded = Math.round(secondary.units)
-  return `${formatPoints(rounded)} ${secondary.name}/yr`
+  return { number: formatPoints(rounded), suffix: ` ${secondary.name}/yr` }
 }
 
 /** Format a currency's end-of-projection balance. Uses the same
@@ -156,12 +170,15 @@ export function formatSecondaryBalance(secondary: {
   units: number
   dollars: number
   rewardKind: 'points' | 'cash'
-}): string {
+}): NumberWithSuffix {
   if (secondary.rewardKind === 'cash') {
-    return `${formatMoneyCompact(secondary.dollars)} ${secondary.name}/yr`
+    return {
+      number: formatMoneyCompact(secondary.dollars),
+      suffix: ` ${secondary.name}/yr`,
+    }
   }
   const rounded = Math.round(secondary.units)
-  return `${formatPoints(rounded)} ${secondary.name}/yr`
+  return { number: formatPoints(rounded), suffix: ` ${secondary.name}/yr` }
 }
 
 export function formatDate(s: string | null): string {

@@ -96,7 +96,7 @@ export function SpendingTab() {
       <div className="flex gap-3 mb-4 shrink-0">
         <div className="bg-surface-2 border border-divider rounded-xl p-3 text-center w-48 shrink-0 flex flex-col justify-center">
           <p className="text-[10px] text-ink-muted uppercase tracking-wider">Total Annual Spend</p>
-          <p className="text-xl font-bold text-ink mt-0.5 tabular-nums">${totalSpend.toLocaleString()}</p>
+          <p className="text-xl font-bold text-ink mt-0.5 tnum-mono">${totalSpend.toLocaleString()}</p>
         </div>
         <div className="bg-surface-2 border border-divider rounded-xl px-4 py-3 w-56 shrink-0 flex flex-col justify-center">
           <p className="text-[10px] text-ink-muted uppercase tracking-wider mb-2">Housing Type</p>
@@ -192,7 +192,7 @@ export function SpendingTab() {
                 </div>
               </Popover>
             </div>
-            <span className="text-xs font-medium text-ink tabular-nums">
+            <span className="text-xs font-medium text-ink tnum-mono">
               {Math.round(foreignSpendPercent)}%
             </span>
           </div>
@@ -217,7 +217,7 @@ export function SpendingTab() {
             {(['0%', '25%', '50%', '75%', '100%'] as const).map((label, i) => (
               <span
                 key={label}
-                className={`absolute text-[10px] text-ink-faint tabular-nums ${i === 0 ? '' : i === 4 ? '-translate-x-full' : '-translate-x-1/2'}`}
+                className={`absolute text-[10px] text-ink-faint tnum-mono ${i === 0 ? '' : i === 4 ? '-translate-x-full' : '-translate-x-1/2'}`}
                 style={{ left: `${i * 25}%` }}
               >
                 {label}
@@ -339,7 +339,7 @@ export function SpendingTab() {
                                         .map((mapping) => (
                                           <li key={mapping.id} className="flex items-center justify-between">
                                             <span className="text-ink-muted">{mapping.earn_category.category}</span>
-                                            <span className="text-ink-faint tabular-nums">
+                                            <span className="text-ink-faint tnum-mono">
                                               {Math.round(mapping.default_weight * 100)}%
                                             </span>
                                           </li>
@@ -357,9 +357,9 @@ export function SpendingTab() {
                           })()}
                         </div>
                       </td>
-                      <td className="text-center px-2 py-2 tabular-nums">
+                      <td className="text-center px-2 py-2">
                         <div className="relative w-full">
-                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none">$</span>
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none tnum-mono">$</span>
                           <input
                             type="text"
                             inputMode="numeric"
@@ -376,7 +376,7 @@ export function SpendingTab() {
                                 ;(e.currentTarget as HTMLInputElement).blur()
                               }
                             }}
-                            className="w-full min-w-0 bg-surface-2 border border-divider text-ink text-sm tabular-nums text-right pl-4 pr-1.5 py-0.5 rounded outline-none focus:border-accent placeholder:text-ink-faint"
+                            className="w-full min-w-0 bg-surface-2 border border-divider text-ink text-sm tnum-mono text-right pl-4 pr-1.5 py-0.5 rounded outline-none focus:border-accent placeholder:text-ink-faint"
                           />
                         </div>
                       </td>

@@ -165,25 +165,31 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
                       </div>
                     </div>
                     <div className="text-right shrink-0 mr-1">
-                      <p className="text-xs tabular-nums text-ink">
+                      <p className="text-xs text-ink">
                         {inst.credit_totals
                           .filter((t) => t.value > 0)
                           .map((t) => (
                             <span key={`${t.kind}-${t.currency_id ?? 'cash'}`}>
                               Credits:{' '}
                               <span className="text-pos">
-                                {t.kind === 'cash'
-                                  ? formatMoney(t.value)
-                                  : `${formatPoints(t.value)} ${pointsUnitLabel(t.currency_name)}`}
+                                {t.kind === 'cash' ? (
+                                  <span className="tnum-mono">{formatMoney(t.value)}</span>
+                                ) : (
+                                  <>
+                                    <span className="tnum-mono">{formatPoints(t.value)}</span>
+                                    {' '}
+                                    {pointsUnitLabel(t.currency_name)}
+                                  </>
+                                )}
                               </span>
                               <span className="text-ink-faint mx-1.5">·</span>
                             </span>
                           ))}
                         Annual Fee:{' '}
                         {(inst.annual_fee ?? 0) > 0 ? (
-                          <span className="text-neg">{formatMoney(inst.annual_fee ?? 0)}</span>
+                          <span className="text-neg tnum-mono">{formatMoney(inst.annual_fee ?? 0)}</span>
                         ) : (
-                          <span className="text-pos">$0</span>
+                          <span className="text-pos tnum-mono">$0</span>
                         )}
                       </p>
                     </div>

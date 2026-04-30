@@ -5,13 +5,18 @@ import { cardAnnualPointIncomeWindow, cardEafWindow } from '../../../../utils/ca
 import { Popover } from '../../../../components/ui/Popover'
 import { Eyebrow } from '../../../../components/ui/Eyebrow'
 
-function formatDuration(years: number, months: number): string {
+interface DurationParts {
+  years: number | null
+  months: number | null
+}
+
+function durationParts(years: number, months: number): DurationParts {
   const total = years * 12 + months
   const y = Math.floor(total / 12)
   const m = total % 12
-  if (y === 0) return `${m} Mo.`
-  if (m === 0) return `${y} Years`
-  return `${y} Years, ${m} Mo.`
+  if (y === 0) return { years: null, months: m }
+  if (m === 0) return { years: y, months: null }
+  return { years: y, months: m }
 }
 
 interface Props {
@@ -86,13 +91,13 @@ export function WalletSummaryStats({
 
   const showStaleHint = isStale && hasStats && !resultsError
 
-  const durationTicks = [
-    { months: 6, label: '0.5Y' },
-    { months: 12, label: '1Y' },
-    { months: 18, label: '1.5Y' },
-    { months: 24, label: '2Y' },
-    { months: 30, label: '2.5Y' },
-    { months: 36, label: '3Y' },
+  const durationTicks: Array<{ months: number; num: string; unit: string }> = [
+    { months: 6, num: '0.5', unit: 'Y' },
+    { months: 12, num: '1', unit: 'Y' },
+    { months: 18, num: '1.5', unit: 'Y' },
+    { months: 24, num: '2', unit: 'Y' },
+    { months: 30, num: '2.5', unit: 'Y' },
+    { months: 36, num: '3', unit: 'Y' },
   ]
 
   const panelBorder = showStaleHint ? 'border-amber-700/60' : 'border-divider'
@@ -101,7 +106,7 @@ export function WalletSummaryStats({
     <div className="min-w-0 flex gap-4 items-stretch">
       {/* Left: summary stats panel */}
       <div
-        className={`flex-1 min-w-0 bg-surface border rounded-xl px-5 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
+        className={`flex-1 min-w-0 bg-surface border rounded-xl px-5 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
         {resultsError ? (
           <div className="text-neg text-sm bg-red-950 border border-red-700 rounded-lg p-3">
@@ -169,7 +174,7 @@ export function WalletSummaryStats({
                 </Popover>
               </div>
               {result ? (
-                <p className={`text-xl font-bold tabular-nums truncate ${totalEffectiveAF < 0 ? 'text-pos' : 'text-ink'}`}>{formatMoney(totalEffectiveAF)}</p>
+                <p className={`text-xl font-bold tnum-mono truncate ${totalEffectiveAF < 0 ? 'text-pos' : 'text-ink'}`}>{formatMoney(totalEffectiveAF)}</p>
               ) : (
                 <div className="h-7 flex items-center justify-center">
                   <div className="h-4 w-20 bg-accent/20 rounded animate-pulse" />
@@ -222,7 +227,7 @@ export function WalletSummaryStats({
                 </Popover>
               </div>
               {result ? (
-                <p className="text-xl font-bold text-ink tabular-nums truncate">{formatMoney(totalAnnualFees)}</p>
+                <p className="text-xl font-bold text-ink tnum-mono truncate">{formatMoney(totalAnnualFees)}</p>
               ) : (
                 <div className="h-7 flex items-center justify-center">
                   <div className="h-4 w-20 bg-divider/50 rounded animate-pulse" />
@@ -277,8 +282,10 @@ export function WalletSummaryStats({
                 </Popover>
               </div>
               {result ? (
-                <p className="text-xl font-bold text-ink tabular-nums truncate">
-                  {formatPointsExact(Math.round(totalAnnualPoints))}
+                <p className="text-xl font-bold text-ink truncate">
+                  <span className="tnum-mono">
+                    {formatPointsExact(Math.round(totalAnnualPoints))}
+                  </span>
                   <span className="ml-1 text-sm font-medium text-ink-muted">Pts/Year</span>
                 </p>
               ) : (
@@ -293,7 +300,7 @@ export function WalletSummaryStats({
 
       {/* Middle: duration slider */}
       <div
-        className={`shrink-0 w-56 lg:w-64 bg-surface border rounded-xl px-4 py-3 flex flex-col justify-center transition-colors ${panelBorder}`}
+        className={`shrink-0 w-56 lg:w-64 bg-surface border rounded-xl px-4 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
       >
         <div className="flex items-baseline justify-between mb-2">
           <div className="flex items-center gap-1">
@@ -340,8 +347,25 @@ export function WalletSummaryStats({
               </div>
             </Popover>
           </div>
-          <span className="text-xs font-medium text-ink tabular-nums">
-            {formatDuration(durationYears, durationMonths)}
+          <span className="text-xs font-medium text-ink">
+            {(() => {
+              const p = durationParts(durationYears, durationMonths)
+              return (
+                <>
+                  {p.years != null && (
+                    <>
+                      <span className="tnum-mono">{p.years}</span> Years
+                    </>
+                  )}
+                  {p.years != null && p.months != null && ', '}
+                  {p.months != null && (
+                    <>
+                      <span className="tnum-mono">{p.months}</span> Mo.
+                    </>
+                  )}
+                </>
+              )
+            })()}
           </span>
         </div>
         <input
@@ -363,11 +387,12 @@ export function WalletSummaryStats({
             // into the panel's px-4 padding — acceptable.
             return (
               <span
-                key={t.label}
-                className="absolute text-[10px] text-ink-faint tabular-nums -translate-x-1/2"
+                key={`${t.num}${t.unit}`}
+                className="absolute text-[10px] text-ink-faint -translate-x-1/2"
                 style={{ left: `${pct}%` }}
               >
-                {t.label}
+                <span className="tnum-mono">{t.num}</span>
+                {t.unit}
               </span>
             )
           })}
@@ -469,7 +494,7 @@ export function WalletSummaryStats({
         <div
           className={`shrink-0 w-52 bg-surface border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
         >
-          <div className="grid grid-cols-[36px_1fr] gap-x-2 gap-y-2 items-center text-xs text-ink-faint">
+          <div className="grid grid-cols-[36px_1fr] gap-x-2 gap-y-1 items-center text-xs text-ink-faint">
             <span
               aria-hidden
               className="justify-self-center inline-block rounded-full"

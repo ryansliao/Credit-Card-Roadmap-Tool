@@ -147,7 +147,7 @@ export function CategoryWeightEditor({ userCategoryId, onClose }: Props) {
                     [row.earn_category_id]: e.target.value.replace(/[^0-9]/g, ''),
                   }))
                 }
-                className="w-full bg-surface-2 border border-divider text-ink text-sm tabular-nums text-right pr-5 pl-1.5 py-0.5 rounded outline-none focus:border-accent placeholder:text-ink-faint"
+                className="w-full bg-surface-2 border border-divider text-ink text-sm tnum-mono text-right pr-5 pl-1.5 py-0.5 rounded outline-none focus:border-accent placeholder:text-ink-faint"
               />
               <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none">
                 %
@@ -159,14 +159,14 @@ export function CategoryWeightEditor({ userCategoryId, onClose }: Props) {
 
       <div className="flex items-center justify-between mt-3">
         <span
-          className={`text-xs tabular-nums ${
+          className={`text-xs ${
             totalIs100 ? 'text-ink-muted' : 'text-warn'
           }`}
         >
-          Total: {totalPct}%
+          Total: <span className="tnum-mono">{totalPct}%</span>
           {!totalIs100 && (
             <span className="ml-2 text-ink-faint">
-              (will be normalized to 100% on save)
+              (will be normalized to <span className="tnum-mono">100%</span> on save)
             </span>
           )}
         </span>

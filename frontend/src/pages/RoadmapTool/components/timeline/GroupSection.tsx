@@ -93,10 +93,12 @@ export function GroupSection({
   // When the group has no contributing CardResults yet — fresh wallet, every
   // card just added, or every card disabled — fall back to dashed placeholders
   // so the balance/income labels still anchor the row instead of disappearing.
-  const balanceLabel = formatGroupBalance(group) ?? '—'
+  const balanceLabel = formatGroupBalance(group)
   const incomeLabel =
-    formatGroupIncome(group, includeSubs, walletWindowYears, currencyWindowYears) ??
-    '—/yr'
+    formatGroupIncome(group, includeSubs, walletWindowYears, currencyWindowYears) ?? {
+      number: '—',
+      suffix: '/yr',
+    }
 
   return (
     <>
@@ -125,21 +127,30 @@ export function GroupSection({
                   : undefined
               }
             >
-              {balanceLabel && <span>{balanceLabel}</span>}
+              {balanceLabel != null ? (
+                <span className="tnum-mono">{balanceLabel}</span>
+              ) : (
+                <span>—</span>
+              )}
               {incomeLabel && (
                 <>
-                  {balanceLabel && (
-                    <span className="text-ink-faint text-sm leading-none">·</span>
-                  )}
-                  <span className="text-ink-faint">{incomeLabel}</span>
+                  <span className="text-ink-faint text-sm leading-none">·</span>
+                  <span className="text-ink-faint">
+                    <span className="tnum-mono">{incomeLabel.number}</span>
+                    {incomeLabel.suffix}
+                  </span>
                 </>
               )}
-              {group.secondaries.map((s) => (
-                <span key={`bal-${s.id}`} className="text-ink-faint">
-                  <span className="mr-1 text-ink-faint">·</span>
-                  {formatSecondaryBalance(s)}
-                </span>
-              ))}
+              {group.secondaries.map((s) => {
+                const parts = formatSecondaryBalance(s)
+                return (
+                  <span key={`bal-${s.id}`} className="text-ink-faint">
+                    <span className="mr-1 text-ink-faint">·</span>
+                    <span className="tnum-mono">{parts.number}</span>
+                    {parts.suffix}
+                  </span>
+                )
+              })}
             </div>
           )}
         </div>

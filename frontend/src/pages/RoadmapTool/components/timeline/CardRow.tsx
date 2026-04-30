@@ -10,6 +10,7 @@ import {
   formatCardIncome,
   formatDate,
   formatSecondaryAnnual,
+  joinParts,
 } from './lib/timelineFormatters'
 import {
   cardEafActive,
@@ -208,12 +209,14 @@ export function CardRow({
   // consistently and the user can tell what figure will appear once they
   // recalc / re-enable.
   const showPlaceholders = !enabled || !cr
-  const incomeLabel = showPlaceholders ? '—/yr' : formatCardIncome(cr, includeSubs)
+  const incomeLabel = showPlaceholders
+    ? { number: '—', suffix: '/yr' }
+    : formatCardIncome(cr, includeSubs)
   const eafValue = showPlaceholders ? null : cardEafActive(cr, includeSubs)
   const eafLabelText = showPlaceholders
-    ? '— EAF'
+    ? '—'
     : eafValue != null
-      ? `${formatMoney(eafValue)} EAF`
+      ? formatMoney(eafValue)
       : null
 
   const subTooltipLine = enabled
@@ -236,7 +239,9 @@ export function CardRow({
     subTooltipLine,
     enabled && showPlaceholders ? 'Click Calculate to see EAF and income' : null,
     !showPlaceholders && eafValue != null ? `EAF: ${formatMoney(eafValue)}` : null,
-    !showPlaceholders && incomeLabel ? `Income: ${incomeLabel.replace(/^\+/, '')}` : null,
+    !showPlaceholders && incomeLabel
+      ? `Income: ${joinParts(incomeLabel).replace(/^\+/, '')}`
+      : null,
   ]
     .filter(Boolean)
     .join('\n')
@@ -271,28 +276,42 @@ export function CardRow({
                 className={`text-xs text-ink-faint truncate transition-opacity ${isStale ? 'opacity-50' : ''}`}
                 title={isStale ? 'Out of date' : undefined}
               >
-                {incomeLabel}
-                {secondary && (
-                  <>
-                    <span className="mx-1 text-ink-faint">·</span>
-                    {formatSecondaryAnnual(secondary)}
-                  </>
-                )}
+                <span className="tnum-mono">{incomeLabel.number}</span>
+                {incomeLabel.suffix}
+                {secondary &&
+                  (() => {
+                    const s = formatSecondaryAnnual(secondary)
+                    return (
+                      <>
+                        <span className="mx-1 text-ink-faint">·</span>
+                        <span className="tnum-mono">{s.number}</span>
+                        {s.suffix}
+                      </>
+                    )
+                  })()}
                 {wc.credit_totals
                   .filter((t) => t.value > 0)
                   .map((t) => (
                     <span key={`${t.kind}-${t.currency_id ?? 'cash'}`}>
                       <span className="mx-1 text-ink-faint">·</span>
+                      <span className="tnum-mono">
+                        {t.kind === 'cash'
+                          ? formatMoney(t.value)
+                          : formatPoints(t.value)}
+                      </span>
                       {t.kind === 'cash'
-                        ? `${formatMoney(t.value)} Credits`
-                        : `${formatPoints(t.value)} ${pointsUnitLabel(t.currency_name)} Credits`}
+                        ? ' Credits'
+                        : ` ${pointsUnitLabel(t.currency_name)} Credits`}
                     </span>
                   ))}
                 {cr && (cr.housing_fee_dollars ?? 0) > 0 && (
                   <span title="3% rent/mortgage payment processing fee, deducted from EAF">
                     <span className="mx-1 text-ink-faint">·</span>
                     <span className="text-neg">
-                      −{formatMoney(cr.housing_fee_dollars ?? 0)} Housing Fee
+                      <span className="tnum-mono">
+                        −{formatMoney(cr.housing_fee_dollars ?? 0)}
+                      </span>
+                      {' Housing Fee'}
                     </span>
                   </span>
                 )}
@@ -392,7 +411,7 @@ export function CardRow({
             if (rightColumnPx === 0) {
               return (
                 <div
-                  className="absolute flex items-center justify-end text-xs font-semibold pointer-events-none"
+                  className="tnum-mono absolute flex items-center justify-end text-xs font-semibold pointer-events-none"
                   style={{
                     left: `${barStartPct}%`,
                     width: `${barWidthPct}%`,
@@ -420,7 +439,7 @@ export function CardRow({
             if (placement === 'inside') {
               return (
                 <div
-                  className="absolute flex items-center justify-end text-xs font-semibold pointer-events-none"
+                  className="tnum-mono absolute flex items-center justify-end text-xs font-semibold pointer-events-none"
                   style={{
                     left: `${barStartPct}%`,
                     width: `${barWidthPct}%`,
@@ -436,7 +455,7 @@ export function CardRow({
             if (placement === 'right') {
               return (
                 <div
-                  className="absolute flex items-center text-xs font-semibold whitespace-nowrap pointer-events-none"
+                  className="tnum-mono absolute flex items-center text-xs font-semibold whitespace-nowrap pointer-events-none"
                   style={{
                     left: `${barStartPct + barWidthPct}%`,
                     top,
@@ -452,7 +471,7 @@ export function CardRow({
             // left
             return (
               <div
-                className="absolute flex items-center justify-end text-xs font-semibold whitespace-nowrap pointer-events-none"
+                className="tnum-mono absolute flex items-center justify-end text-xs font-semibold whitespace-nowrap pointer-events-none"
                 style={{
                   right: `${100 - barStartPct}%`,
                   top,

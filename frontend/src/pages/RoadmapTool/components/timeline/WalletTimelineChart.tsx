@@ -156,8 +156,8 @@ export function WalletTimelineChart({
   }, [range])
 
   // Observe the scroll container's width so we can decide whether each
-  // bar's EAF label fits inside the bar; if not, place it to the right,
-  // or to the left when there's no room on either side.
+  // bar's EAF dollar label fits inside the bar; if not, place it to the
+  // right, or to the left when there's no room on either side.
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollWidthPx, setScrollWidthPx] = useState(0)
   useEffect(() => {
@@ -323,9 +323,12 @@ export function WalletTimelineChart({
                                 {r.at_risk_intervals.map((iv, idx) => (
                                   <li
                                     key={idx}
-                                    className={`text-[11px] tabular-nums ${intervalClass}`}
+                                    className={`text-[11px] ${intervalClass}`}
                                   >
-                                    At limit {formatDate(iv.start)} → {formatDate(iv.end)}
+                                    At limit{' '}
+                                    <span className="tnum-mono">
+                                      {formatDate(iv.start)} → {formatDate(iv.end)}
+                                    </span>
                                   </li>
                                 ))}
                               </ul>

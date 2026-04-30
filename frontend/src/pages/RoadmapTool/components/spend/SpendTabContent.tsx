@@ -535,8 +535,8 @@ export function SpendTabContent({
                 >
                   Total
                 </th>
-                <td className="text-center px-2 py-2 tabular-nums border-r border-divider/60">
-                  <div className="text-ink font-semibold">
+                <td className="text-center px-2 py-2 border-r border-divider/60">
+                  <div className="text-ink font-semibold tnum-mono">
                     ${spendItems.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
                   </div>
                 </td>
@@ -617,7 +617,7 @@ export function SpendTabContent({
                                   .map((mapping) => (
                                     <li key={mapping.id} className="flex items-center justify-between gap-3">
                                       <span className="text-ink-muted">{mapping.earn_category.category}</span>
-                                      <span className="text-ink-faint tabular-nums">
+                                      <span className="text-ink-faint tnum-mono">
                                         {Math.round(mapping.default_weight * 100)}%
                                       </span>
                                     </li>
@@ -633,13 +633,13 @@ export function SpendTabContent({
                         })()}
                       </div>
                     </td>
-                    <td className="text-center px-2 py-2 tabular-nums border-r border-divider/60">
-                      <span className="text-ink">
+                    <td className="text-center px-2 py-2 border-r border-divider/60">
+                      <span className="text-ink tnum-mono">
                         ${item.amount === 0 ? '0' : Math.round(item.amount).toLocaleString()}
                       </span>
                     </td>
                     <td
-                      className={`text-center tabular-nums px-3 py-2 text-ink border-r border-divider/60 transition-opacity ${isStale ? 'opacity-50' : ''}`}
+                      className={`text-center tnum-mono px-3 py-2 text-ink border-r border-divider/60 transition-opacity ${isStale ? 'opacity-50' : ''}`}
                       title={isStale ? 'Out of date' : undefined}
                     >
                       {currentCard ? (
@@ -676,7 +676,7 @@ export function SpendTabContent({
                                   {entry.card.card_name}
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                  <div className="text-xs font-semibold text-accent tabular-nums">
+                                  <div className="text-xs font-semibold text-accent tnum-mono">
                                     {formatRos(entry.ros)}
                                   </div>
                                   {entry.tag === 'portal' && (
