@@ -21,6 +21,11 @@ from .calculator_data_service import (
     CalculatorDataService,
     get_calculator_data_service,
 )
+from .wallet_category_weight_service import (
+    WalletCategoryWeightService,
+    apply_weight_overrides,
+    get_wallet_category_weight_service,
+)
 from .scenario_service import ScenarioService, get_scenario_service
 from .card_instance_service import (
     CardInstanceService,
@@ -79,6 +84,9 @@ __all__ = [
     "get_travel_portal_service",
     "CalculatorDataService",
     "get_calculator_data_service",
+    "WalletCategoryWeightService",
+    "apply_weight_overrides",
+    "get_wallet_category_weight_service",
     # Scenario services
     "ScenarioService",
     "get_scenario_service",
