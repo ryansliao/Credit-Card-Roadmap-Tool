@@ -49,7 +49,7 @@ export function ScenarioPicker({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-surface hover:bg-surface-2 border border-divider text-ink text-sm font-medium transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-surface hover:bg-surface-2 border border-divider-strong text-ink text-sm font-medium transition-colors"
         aria-haspopup="listbox"
         aria-expanded={open}
         title="Switch scenario"

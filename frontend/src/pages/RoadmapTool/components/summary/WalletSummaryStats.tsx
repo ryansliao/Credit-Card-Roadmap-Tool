@@ -90,16 +90,6 @@ export function WalletSummaryStats({
 
   const hasStats = !!result || isCalculating
   const showStaleHint = isStale && hasStats && !resultsError
-  const selectedCount = result?.card_results.filter((c) => c.selected).length ?? 0
-
-  const durationTicks: Array<{ months: number; num: string; unit: string }> = [
-    { months: 6, num: '0.5', unit: 'Y' },
-    { months: 12, num: '1', unit: 'Y' },
-    { months: 18, num: '1.5', unit: 'Y' },
-    { months: 24, num: '2', unit: 'Y' },
-    { months: 30, num: '2.5', unit: 'Y' },
-    { months: 36, num: '3', unit: 'Y' },
-  ]
 
   const durationLabel = (() => {
     const p = durationParts(durationYears, durationMonths)
@@ -153,7 +143,7 @@ export function WalletSummaryStats({
             }
             value={
               hasStats && result ? (
-                <Money value={totalEffectiveAF} feature tone="auto" />
+                <Money value={totalEffectiveAF} precision={0} feature tone="auto" />
               ) : (
                 <span className="text-2xl font-bold text-ink-faint tnum-mono">—</span>
               )
@@ -161,7 +151,7 @@ export function WalletSummaryStats({
             caption={
               !hasStats && hasNeverCalculated
                 ? 'Click Calculate to see your value'
-                : `across ${selectedCount || 0} selected card${selectedCount === 1 ? '' : 's'}`
+                : undefined
             }
           />
         </div>
@@ -181,12 +171,11 @@ export function WalletSummaryStats({
             }
             value={
               hasStats && result ? (
-                <Money value={totalAnnualFees} feature tone="neutral" />
+                <Money value={totalAnnualFees} precision={0} feature tone="neutral" />
               ) : (
                 <span className="text-2xl font-bold text-ink-faint tnum-mono">—</span>
               )
             }
-            caption="recurring annual cost"
           />
         </div>
 
@@ -205,12 +194,11 @@ export function WalletSummaryStats({
             }
             value={
               hasStats && result ? (
-                <Money value={totalAnnualPoints} feature tone="pos" />
+                <Money value={totalAnnualPoints} precision={0} feature tone="pos" />
               ) : (
                 <span className="text-2xl font-bold text-ink-faint tnum-mono">—</span>
               )
             }
-            caption="redeemed value"
           />
         </div>
       </div>
@@ -301,7 +289,7 @@ export function WalletSummaryStats({
           <div
             role="radiogroup"
             aria-label="Include Sign Up Bonuses in calculation"
-            className="inline-flex bg-surface-2 rounded-md p-0.5 text-xs font-medium"
+            className="inline-flex bg-surface-2 border border-divider-strong rounded-md p-0.5 text-xs font-medium"
           >
             <button
               type="button"
@@ -332,24 +320,6 @@ export function WalletSummaryStats({
           </div>
         </div>
 
-        <div className="basis-full hidden md:flex items-center gap-3">
-          <div style={{ width: 'calc(180px + 0.375rem)' }} className="shrink-0" />
-          <div className="flex-1 relative h-3">
-            {durationTicks.map((t) => {
-              const pct = ((t.months - 6) / 30) * 100
-              return (
-                <span
-                  key={`${t.num}${t.unit}`}
-                  className="absolute text-[10px] text-ink-faint -translate-x-1/2"
-                  style={{ left: `${pct}%` }}
-                >
-                  <span className="tnum-mono">{t.num}</span>
-                  {t.unit}
-                </span>
-              )
-            })}
-          </div>
-        </div>
       </div>
     </div>
   )
