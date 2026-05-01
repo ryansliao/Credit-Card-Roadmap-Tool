@@ -30,32 +30,39 @@ def _build_instance_credit_totals(
     points credits bucket per currency so the UI can render ``pts``
     alongside ``$``.
 
-    Owned cards (``scenario_id IS NULL``) merge library defaults from
-    ``card.card_credit_links`` with wallet-level overrides from
-    ``wallet_credit_overrides``. Per-scenario overrides don't apply at the
-    wallet view (it's scenario-agnostic). Scenario-scoped instances use
-    ``credit_overrides_rows`` directly (rows are necessarily scoped to
-    that one scenario since the instance itself is scenario-scoped).
+    Both owned and scenario-scoped instances start from library defaults
+    in ``card.card_credit_links`` so that credits the user hasn't
+    overridden inherit their library value (matching the calculator's
+    three-tier resolution in ``ScenarioResolver._build_instance_card_data``
+    and the documented "absence means inherit" rule). Owned cards then
+    overlay ``wallet_credit_overrides``; scenario-scoped cards overlay
+    ``credit_overrides_rows`` (the wallet tier doesn't apply because
+    future cards have no owned-card context).
     """
-    sources: list[tuple[float | None, object]] = []
+    # Library defaults keyed by credit id, then overlay later tiers.
+    # Owned cards: library → WalletCardCredit.
+    # Scenario-scoped cards: library → ScenarioCardCredit (wallet tier
+    # doesn't apply — there's no owned-card context).
+    merged: dict[int, tuple[float | None, object]] = {}
+    for link in getattr(inst.card, "card_credit_links", None) or []:
+        lib = link.credit
+        if lib is None:
+            continue
+        raw = link.value if link.value is not None else lib.value
+        merged[lib.id] = (raw, lib)
     if inst.scenario_id is None:
-        # library defaults keyed by credit id, then overlay wallet overrides
-        merged: dict[int, tuple[float | None, object]] = {}
-        for link in getattr(inst.card, "card_credit_links", None) or []:
-            lib = link.credit
-            if lib is None:
-                continue
-            raw = link.value if link.value is not None else lib.value
-            merged[lib.id] = (raw, lib)
         for row in getattr(inst, "wallet_credit_overrides", None) or []:
             lib = row.library_credit
             if lib is None:
                 continue
             merged[lib.id] = (row.value, lib)
-        sources = list(merged.values())
     else:
         for row in getattr(inst, "credit_overrides_rows", None) or []:
-            sources.append((row.value, row.library_credit))
+            lib = row.library_credit
+            if lib is None:
+                continue
+            merged[lib.id] = (row.value, lib)
+    sources = list(merged.values())
     if not sources:
         return []
     buckets: dict[tuple[str, int | None], CreditTotalByCurrency] = {}
