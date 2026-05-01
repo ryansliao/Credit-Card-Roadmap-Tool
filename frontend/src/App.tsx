@@ -13,6 +13,7 @@ import { Input } from './components/ui/Input'
 import { Field } from './components/ui/Field'
 import { Modal, ModalHeader, ModalBody } from './components/ui/Modal'
 import { Heading } from './components/ui/Heading'
+import { ThemeToggle } from './components/ui/ThemeToggle'
 
 declare global {
   interface Window {
@@ -307,29 +308,37 @@ function Nav() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth()
 
   return (
-    <nav className="bg-accent text-on-accent px-6 py-2.5 flex items-center gap-2">
-      <Link to="/" className="font-bold text-lg mr-6 hover:opacity-80 transition-opacity">
+    <nav className="bg-surface border-b border-divider px-6 h-14 flex items-center gap-2">
+      <Link to="/" className="text-base font-bold text-ink hover:text-accent transition-colors mr-6">
         CardSolver
       </Link>
       {isAuthenticated && (
         <NavLink
           to="/roadmap-tool"
           className={({ isActive }) =>
-            `text-sm font-medium px-5 py-2 rounded-full transition-colors ${
-              isActive
-                ? 'bg-black/20'
-                : 'opacity-75 hover:opacity-100 hover:bg-black/15'
+            `relative text-sm font-medium px-1 py-4 transition-colors ${
+              isActive ? 'text-ink' : 'text-ink-faint hover:text-ink'
             }`
           }
         >
-          Roadmap Tool
+          {({ isActive }) => (
+            <>
+              Roadmap Tool
+              {isActive && (
+                <span aria-hidden="true" className="absolute left-0 right-0 -bottom-px h-0.5 bg-accent" />
+              )}
+            </>
+          )}
         </NavLink>
       )}
       <div className="flex-1" />
       {!isLoading && (
         isAuthenticated && user ? (
-          <div className="flex items-center gap-3">
-            <Link to="/profile" className="flex items-center gap-2 px-3 py-1 rounded-full opacity-75 hover:opacity-100 hover:bg-black/15 transition-colors -mr-2">
+          <div className="flex items-center gap-2">
+            <Link
+              to="/profile"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md text-ink-faint hover:text-ink hover:bg-surface-2 transition-colors"
+            >
               {user.picture && (
                 <img
                   src={user.picture}
@@ -340,16 +349,16 @@ function Nav() {
               )}
               <span className="text-sm hidden sm:inline">{user.username ?? user.name}</span>
             </Link>
-            <button
-              type="button"
-              onClick={signOut}
-              className="text-sm font-medium px-5 py-2 rounded-full opacity-75 hover:opacity-100 hover:bg-black/15 transition-colors ml-2"
-            >
+            <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={signOut}>
               Sign out
-            </button>
+            </Button>
           </div>
         ) : (
-          <SignInDropdown />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <SignInDropdown />
+          </div>
         )
       )}
     </nav>
