@@ -1,6 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
 import type { WalletResult } from '../../../../api/client'
-import { formatMoney, formatPointsExact } from '../../../../utils/format'
 import { cardAnnualPointIncomeWindow, cardEafWindow } from '../../../../utils/cardIncome'
 import { Popover } from '../../../../components/ui/Popover'
 import { Stat } from '../../../../components/ui/Stat'
@@ -355,5 +354,3 @@ export function WalletSummaryStats({
     </div>
   )
 }
-
-export { formatPointsExact, formatMoney }
