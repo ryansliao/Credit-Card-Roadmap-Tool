@@ -125,6 +125,20 @@ defaults are persisted, so library updates flow through unchanged
 credits, and credits the user removed are stored as `value=0` overrides
 (not absent — absence means "inherit").
 
+The chain carries three user-overridable fields per credit: `value`,
+`excludes_first_year`, and `is_one_time`. `value` is row-level (a row's
+presence supersedes the previous tier in full); the two boolean flags are
+column-level — `NULL` on a row means "inherit that flag from the previous
+tier", non-NULL replaces it. So a wallet/scenario row can override just
+the value, just one flag, or any combination, without forcing the user
+to restate the rest. **Currency is intentionally library-only** and
+stays on the `Credit` row; non-admin users cannot override it per-
+instance. Anyone can flip `excludes_first_year` / `is_one_time` on any
+credit (system or user-owned) — the override lives on their own card
+instance and doesn't affect other users. The schema builder
+(`_build_instance_credit_totals`) and the calculator both apply this
+column-level inheritance for owned and scenario-scoped instances.
+
 **EV Calculation**
 `app.calculator` is a pure subpackage (no DB access) split into topical
 modules. It uses two calculation paths depending on whether the scenario

@@ -538,6 +538,11 @@ class ScenarioResolver:
         # Each later layer replaces the previous by library_credit_id.
         # Wallet rows only apply to owned instances (future cards skip the
         # wallet tier since they're already scenario-scoped).
+        #
+        # ``value`` is row-level (a row replaces the previous tier's value
+        # in full); ``excludes_first_year`` and ``is_one_time`` are
+        # column-level (per-row None means "inherit from the previous
+        # tier"). Currency stays library-only by design.
         merged: dict[int, CreditLine] = {}
         for link in library_credit_links:
             lib_credit = link.credit
@@ -557,23 +562,51 @@ class ScenarioResolver:
             lib_credit = wrow.library_credit
             if lib_credit is None:
                 continue
+            prev = merged.get(wrow.library_credit_id)
+            base_excludes = (
+                prev.excludes_first_year if prev is not None
+                else lib_credit.excludes_first_year
+            )
+            base_one_time = (
+                prev.is_one_time if prev is not None else lib_credit.is_one_time
+            )
             merged[wrow.library_credit_id] = CreditLine(
                 library_credit_id=wrow.library_credit_id,
                 name=lib_credit.credit_name,
                 value=_to_dollars(float(wrow.value), lib_credit.credit_currency_id),
-                excludes_first_year=lib_credit.excludes_first_year,
-                is_one_time=lib_credit.is_one_time,
+                excludes_first_year=(
+                    wrow.excludes_first_year
+                    if wrow.excludes_first_year is not None
+                    else base_excludes
+                ),
+                is_one_time=(
+                    wrow.is_one_time if wrow.is_one_time is not None else base_one_time
+                ),
             )
         for row in credit_rows:
             lib_credit = row.library_credit
             if lib_credit is None:
                 continue
+            prev = merged.get(row.library_credit_id)
+            base_excludes = (
+                prev.excludes_first_year if prev is not None
+                else lib_credit.excludes_first_year
+            )
+            base_one_time = (
+                prev.is_one_time if prev is not None else lib_credit.is_one_time
+            )
             merged[row.library_credit_id] = CreditLine(
                 library_credit_id=row.library_credit_id,
                 name=lib_credit.credit_name,
                 value=_to_dollars(float(row.value), lib_credit.credit_currency_id),
-                excludes_first_year=lib_credit.excludes_first_year,
-                is_one_time=lib_credit.is_one_time,
+                excludes_first_year=(
+                    row.excludes_first_year
+                    if row.excludes_first_year is not None
+                    else base_excludes
+                ),
+                is_one_time=(
+                    row.is_one_time if row.is_one_time is not None else base_one_time
+                ),
             )
         credit_lines: list[CreditLine] = list(merged.values())
 

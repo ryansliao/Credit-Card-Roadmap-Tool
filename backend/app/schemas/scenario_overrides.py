@@ -43,6 +43,10 @@ class ScenarioCardMultiplierRead(BaseModel):
 
 class ScenarioCardCreditUpsert(BaseModel):
     value: float = Field(..., ge=0)
+    # Column-level flag overrides; None inherits from the wallet/library
+    # tier. Currency stays library-only.
+    excludes_first_year: bool | None = None
+    is_one_time: bool | None = None
 
 
 class ScenarioCardCreditRead(BaseModel):
@@ -53,6 +57,8 @@ class ScenarioCardCreditRead(BaseModel):
     library_credit_id: int
     credit_name: str = ""
     value: float
+    excludes_first_year: bool | None = None
+    is_one_time: bool | None = None
 
     @model_validator(mode="wrap")
     @classmethod
@@ -67,6 +73,8 @@ class ScenarioCardCreditRead(BaseModel):
                     "library_credit_id": data.library_credit_id,
                     "credit_name": lc.credit_name if lc else "",
                     "value": data.value,
+                    "excludes_first_year": data.excludes_first_year,
+                    "is_one_time": data.is_one_time,
                 }
             )
         return handler(data)

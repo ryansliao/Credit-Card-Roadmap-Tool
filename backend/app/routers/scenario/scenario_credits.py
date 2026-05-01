@@ -64,7 +64,12 @@ async def upsert_instance_credit(
     if inst.wallet_id != scenario.wallet_id:
         raise HTTPException(status_code=403, detail="Not your card instance")
     row = await credit_service.upsert(
-        scenario_id, inst, library_credit_id, payload.value
+        scenario_id,
+        inst,
+        library_credit_id,
+        payload.value,
+        excludes_first_year=payload.excludes_first_year,
+        is_one_time=payload.is_one_time,
     )
     await db.commit()
     row = await credit_service.get_with_library(row.id)

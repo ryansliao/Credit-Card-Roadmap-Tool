@@ -42,7 +42,12 @@ export interface ResolvedCard extends WalletCard {
    * cards (which have no owned/wallet context). Used to seed the credits
    * tab in the scenario modal so users see the inherited values rather
    * than an empty list. */
-  wallet_credit_overrides: { library_credit_id: number; value: number }[]
+  wallet_credit_overrides: {
+    library_credit_id: number
+    value: number
+    excludes_first_year?: boolean | null
+    is_one_time?: boolean | null
+  }[]
 }
 
 function _coalesce<T>(...values: (T | null | undefined)[]): T | null {

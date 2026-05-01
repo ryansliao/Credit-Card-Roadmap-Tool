@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -34,7 +35,10 @@ class WalletCardCredit(Base):
 
     Absence of a row for a (card_instance, library_credit) pair means
     "inherit the library default"; presence with ``value`` means the user
-    set their own valuation.
+    set their own valuation. ``excludes_first_year`` and ``is_one_time``
+    are column-level overrides — NULL on a row means "inherit that flag
+    from the library credit"; non-NULL replaces the library value. Currency
+    is intentionally not user-overridable; it stays on the library row.
     """
 
     __tablename__ = "wallet_card_credits"
@@ -50,6 +54,8 @@ class WalletCardCredit(Base):
         ForeignKey("credits.id", ondelete="NO ACTION"), nullable=False
     )
     value: Mapped[float] = mapped_column(Float, nullable=False)
+    excludes_first_year: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    is_one_time: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

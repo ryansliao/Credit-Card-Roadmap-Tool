@@ -21,6 +21,7 @@ import { Button } from '../ui/Button'
 import { formatMoney, today } from '../../utils/format'
 import { useCardLibrary } from '../../pages/RoadmapTool/hooks/useCardLibrary'
 import { useCreditLibrary } from '../../hooks/useCreditLibrary'
+import { useAuth } from '../../auth/useAuth'
 import {
   buildWalletCardFields,
   walletFormToFutureUpdatePayload,
@@ -71,16 +72,54 @@ function ownedCardCreditDefaults(
  *  emitted as ``value=0`` overrides so the calculator treats them as
  *  zeroed-out (not inherited). Custom credits not in the library are
  *  always included. */
+/** Per-credit flag override the modal buffers in ``creditFlagEdits``. */
+type CreditFlagEdit = {
+  excludes_first_year?: boolean
+  is_one_time?: boolean
+}
+
+/** Library defaults for the two flags, keyed by library_credit_id. Used so
+ *  the diff knows when a buffered flag edit matches library (→ no override
+ *  needed) vs. genuinely diverges (→ persist as a column override). */
+type LibraryFlagDefaults = Record<
+  number,
+  { excludes_first_year: boolean; is_one_time: boolean }
+>
+
 function diffWalletCreditOverrides(
   selected: Record<number, number>,
   libraryDefaults: Record<number, number>,
+  flagEdits: Record<number, CreditFlagEdit> = {},
+  libraryFlagDefaults: LibraryFlagDefaults = {},
 ): WalletCardCreditValue[] {
   const out: WalletCardCreditValue[] = []
   for (const [idStr, value] of Object.entries(selected)) {
     const libId = Number(idStr)
     const libDefault = libraryDefaults[libId]
-    if (libDefault === undefined || Math.abs(value - libDefault) > 1e-6) {
-      out.push({ library_credit_id: libId, value })
+    const valueDiffers =
+      libDefault === undefined || Math.abs(value - libDefault) > 1e-6
+    const edit = flagEdits[libId]
+    const libFlags = libraryFlagDefaults[libId]
+    const excludesOverride =
+      edit?.excludes_first_year !== undefined &&
+      libFlags !== undefined &&
+      edit.excludes_first_year !== libFlags.excludes_first_year
+        ? edit.excludes_first_year
+        : null
+    const oneTimeOverride =
+      edit?.is_one_time !== undefined &&
+      libFlags !== undefined &&
+      edit.is_one_time !== libFlags.is_one_time
+        ? edit.is_one_time
+        : null
+    const flagDiffers = excludesOverride !== null || oneTimeOverride !== null
+    if (valueDiffers || flagDiffers) {
+      out.push({
+        library_credit_id: libId,
+        value,
+        excludes_first_year: excludesOverride,
+        is_one_time: oneTimeOverride,
+      })
     }
   }
   for (const libIdStr of Object.keys(libraryDefaults)) {
@@ -516,7 +555,17 @@ export function WalletCardModal(props: WalletCardModalProps) {
           merged[o.library_credit_id] = o.value
         }
         setSelectedCredits(merged)
-        setCreditFlagEdits({})
+        // Hydrate buffered flag edits from any existing per-instance flag
+        // overrides so the credit-options panel checkboxes mirror what's
+        // saved. Subsequent toggles keep editing the same buffer.
+        const flagBuffer: Record<number, CreditFlagEdit> = {}
+        for (const o of ownedInstance.credit_overrides ?? []) {
+          const e: CreditFlagEdit = {}
+          if (o.excludes_first_year != null) e.excludes_first_year = o.excludes_first_year
+          if (o.is_one_time != null) e.is_one_time = o.is_one_time
+          if (Object.keys(e).length > 0) flagBuffer[o.library_credit_id] = e
+        }
+        setCreditFlagEdits(flagBuffer)
         setFormError(null)
         return
       }
@@ -549,7 +598,27 @@ export function WalletCardModal(props: WalletCardModalProps) {
           merged[o.library_credit_id] = o.value
         }
         setSelectedCredits(merged)
-        setCreditFlagEdits({})
+        // Hydrate flag edits from existing scenario per-instance overrides
+        // and any underlying wallet overrides on the resolved owned card
+        // (overlay mode). Scenario flag overrides win when both are set.
+        const flagBuffer: Record<number, CreditFlagEdit> = {}
+        if (!resolvedCard.is_future) {
+          for (const o of resolvedCard.wallet_credit_overrides ?? []) {
+            const e: CreditFlagEdit = {}
+            const ex = (o as { excludes_first_year?: boolean | null }).excludes_first_year
+            const ot = (o as { is_one_time?: boolean | null }).is_one_time
+            if (ex != null) e.excludes_first_year = ex
+            if (ot != null) e.is_one_time = ot
+            if (Object.keys(e).length > 0) flagBuffer[o.library_credit_id] = e
+          }
+        }
+        for (const o of existingCreditOverrides ?? []) {
+          const e: CreditFlagEdit = flagBuffer[o.library_credit_id] ?? {}
+          if (o.excludes_first_year != null) e.excludes_first_year = o.excludes_first_year
+          if (o.is_one_time != null) e.is_one_time = o.is_one_time
+          if (Object.keys(e).length > 0) flagBuffer[o.library_credit_id] = e
+        }
+        setCreditFlagEdits(flagBuffer)
         setFormError(null)
       }
     }
@@ -619,12 +688,22 @@ export function WalletCardModal(props: WalletCardModalProps) {
     setCardDropdownOpen(true)
   }
 
-  /** Push buffered library-credit edits (currency / year-1 / one-time) to the
-   *  backend. Runs at the start of every save path so the global Credit row
-   *  matches what the user sees in the picker before any scenario or owned-
-   *  card payload is sent. Throws on failure so the outer save is aborted. */
+  /** Push buffered LIBRARY-row edits to the backend. After the per-instance
+   *  flag override migration, only ``credit_currency_id`` ever lands here —
+   *  ``excludes_first_year`` / ``is_one_time`` are persisted as per-instance
+   *  overrides via the wallet/scenario credit payloads. The currency edit
+   *  affordance is gated to user-owned credits in the UI, so this call is
+   *  always permitted by the backend's owner check. */
   async function flushCreditFlagEdits() {
     const entries = Object.entries(creditFlagEdits)
+      .map(([idStr, patch]) => {
+        const onlyCurrency: { credit_currency_id?: number | null } = {}
+        if ('credit_currency_id' in patch) {
+          onlyCurrency.credit_currency_id = patch.credit_currency_id
+        }
+        return [idStr, onlyCurrency] as const
+      })
+      .filter(([, p]) => Object.keys(p).length > 0)
     if (entries.length === 0) return
     try {
       await Promise.all(
@@ -637,9 +716,23 @@ export function WalletCardModal(props: WalletCardModalProps) {
       setFormError(msg)
       throw e
     }
-    setCreditFlagEdits({})
     queryClient.invalidateQueries({ queryKey: queryKeys.credits() })
   }
+
+  /** Library flag defaults keyed by ``library_credit_id`` for the diff
+   *  helper. Built from ``creditLibrary`` so the modal can decide when a
+   *  buffered flag matches library (and therefore needs no override row)
+   *  vs. genuinely diverges. */
+  const libraryFlagDefaults: LibraryFlagDefaults = useMemo(() => {
+    const out: LibraryFlagDefaults = {}
+    for (const c of creditLibrary ?? []) {
+      out[c.id] = {
+        excludes_first_year: !!c.excludes_first_year,
+        is_one_time: !!c.is_one_time,
+      }
+    }
+    return out
+  }, [creditLibrary])
 
   async function handlePrimary() {
     setFormError(null)
@@ -680,6 +773,8 @@ export function WalletCardModal(props: WalletCardModalProps) {
       const overrides = diffWalletCreditOverrides(
         selectedCredits,
         ownedCardCreditDefaults(creditLibrary, cardId),
+        creditFlagEdits,
+        libraryFlagDefaults,
       )
       onAddOwned?.({
         card_id: cardId,
@@ -708,6 +803,8 @@ export function WalletCardModal(props: WalletCardModalProps) {
       const overrides = diffWalletCreditOverrides(
         selectedCredits,
         ownedCardCreditDefaults(creditLibrary, ownedInstance.card_id),
+        creditFlagEdits,
+        libraryFlagDefaults,
       )
       onSaveOwned?.({
         ...walletFormToOwnedUpdatePayload(
@@ -846,19 +943,44 @@ export function WalletCardModal(props: WalletCardModalProps) {
   async function reconcileScenarioOverrides(
     sid: number,
     instanceId: number,
-    existing: { library_credit_id: number; value: number }[],
+    existing: {
+      library_credit_id: number
+      value: number
+      excludes_first_year?: boolean | null
+      is_one_time?: boolean | null
+    }[],
     selected: Record<number, number>,
     baseline: Record<number, number>,
     priorityIds: number[],
   ) {
-    const desired = diffWalletCreditOverrides(selected, baseline)
-    const desiredByLibId = new Map(desired.map((d) => [d.library_credit_id, d.value]))
+    const desired = diffWalletCreditOverrides(
+      selected,
+      baseline,
+      creditFlagEdits,
+      libraryFlagDefaults,
+    )
+    const desiredByLibId = new Map(desired.map((d) => [d.library_credit_id, d]))
     const existingByLibId = new Map(existing.map((o) => [o.library_credit_id, o]))
     const creditOps: Promise<unknown>[] = []
-    for (const [libId, value] of desiredByLibId) {
+    const flagsEqual = (
+      a: boolean | null | undefined,
+      b: boolean | null | undefined,
+    ) => (a ?? null) === (b ?? null)
+    for (const [libId, d] of desiredByLibId) {
       const ex = existingByLibId.get(libId)
-      if (!ex || Math.abs(ex.value - value) > 1e-6) {
-        creditOps.push(scenarioCardCreditApi.upsert(sid, instanceId, libId, { value }))
+      const valueChanged = !ex || Math.abs(ex.value - d.value) > 1e-6
+      const excludesChanged =
+        !ex || !flagsEqual(ex.excludes_first_year, d.excludes_first_year)
+      const oneTimeChanged =
+        !ex || !flagsEqual(ex.is_one_time, d.is_one_time)
+      if (valueChanged || excludesChanged || oneTimeChanged) {
+        creditOps.push(
+          scenarioCardCreditApi.upsert(sid, instanceId, libId, {
+            value: d.value,
+            excludes_first_year: d.excludes_first_year ?? null,
+            is_one_time: d.is_one_time ?? null,
+          }),
+        )
       }
     }
     for (const [libId] of existingByLibId) {
@@ -1536,10 +1658,13 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               </div>
                             </div>
                             {isExpanded && (() => {
-                              // System credits (NULL owner) are shared across users — their
-                              // flags/currency are read-only here. User-owned credits can be
-                              // customised by their creator. Edits buffer in
-                              // ``creditFlagEdits`` and only persist on Save.
+                              // ``After Year 1`` / ``One-Time`` are per-instance overrides —
+                              // any user can flip them on any credit and the change persists
+                              // as a column override on WalletCardCredit / ScenarioCardCredit
+                              // (NULL on the row inherits the library default). Currency is
+                              // intentionally library-only and stays gated to user-owned
+                              // credits. Edits buffer in ``creditFlagEdits`` and only persist
+                              // on Save.
                               const isUserOwned = lc?.owner_user_id != null
                               const edits = creditFlagEdits[libId]
                               const effExcludesFirstYear =
@@ -1551,14 +1676,13 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                   ? edits!.credit_currency_id
                                   : lc?.credit_currency_id ?? null
                               return (
-                              <div className={`flex items-center gap-3 px-6 pb-2.5 pt-0.5 text-xs ${isUserOwned ? 'text-ink-muted' : 'text-ink-faint'}`}>
-                                <label className={`flex items-center gap-1.5 select-none ${isUserOwned ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                              <div className="flex items-center gap-3 px-6 pb-2.5 pt-0.5 text-xs text-ink-muted">
+                                <label className="flex items-center gap-1.5 select-none cursor-pointer">
                                   <input
                                     type="checkbox"
-                                    disabled={!isUserOwned}
                                     checked={effExcludesFirstYear}
                                     onChange={() => {
-                                      if (!lc || !isUserOwned) return
+                                      if (!lc) return
                                       setCreditFlagEdits((prev) => ({
                                         ...prev,
                                         [libId]: {
@@ -1567,17 +1691,16 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                         },
                                       }))
                                     }}
-                                    className="accent-warn w-3 h-3 disabled:cursor-not-allowed"
+                                    className="accent-warn w-3 h-3"
                                   />
                                   <span>After Year 1</span>
                                 </label>
-                                <label className={`flex items-center gap-1.5 select-none ${isUserOwned ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                                <label className="flex items-center gap-1.5 select-none cursor-pointer">
                                   <input
                                     type="checkbox"
-                                    disabled={!isUserOwned}
                                     checked={effIsOneTime}
                                     onChange={() => {
-                                      if (!lc || !isUserOwned) return
+                                      if (!lc) return
                                       setCreditFlagEdits((prev) => ({
                                         ...prev,
                                         [libId]: {
@@ -1586,7 +1709,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                         },
                                       }))
                                     }}
-                                    className="accent-accent w-3 h-3 disabled:cursor-not-allowed"
+                                    className="accent-accent w-3 h-3"
                                   />
                                   <span>One-Time</span>
                                 </label>

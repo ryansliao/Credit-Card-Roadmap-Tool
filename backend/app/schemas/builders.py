@@ -158,7 +158,10 @@ def card_instance_read(inst: CardInstance) -> CardInstanceRead:
         credit_totals=_build_instance_credit_totals(inst),
         credit_overrides=[
             WalletCardCreditValue(
-                library_credit_id=row.library_credit_id, value=float(row.value)
+                library_credit_id=row.library_credit_id,
+                value=float(row.value),
+                excludes_first_year=row.excludes_first_year,
+                is_one_time=row.is_one_time,
             )
             for row in (
                 getattr(inst, "wallet_credit_overrides", None) or []

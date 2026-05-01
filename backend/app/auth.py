@@ -79,6 +79,7 @@ class AuthUserResponse(BaseModel):
     picture: str | None = None
     token: str | None = None
     needs_username: bool = False
+    is_admin: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +223,7 @@ async def google_sign_in(body: GoogleSignInRequest, db: AsyncSession = Depends(g
         picture=user.picture,
         token=token,
         needs_username=user.username is None,
+        is_admin=bool(user.is_admin),
     )
 
 
@@ -269,6 +271,7 @@ async def local_register(body: LocalRegisterRequest, db: AsyncSession = Depends(
         email=user.email,
         picture=user.picture,
         token=token,
+        is_admin=bool(user.is_admin),
     )
 
 
@@ -303,6 +306,7 @@ async def local_login(body: LocalLoginRequest, db: AsyncSession = Depends(get_db
         email=user.email,
         picture=user.picture,
         token=token,
+        is_admin=bool(user.is_admin),
     )
 
 
@@ -335,6 +339,7 @@ async def set_username(
         name=user.name,
         email=user.email,
         picture=user.picture,
+        is_admin=bool(user.is_admin),
     )
 
 
@@ -348,4 +353,5 @@ async def get_me(user: User = Depends(get_current_user)):
         email=user.email,
         picture=user.picture,
         needs_username=user.username is None,
+        is_admin=bool(user.is_admin),
     )

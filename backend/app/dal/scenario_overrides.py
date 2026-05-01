@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -103,6 +104,11 @@ class ScenarioCardCredit(Base):
         ForeignKey("credits.id", ondelete="NO ACTION"), nullable=False
     )
     value: Mapped[float] = mapped_column(Float, nullable=False)
+    # Column-level overrides: NULL inherits from the previous tier
+    # (wallet → library); non-NULL replaces it. Currency stays on the
+    # library row by design.
+    excludes_first_year: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    is_one_time: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

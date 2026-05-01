@@ -45,10 +45,15 @@ class CardInstanceBase(BaseModel):
 
 
 class WalletCardCreditValue(BaseModel):
-    """Per-instance per-credit valuation override at the wallet level."""
+    """Per-instance per-credit override at the wallet level. ``value`` is
+    required; ``excludes_first_year`` and ``is_one_time`` are column-level
+    flag overrides where ``None`` means "inherit from the library credit".
+    Currency is intentionally not user-overridable."""
 
     library_credit_id: int
     value: float
+    excludes_first_year: Optional[bool] = None
+    is_one_time: Optional[bool] = None
 
 
 class OwnedCardCreate(BaseModel):

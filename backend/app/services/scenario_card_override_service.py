@@ -164,7 +164,13 @@ class ScenarioCardCreditService(BaseService[ScenarioCardCredit]):
         card_instance: CardInstance,
         library_credit_id: int,
         value: float,
+        excludes_first_year: Optional[bool] = None,
+        is_one_time: Optional[bool] = None,
     ) -> ScenarioCardCredit:
+        """Upsert a per-scenario credit override. ``excludes_first_year``
+        and ``is_one_time`` default to ``None`` which means "inherit from
+        the wallet/library tier" — so the legacy 4-arg call site that only
+        sets ``value`` doesn't change behaviour."""
         _validate_target_instance(card_instance, scenario_id)
         await self.get_library_credit_or_404(library_credit_id)
 
@@ -175,10 +181,14 @@ class ScenarioCardCreditService(BaseService[ScenarioCardCredit]):
                 card_instance_id=card_instance.id,
                 library_credit_id=library_credit_id,
                 value=value,
+                excludes_first_year=excludes_first_year,
+                is_one_time=is_one_time,
             )
             self.db.add(row)
         else:
             row.value = value
+            row.excludes_first_year = excludes_first_year
+            row.is_one_time = is_one_time
         await self.db.flush()
         return row
 

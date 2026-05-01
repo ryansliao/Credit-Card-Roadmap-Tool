@@ -31,6 +31,25 @@ from ..schemas import (
 from .base import BaseService
 
 
+def _normalize_credit_override(o) -> dict:
+    """Coerce a credit override (Pydantic model, ORM-attribute object, or
+    dict from ``model_dump``) to a uniform dict shape so the persistence
+    helper doesn't need to branch."""
+    if isinstance(o, dict):
+        return {
+            "library_credit_id": o["library_credit_id"],
+            "value": o["value"],
+            "excludes_first_year": o.get("excludes_first_year"),
+            "is_one_time": o.get("is_one_time"),
+        }
+    return {
+        "library_credit_id": o.library_credit_id,
+        "value": o.value,
+        "excludes_first_year": getattr(o, "excludes_first_year", None),
+        "is_one_time": getattr(o, "is_one_time", None),
+    }
+
+
 class CardInstanceService(BaseService[CardInstance]):
     """CRUD on CardInstance rows + product-change chain marking."""
 
@@ -184,7 +203,7 @@ class CardInstanceService(BaseService[CardInstance]):
         if payload.credit_overrides:
             await self._set_wallet_credit_overrides(
                 instance.id,
-                [(o.library_credit_id, o.value) for o in payload.credit_overrides],
+                [_normalize_credit_override(o) for o in payload.credit_overrides],
             )
         return instance
 
@@ -259,24 +278,23 @@ class CardInstanceService(BaseService[CardInstance]):
         for field, value in updates.items():
             setattr(instance, field, value)
         if credit_overrides is not None:
-            pairs = [
-                (
-                    o["library_credit_id"] if isinstance(o, dict) else o.library_credit_id,
-                    o["value"] if isinstance(o, dict) else o.value,
-                )
-                for o in credit_overrides
-            ]
-            await self._set_wallet_credit_overrides(instance.id, pairs)
+            await self._set_wallet_credit_overrides(
+                instance.id,
+                [_normalize_credit_override(o) for o in credit_overrides],
+            )
         return instance
 
     async def _set_wallet_credit_overrides(
         self,
         instance_id: int,
-        overrides: list[tuple[int, float]],
+        overrides: list[dict],
     ) -> None:
         """Replace the WalletCardCredit set for ``instance_id`` with the
-        provided (library_credit_id, value) pairs. Validates each library
-        credit exists; deletes any existing rows not in the new set.
+        provided override dicts. Each dict must have ``library_credit_id``
+        and ``value``; ``excludes_first_year`` and ``is_one_time`` are
+        optional flag overrides where ``None`` means "inherit". Validates
+        each library credit exists; deletes any existing rows not in the
+        new set.
         """
         # Delete existing rows for this instance
         existing = await self.db.execute(
@@ -289,12 +307,13 @@ class CardInstanceService(BaseService[CardInstance]):
         await self.db.flush()
         if not overrides:
             return
-        lib_ids = {cid for cid, _ in overrides}
+        lib_ids = {o["library_credit_id"] for o in overrides}
         lib_rows = await self.db.execute(
             select(Credit).where(Credit.id.in_(lib_ids))
         )
         valid_ids = {row.id for row in lib_rows.scalars()}
-        for cid, val in overrides:
+        for o in overrides:
+            cid = o["library_credit_id"]
             if cid not in valid_ids:
                 raise HTTPException(
                     status_code=404,
@@ -304,7 +323,9 @@ class CardInstanceService(BaseService[CardInstance]):
                 WalletCardCredit(
                     card_instance_id=instance_id,
                     library_credit_id=cid,
-                    value=val,
+                    value=o["value"],
+                    excludes_first_year=o.get("excludes_first_year"),
+                    is_one_time=o.get("is_one_time"),
                 )
             )
         await self.db.flush()

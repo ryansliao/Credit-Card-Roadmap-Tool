@@ -50,6 +50,7 @@ export interface AuthUser {
   picture: string | null
   token?: string | null
   needs_username?: boolean
+  is_admin?: boolean
 }
 
 export const authApi = {
@@ -584,9 +585,17 @@ export const creditsApi = {
       body: JSON.stringify(payload),
     }),
   // Update / delete a credit the user owns. Returns 403 for system credits;
-  // callers should gate the affordance on ``owner_user_id != null``.
+  // callers should gate the affordance on ``owner_user_id != null`` or use
+  // ``adminUpdate`` below when the current user has ``is_admin``.
   update: (creditId: number, payload: UpdateCreditPayload) =>
     request<CardCredit>(`/credits/${creditId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  // Admin-only: edit a system credit (or any credit, regardless of owner).
+  // Backend gates on ``users.is_admin``.
+  adminUpdate: (creditId: number, payload: UpdateCreditPayload) =>
+    request<CardCredit>(`/admin/credits/${creditId}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
@@ -667,6 +676,9 @@ export interface CardInstance {
 export interface WalletCardCreditValue {
   library_credit_id: number
   value: number
+  // Column-level flag overrides; null inherits from the library credit.
+  excludes_first_year?: boolean | null
+  is_one_time?: boolean | null
 }
 
 export interface OwnedCardCreatePayload {
@@ -815,6 +827,9 @@ export interface ScenarioCardCreditOverride {
   library_credit_id: number
   credit_name: string
   value: number
+  // Column-level flag overrides; null inherits from the wallet/library tier.
+  excludes_first_year?: boolean | null
+  is_one_time?: boolean | null
 }
 
 export type HousingType = 'rent' | 'mortgage'
@@ -1062,7 +1077,11 @@ export const scenarioCardCreditApi = {
     scenarioId: number,
     instanceId: number,
     libraryCreditId: number,
-    payload: { value: number },
+    payload: {
+      value: number
+      excludes_first_year?: boolean | null
+      is_one_time?: boolean | null
+    },
   ) =>
     request<ScenarioCardCreditOverride>(
       `/scenarios/${scenarioId}/card-instances/${instanceId}/credits/${libraryCreditId}`,
