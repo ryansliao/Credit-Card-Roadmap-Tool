@@ -455,20 +455,20 @@ function HousingTypeEditor({
   onClose,
 }: HousingTypeEditorProps) {
   return (
-    <div className="px-3 py-3 bg-page/40">
+    <div className="px-4 py-3 bg-surface-2/40 border-t border-divider">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-[11px] text-ink-faint uppercase tracking-wider">
+        <p className="text-[11px] text-ink-faint uppercase tracking-wider font-semibold">
           Housing type
         </p>
         <button
           type="button"
           onClick={onClose}
-          className="text-xs text-ink-muted hover:text-ink"
+          className="text-xs text-ink-faint hover:text-ink transition-colors"
         >
           Close
         </button>
       </div>
-      <div className="inline-flex gap-0.5 bg-page/60 border border-divider rounded-md p-0.5">
+      <div className="inline-flex gap-0.5 bg-surface rounded-md p-0.5 shadow-card">
         {(['rent', 'mortgage'] as const).map((opt) => {
           const active = housingType === opt
           return (
@@ -481,8 +481,8 @@ function HousingTypeEditor({
               }}
               className={`text-xs font-medium px-3 py-1 rounded transition-colors capitalize ${
                 active
-                  ? 'bg-accent text-page'
-                  : 'text-ink-muted hover:bg-surface-2/60'
+                  ? 'bg-accent text-on-accent'
+                  : 'text-ink-muted hover:bg-surface-2'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {opt}
