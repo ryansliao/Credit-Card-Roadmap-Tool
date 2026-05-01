@@ -953,7 +953,7 @@ export default function RoadmapToolPage() {
           </div>
         ) : (
           <>
-            <div className="mb-4 shrink-0">
+            <div className="mb-2 shrink-0">
               <WalletSummaryStats
                 result={result?.wallet ?? null}
                 isCalculating={resultsMutation.isPending}
@@ -988,19 +988,7 @@ export default function RoadmapToolPage() {
             <div className="flex flex-col flex-1 min-h-0 min-w-0">
               <Tabs
                 items={[
-                  {
-                    id: 'timeline' as const,
-                    label: (
-                      <>
-                        Timeline
-                        {result?.wallet && (
-                          <span className="ml-1.5 text-[10.5px] font-medium bg-surface-2 text-ink-faint px-1.5 py-0.5 rounded-full tnum-mono">
-                            {result.wallet.card_results.filter((c) => c.selected).length}
-                          </span>
-                        )}
-                      </>
-                    ),
-                  },
+                  { id: 'timeline' as const, label: 'Timeline' },
                   { id: 'spend' as const, label: 'Spend' },
                 ]}
                 active={mainView}
