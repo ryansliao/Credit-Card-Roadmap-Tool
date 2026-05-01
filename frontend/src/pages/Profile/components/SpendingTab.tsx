@@ -109,12 +109,12 @@ export function SpendingTab() {
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="mb-5 shrink-0">
-        <h2 className="text-xl font-bold text-ink">Annual Spending</h2>
+        <h2 className="text-ink font-semibold text-xl tracking-tight">Annual Spending</h2>
         <p className="text-ink-muted text-sm mt-1">Track how much you spend in each category per year.</p>
       </div>
 
       <div className="flex gap-3 mb-4 shrink-0">
-        <div className="bg-surface-2 border border-divider rounded-xl px-4 py-3 flex-1 min-w-0 flex flex-col justify-center">
+        <div className="bg-surface rounded-xl shadow-card px-4 py-3 flex-1 min-w-0 flex flex-col justify-center">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1">
               <span className="text-[10px] text-ink-muted uppercase tracking-wider">Foreign Spend</span>
