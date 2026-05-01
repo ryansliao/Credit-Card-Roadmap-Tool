@@ -131,7 +131,7 @@ cards:
     multiplier: 3.0
   - category: Transit
     multiplier: 3.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 3.0
   travel_portals:
   - American Express Travel
@@ -239,7 +239,7 @@ cards:
     multiplier: 1.5
   - category: Dining
     multiplier: 2.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 2.0
   travel_portals:
   - Bank of America Travel
@@ -257,7 +257,7 @@ cards:
     multiplier: 1.5
   - category: Dining
     multiplier: 2.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 2.0
   travel_portals:
   - Bank of America Travel
@@ -337,7 +337,7 @@ cards:
     multiplier: 2.0
   - category: Hotels
     multiplier: 2.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 2.0
   - category: Dining
     multiplier: 3.0
@@ -604,7 +604,7 @@ cards:
     multiplier: 3.0
   - category: Drugstores
     multiplier: 3.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 4.0
     is_portal: true
     is_additive: true
@@ -757,7 +757,7 @@ cards:
     multiplier: 3.0
   - category: Drugstores
     multiplier: 3.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 5.0
     is_portal: true
   travel_portals:
@@ -780,9 +780,9 @@ cards:
     multiplier: 3.0
   - category: Streaming
     multiplier: 3.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 2.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 5.0
     is_portal: true
   travel_portals:
@@ -804,7 +804,7 @@ cards:
     multiplier: 3.0
   - category: Hotels
     multiplier: 4.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 8.0
     is_portal: true
   travel_portals:
@@ -825,7 +825,7 @@ cards:
     cap_period_months: 1
     top_n_categories: 1
   multipliers:
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 4.0
     is_portal: true
     is_additive: true
@@ -862,7 +862,7 @@ cards:
   - category: Transit
     multiplier: 5.0
     group_index: 0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 5.0
     group_index: 0
   travel_portals:
@@ -1275,7 +1275,7 @@ cards:
     multiplier: 6.0
   - category: Hotels
     multiplier: 12.0
-  - category: Online Shopping
+  - category: Misc. Online Shopping
     multiplier: 4.0
   travel_portals:
   - Hilton Honors
@@ -1298,7 +1298,7 @@ cards:
     multiplier: 5.0
   - category: Hotels
     multiplier: 10.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 5.0
   travel_portals:
   - IHG One
@@ -1453,7 +1453,7 @@ cards:
     multiplier: 2.0
   - category: Hotels
     multiplier: 2.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 2.0
   travel_portals:
   - United
@@ -1524,7 +1524,7 @@ cards:
     multiplier: 2.0
   - category: Streaming
     multiplier: 2.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 2.0
   travel_portals:
   - United
@@ -1591,7 +1591,7 @@ cards:
     multiplier: 3.0
   - category: Transit
     multiplier: 3.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 3.0
   travel_portals:
   - Wells Fargo Travel
@@ -1614,7 +1614,7 @@ cards:
     multiplier: 3.0
   - category: Hotels
     multiplier: 5.0
-  - category: Travel
+  - category: Misc. Travel
     multiplier: 3.0
   travel_portals:
   - Wells Fargo Travel

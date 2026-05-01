@@ -15,6 +15,8 @@ export function SpendingTab() {
   const queryClient = useQueryClient()
   const [editingAmountId, setEditingAmountId] = useState<number | null>(null)
   const [amountDraft, setAmountDraft] = useState('')
+  const [editingAnnualSpend, setEditingAnnualSpend] = useState(false)
+  const [annualSpendDraft, setAnnualSpendDraft] = useState('')
   // In-flight slider drag; null means "show committed value from wallet".
   const [draftForeignPct, setDraftForeignPct] = useState<number | null>(null)
   const [expandedCategoryId, setExpandedCategoryId] = useState<number | null>(null)
@@ -55,11 +57,6 @@ export function SpendingTab() {
     onSuccess: invalidate,
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => walletSpendApi.delete(id),
-    onSuccess: invalidate,
-  })
-
   function startEditAmount(item: WalletSpendItem) {
     setEditingAmountId(item.id)
     setAmountDraft(item.amount === 0 ? '' : String(Math.round(item.amount)))
@@ -73,14 +70,37 @@ export function SpendingTab() {
     setEditingAmountId(null)
   }
 
-  function requestDeleteItem(item: WalletSpendItem) {
-    const catName = item.user_spend_category?.name ?? 'Unknown'
-    if (window.confirm(`Remove "${catName}" from spend?`)) {
-      deleteMutation.mutate(item.id)
-    }
+  const totalSpend = spendItems.reduce((sum, item) => sum + (item.amount || 0), 0)
+
+  const allOtherItem = spendItems.find(
+    (item) =>
+      item.user_spend_category?.is_system &&
+      item.user_spend_category?.name === 'All Other',
+  )
+  const nonAllOtherTotal = spendItems.reduce(
+    (sum, item) => (item === allOtherItem ? sum : sum + (item.amount || 0)),
+    0,
+  )
+
+  function startEditAnnualSpend() {
+    setEditingAnnualSpend(true)
+    setAnnualSpendDraft(totalSpend === 0 ? '' : String(Math.round(totalSpend)))
   }
 
-  const totalSpend = spendItems.reduce((sum, item) => sum + (item.amount || 0), 0)
+  function commitAnnualSpend() {
+    if (!allOtherItem) {
+      setEditingAnnualSpend(false)
+      return
+    }
+    const val = annualSpendDraft === '' ? 0 : parseFloat(annualSpendDraft)
+    if (!isNaN(val) && val >= 0) {
+      const newAllOther = Math.max(0, Math.round(val - nonAllOtherTotal))
+      if (newAllOther !== allOtherItem.amount) {
+        updateMutation.mutate({ id: allOtherItem.id, amount: newAllOther })
+      }
+    }
+    setEditingAnnualSpend(false)
+  }
 
   if (isLoading) {
     return <div className="text-ink-faint text-sm">Loading spending...</div>
@@ -94,35 +114,6 @@ export function SpendingTab() {
       </div>
 
       <div className="flex gap-3 mb-4 shrink-0">
-        <div className="bg-surface-2 border border-divider rounded-xl p-3 text-center w-48 shrink-0 flex flex-col justify-center">
-          <p className="text-[10px] text-ink-muted uppercase tracking-wider">Total Annual Spend</p>
-          <p className="text-xl font-bold text-ink mt-0.5 tnum-mono">${totalSpend.toLocaleString()}</p>
-        </div>
-        <div className="bg-surface-2 border border-divider rounded-xl px-4 py-3 w-56 shrink-0 flex flex-col justify-center">
-          <p className="text-[10px] text-ink-muted uppercase tracking-wider mb-2">Housing Type</p>
-          <div className="grid grid-cols-2 gap-1 bg-page/60 rounded-md p-0.5">
-            {(['rent', 'mortgage'] as const).map((opt) => {
-              const active = housingType === opt
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  disabled={!walletReady || housingTypeMutation.isPending}
-                  onClick={() => {
-                    if (housingType !== opt) housingTypeMutation.mutate(opt)
-                  }}
-                  className={`text-xs font-medium py-1.5 rounded transition-colors capitalize ${
-                    active
-                      ? 'bg-accent text-page'
-                      : 'text-ink-muted hover:bg-surface-2/60'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {opt}
-                </button>
-              )
-            })}
-          </div>
-        </div>
         <div className="bg-surface-2 border border-divider rounded-xl px-4 py-3 flex-1 min-w-0 flex flex-col justify-center">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1">
@@ -248,10 +239,44 @@ export function SpendingTab() {
                 </tr>
               </thead>
               <tbody>
+                {allOtherItem && (
+                  <tr className="border-b border-surface-2 bg-surface-2/30">
+                    <td className="text-left px-3 py-2 text-ink font-semibold">
+                      Annual Spend
+                    </td>
+                    <td className="text-center px-2 py-2">
+                      <div className="relative w-full">
+                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none tnum-mono">$</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={editingAnnualSpend ? annualSpendDraft : totalSpend === 0 ? '' : Math.round(totalSpend)}
+                          placeholder="0"
+                          onFocus={startEditAnnualSpend}
+                          onChange={(e) => setAnnualSpendDraft(e.target.value.replace(/[^0-9]/g, ''))}
+                          onBlur={commitAnnualSpend}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur()
+                            if (e.key === 'Escape') {
+                              setEditingAnnualSpend(false)
+                              ;(e.currentTarget as HTMLInputElement).blur()
+                            }
+                          }}
+                          className="w-full min-w-0 bg-surface-2 border border-divider text-ink text-sm font-semibold tnum-mono text-right pl-4 pr-1.5 py-0.5 rounded outline-none focus:border-accent placeholder:text-ink-faint"
+                        />
+                      </div>
+                    </td>
+                    <td className="px-2 py-2" />
+                  </tr>
+                )}
                 {spendItems.map((item) => {
                   const isEditing = editingAmountId === item.id
                   const catName = item.user_spend_category?.name ?? 'Unknown'
-                  const isLocked = item.user_spend_category?.is_system && catName === 'All Other'
+                  const rowIsHousing = catName.trim().toLowerCase() === 'housing'
+                  const rowIsAllOther =
+                    item.user_spend_category?.is_system === true &&
+                    catName === 'All Other'
                   const isExpanded =
                     item.user_spend_category != null &&
                     expandedCategoryId === item.user_spend_category.id
@@ -259,151 +284,146 @@ export function SpendingTab() {
                     <Fragment key={item.id}>
                     <tr className="border-b border-surface-2/60 last:border-b-0">
                       <td className="text-left px-3 py-2 text-ink-muted">
-                        <div className="flex items-center gap-1.5">
-                          <span>{catName}</span>
-                          {item.user_spend_category && item.user_spend_category.mappings.length > 0 && (() => {
-                            const cat = item.user_spend_category
-                            const isHousing = cat.name.trim().toLowerCase() === 'housing'
-                            const isAllOther = cat.is_system && cat.name === 'All Other'
-                            const editable = !isHousing && !isAllOther
-
-                            if (editable) {
-                              const isOpen = expandedCategoryId === cat.id
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setExpandedCategoryId(isOpen ? null : cat.id)
-                                  }
-                                  className="shrink-0 p-0.5 rounded transition-colors text-ink-faint hover:text-ink-muted hover:bg-surface-2/50"
-                                  title={isOpen ? 'Close mix editor' : 'Edit category mix'}
-                                  aria-expanded={isOpen}
-                                  aria-controls={`weight-editor-${cat.id}`}
-                                >
-                                  <svg
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className={`transition-transform ${isOpen ? 'rotate-90' : ''}`}
-                                  >
-                                    <polyline points="9 18 15 12 9 6" />
-                                  </svg>
-                                </button>
-                              )
-                            }
-
-                            // Housing / All Other — keep the existing read-only info popover.
-                            const housingTarget = housingType === 'mortgage' ? 'Mortgage' : 'Rent'
-                            const displayMappings = isHousing
-                              ? cat.mappings.map((m) => ({
-                                  ...m,
-                                  default_weight:
-                                    m.earn_category.category.trim().toLowerCase() === housingTarget.toLowerCase()
-                                      ? 1
-                                      : 0,
-                                }))
-                              : cat.mappings
-                            return (
-                              <Popover
-                                side="bottom"
-                                portal
-                                trigger={({ onClick, ref }) => (
-                                  <button
-                                    ref={ref as React.RefObject<HTMLButtonElement>}
-                                    type="button"
-                                    onClick={onClick}
-                                    className="shrink-0 p-0.5 rounded transition-colors text-ink-faint hover:text-ink-muted hover:bg-surface-2/50"
-                                    title="View category details"
-                                  >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <circle cx="12" cy="12" r="10" />
-                                      <path d="M12 16v-4" />
-                                      <path d="M12 8h.01" />
-                                    </svg>
-                                  </button>
-                                )}
-                              >
-                                <div className="space-y-3 text-xs text-ink-muted leading-relaxed">
-                                  <h3 className="text-sm font-semibold text-ink">{cat.name}</h3>
-                                  {cat.description && <p>{cat.description}</p>}
-                                  <div>
-                                    <p className="text-[10px] text-ink-faint uppercase tracking-wider mb-1.5">Includes spend on</p>
-                                    <ul className="space-y-1">
-                                      {displayMappings
-                                        .sort((a, b) => b.default_weight - a.default_weight)
-                                        .map((mapping) => (
-                                          <li key={mapping.id} className="flex items-center justify-between">
-                                            <span className="text-ink-muted">{mapping.earn_category.category}</span>
-                                            <span className="text-ink-faint tnum-mono">
-                                              {Math.round(mapping.default_weight * 100)}%
-                                            </span>
-                                          </li>
-                                        ))}
-                                    </ul>
-                                    {isHousing && (
-                                      <p className="text-xs text-ink-faint mt-2">
-                                        Set by your Housing Type above. Switch to {housingTarget === 'Rent' ? 'Mortgage' : 'Rent'} to flip.
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              </Popover>
-                            )
-                          })()}
-                        </div>
+                        {catName}
                       </td>
                       <td className="text-center px-2 py-2">
                         <div className="relative w-full">
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none tnum-mono">$</span>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            value={isEditing ? amountDraft : item.amount === 0 ? '' : Math.round(item.amount)}
-                            placeholder="0"
-                            onFocus={() => startEditAmount(item)}
-                            onChange={(e) => setAmountDraft(e.target.value.replace(/[^0-9]/g, ''))}
-                            onBlur={() => commitAmount(item)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur()
-                              if (e.key === 'Escape') {
-                                setEditingAmountId(null)
-                                ;(e.currentTarget as HTMLInputElement).blur()
-                              }
-                            }}
-                            className="w-full min-w-0 bg-surface-2 border border-divider text-ink text-sm tnum-mono text-right pl-4 pr-1.5 py-0.5 rounded outline-none focus:border-accent placeholder:text-ink-faint"
-                          />
+                          {rowIsAllOther ? (
+                            <div className="w-full text-ink-muted text-sm tnum-mono text-right pl-4 pr-1.5 py-0.5">
+                              {item.amount === 0 ? '0' : Math.round(item.amount)}
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={isEditing ? amountDraft : item.amount === 0 ? '' : Math.round(item.amount)}
+                              placeholder="0"
+                              onFocus={() => startEditAmount(item)}
+                              onChange={(e) => setAmountDraft(e.target.value.replace(/[^0-9]/g, ''))}
+                              onBlur={() => commitAmount(item)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur()
+                                if (e.key === 'Escape') {
+                                  setEditingAmountId(null)
+                                  ;(e.currentTarget as HTMLInputElement).blur()
+                                }
+                              }}
+                              className="w-full min-w-0 bg-surface-2 border border-divider text-ink text-sm tnum-mono text-right pl-4 pr-1.5 py-0.5 rounded outline-none focus:border-accent placeholder:text-ink-faint"
+                            />
+                          )}
                         </div>
                       </td>
                       <td className="px-2 py-2 text-center">
-                        {!isLocked && (
-                          <button
-                            type="button"
-                            onClick={() => requestDeleteItem(item)}
-                            disabled={deleteMutation.isPending}
-                            className="p-1 rounded text-ink-faint hover:text-neg hover:bg-neg/10 transition-colors disabled:opacity-50"
-                            title="Remove"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
-                          </button>
-                        )}
+                        {item.user_spend_category && (() => {
+                          const cat = item.user_spend_category
+                          const isHousing = cat.name.trim().toLowerCase() === 'housing'
+                          const isAllOther = cat.is_system && cat.name === 'All Other'
+                          const editable = !isHousing && !isAllOther
+                          // Housing has no mappings (driven by wallet.housing_type toggle); always show its editor.
+                          if (!isHousing && cat.mappings.length === 0) return null
+
+                          if (editable || isHousing) {
+                            const isOpen = expandedCategoryId === cat.id
+                            return (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedCategoryId(isOpen ? null : cat.id)
+                                }
+                                className="p-1 rounded transition-colors text-ink-faint hover:text-ink-muted hover:bg-surface-2/50"
+                                title={
+                                  isOpen
+                                    ? isHousing
+                                      ? 'Close housing type'
+                                      : 'Close mix editor'
+                                    : isHousing
+                                      ? 'Edit housing type'
+                                      : 'Edit category mix'
+                                }
+                                aria-expanded={isOpen}
+                                aria-controls={`weight-editor-${cat.id}`}
+                              >
+                                <svg
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className={`transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                                >
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                              </button>
+                            )
+                          }
+
+                          // All Other — read-only info popover.
+                          return (
+                            <Popover
+                              side="bottom"
+                              portal
+                              trigger={({ onClick, ref }) => (
+                                <button
+                                  ref={ref as React.RefObject<HTMLButtonElement>}
+                                  type="button"
+                                  onClick={onClick}
+                                  className="p-1 rounded transition-colors text-ink-faint hover:text-ink-muted hover:bg-surface-2/50"
+                                  title="View category details"
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path d="M12 16v-4" />
+                                    <path d="M12 8h.01" />
+                                  </svg>
+                                </button>
+                              )}
+                            >
+                              <div className="space-y-3 text-xs text-ink-muted leading-relaxed">
+                                <h3 className="text-sm font-semibold text-ink">{cat.name}</h3>
+                                {cat.description && <p>{cat.description}</p>}
+                                <div>
+                                  <p className="text-[10px] text-ink-faint uppercase tracking-wider mb-1.5">Includes spend on</p>
+                                  <ul className="space-y-1">
+                                    {cat.mappings
+                                      .sort((a, b) => b.default_weight - a.default_weight)
+                                      .map((mapping) => (
+                                        <li key={mapping.id} className="flex items-center justify-between">
+                                          <span className="text-ink-muted">{mapping.earn_category.category}</span>
+                                          <span className="text-ink-faint tnum-mono">
+                                            {Math.round(mapping.default_weight * 100)}%
+                                          </span>
+                                        </li>
+                                      ))}
+                                  </ul>
+                                </div>
+                              </div>
+                            </Popover>
+                          )
+                        })()}
                       </td>
                     </tr>
                     {isExpanded && item.user_spend_category && (
                       <tr id={`weight-editor-${item.user_spend_category.id}`} className="border-b border-surface-2/60 last:border-b-0">
                         <td colSpan={3} className="p-0">
-                          <CategoryWeightEditor
-                            userCategoryId={item.user_spend_category.id}
-                            onClose={() => setExpandedCategoryId(null)}
-                          />
+                          {rowIsHousing ? (
+                            <HousingTypeEditor
+                              housingType={housingType}
+                              walletReady={walletReady}
+                              isPending={housingTypeMutation.isPending}
+                              onSelect={(h) => housingTypeMutation.mutate(h)}
+                              onClose={() => setExpandedCategoryId(null)}
+                            />
+                          ) : (
+                            <CategoryWeightEditor
+                              userCategoryId={item.user_spend_category.id}
+                              onClose={() => setExpandedCategoryId(null)}
+                            />
+                          )}
                         </td>
                       </tr>
                     )}
@@ -414,6 +434,61 @@ export function SpendingTab() {
             </table>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+interface HousingTypeEditorProps {
+  housingType: HousingType
+  walletReady: boolean
+  isPending: boolean
+  onSelect: (h: HousingType) => void
+  onClose: () => void
+}
+
+function HousingTypeEditor({
+  housingType,
+  walletReady,
+  isPending,
+  onSelect,
+  onClose,
+}: HousingTypeEditorProps) {
+  return (
+    <div className="px-3 py-3 bg-page/40">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[11px] text-ink-faint uppercase tracking-wider">
+          Housing type
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-xs text-ink-muted hover:text-ink"
+        >
+          Close
+        </button>
+      </div>
+      <div className="inline-flex gap-0.5 bg-page/60 border border-divider rounded-md p-0.5">
+        {(['rent', 'mortgage'] as const).map((opt) => {
+          const active = housingType === opt
+          return (
+            <button
+              key={opt}
+              type="button"
+              disabled={!walletReady || isPending}
+              onClick={() => {
+                if (housingType !== opt) onSelect(opt)
+              }}
+              className={`text-xs font-medium px-3 py-1 rounded transition-colors capitalize ${
+                active
+                  ? 'bg-accent text-page'
+                  : 'text-ink-muted hover:bg-surface-2/60'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {opt}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

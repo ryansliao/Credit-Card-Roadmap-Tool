@@ -2,21 +2,21 @@ spend_categories:
 - category: All Other
   is_system: true
   is_foreign_eligible: true
-- category: Travel
+- category: Misc. Travel
   is_foreign_eligible: true
 - category: Groceries
   is_foreign_eligible: true
 - category: Gas
   is_foreign_eligible: true
-- category: Online Shopping
+- category: Misc. Online Shopping
 - category: Streaming
 - category: Transit
   is_foreign_eligible: true
 - category: Hotels
-  parent: Travel
+  parent: Misc. Travel
   is_foreign_eligible: true
 - category: Airlines
-  parent: Travel
+  parent: Misc. Travel
   is_foreign_eligible: true
 - category: Drugstores
   is_foreign_eligible: true
@@ -33,37 +33,37 @@ spend_categories:
 - category: Phone
   parent: Utilities
 - category: Car Rentals
-  parent: Travel
+  parent: Misc. Travel
   is_foreign_eligible: true
 - category: EV Charging
   parent: Gas
 - category: Wholesale Clubs
 - category: Home Improvement
 - category: Cruises
-  parent: Travel
+  parent: Misc. Travel
   is_foreign_eligible: true
 - category: Online Groceries
   parent: Groceries
 - category: Dining
   is_foreign_eligible: true
 - category: Amazon
-  parent: Online Shopping
+  parent: Misc. Online Shopping
 - category: Target
 - category: Utilities
 - category: Lowe's
 - category: Movies
   is_foreign_eligible: true
 - category: PayPal
-  parent: Online Shopping
+  parent: Misc. Online Shopping
 - category: McDonald's
 - category: Flights
-  parent: Travel
+  parent: Misc. Travel
   is_foreign_eligible: true
 - category: Vacation Rentals
-  parent: Travel
+  parent: Misc. Travel
   is_foreign_eligible: true
 - category: Attractions
-  parent: Travel
+  parent: Misc. Travel
   is_foreign_eligible: true
 - category: Pet Supply Stores
 - category: Foreign Transactions

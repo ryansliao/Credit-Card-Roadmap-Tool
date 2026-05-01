@@ -93,7 +93,7 @@ class SpendCategory(Base):
 
     The parent_id/children hierarchy supports category grouping for rotating cards.
     is_system=True marks "All Other" and "Foreign Transactions" (cannot be deleted).
-    "All Other" is pinned to ID 1, "Travel" to ID 2.
+    "All Other" is pinned to ID 1, "Misc. Travel" to ID 2.
     """
 
     __tablename__ = "spend_categories"

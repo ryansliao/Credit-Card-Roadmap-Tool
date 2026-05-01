@@ -100,13 +100,15 @@ export function WalletSummaryStats({
     { months: 36, num: '3', unit: 'Y' },
   ]
 
-  const panelBorder = showStaleHint ? 'border-amber-700/60' : 'border-divider'
+  const panelClass = showStaleHint
+    ? 'border-warn/70 bg-warn/10'
+    : 'border-divider bg-surface'
 
   return (
     <div className="min-w-0 flex gap-4 items-stretch">
       {/* Left: summary stats panel */}
       <div
-        className={`flex-1 min-w-0 bg-surface border rounded-xl px-5 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
+        className={`flex-1 min-w-0 border rounded-xl px-5 py-2 flex flex-col justify-center transition-colors ${panelClass}`}
       >
         {resultsError ? (
           <div className="text-neg text-sm bg-red-950 border border-red-700 rounded-lg p-3">
@@ -300,7 +302,7 @@ export function WalletSummaryStats({
 
       {/* Middle: duration slider */}
       <div
-        className={`shrink-0 w-56 lg:w-64 bg-surface border rounded-xl px-4 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
+        className={`shrink-0 w-56 lg:w-64 border rounded-xl px-4 py-2 flex flex-col justify-center transition-colors ${panelClass}`}
       >
         <div className="flex items-baseline justify-between mb-2">
           <div className="flex items-center gap-1">
@@ -402,7 +404,7 @@ export function WalletSummaryStats({
       {/* Include SUBs toggle — segmented control, distinct from the per-card
           enable/disable pill toggle in the timeline. */}
       <div
-        className={`shrink-0 w-44 bg-surface border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
+        className={`shrink-0 w-44 border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelClass}`}
       >
         <div className="flex items-center justify-center gap-1 mb-2.5">
           <Eyebrow className="whitespace-nowrap">Sign-Up Bonuses</Eyebrow>
@@ -492,7 +494,7 @@ export function WalletSummaryStats({
       {/* Right: timeline legend */}
       {roadmap && (
         <div
-          className={`shrink-0 w-52 bg-surface border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelBorder}`}
+          className={`shrink-0 w-52 border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelClass}`}
         >
           <div className="grid grid-cols-[36px_1fr] gap-x-2 gap-y-1 items-center text-xs text-ink-faint">
             <span

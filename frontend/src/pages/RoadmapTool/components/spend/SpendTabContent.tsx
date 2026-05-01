@@ -639,7 +639,7 @@ export function SpendTabContent({
                       </span>
                     </td>
                     <td
-                      className={`text-center tnum-mono px-3 py-2 text-ink border-r border-divider/60 transition-opacity ${isStale ? 'opacity-50' : ''}`}
+                      className={`text-center tnum-mono px-3 py-2 text-ink border-r border-divider/60 transition-opacity ${isStale ? 'opacity-60' : ''}`}
                       title={isStale ? 'Out of date' : undefined}
                     >
                       {currentCard ? (
@@ -656,7 +656,7 @@ export function SpendTabContent({
                       )}
                     </td>
                     <td
-                      className={`px-3 py-2 text-ink transition-opacity ${isStale ? 'opacity-50' : ''}`}
+                      className={`px-3 py-2 text-ink transition-opacity ${isStale ? 'opacity-60' : ''}`}
                       title={isStale ? 'Out of date' : undefined}
                     >
                       {noTop ? (

@@ -273,7 +273,7 @@ export function CardRow({
             </div>
             {incomeLabel && (
               <div
-                className={`text-xs text-ink-faint truncate transition-opacity ${isStale ? 'opacity-50' : ''}`}
+                className={`text-xs text-ink-faint truncate transition-opacity ${isStale ? 'opacity-60' : ''}`}
                 title={isStale ? 'Out of date' : undefined}
               >
                 <span className="tnum-mono">{incomeLabel.number}</span>
@@ -402,7 +402,7 @@ export function CardRow({
                 : eafValue != null && eafValue > 0
                   ? 'text-neg'
                   : 'text-ink'
-            const labelClass = `${baseColor} ${isStale ? 'opacity-50' : ''}`
+            const labelClass = `${baseColor} ${isStale ? 'opacity-60' : ''}`
             const PADDING = 8
             const GAP = 4
             // When the container isn't measured yet, fall back to drawing the

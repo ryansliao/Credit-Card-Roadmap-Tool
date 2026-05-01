@@ -26,9 +26,9 @@
 **Spend Categories**
 `SpendCategory` is a hierarchical table (`parent_id`, `is_system`,
 `is_housing`, `is_foreign_eligible`). These are the card-level multiplier
-categories (e.g., "Travel", "Dining", "Hotels"). A locked "All Other" system
-category is auto-created and cannot be renamed or deleted (pinned to ID 1;
-"Travel" is pinned to ID 2). Reference data is managed via `/admin/*`
+categories (e.g., "Misc. Travel", "Dining", "Hotels"). A locked "All Other"
+system category is auto-created and cannot be renamed or deleted (pinned to
+ID 1; "Misc. Travel" is pinned to ID 2). Reference data is managed via `/admin/*`
 endpoints — there is no startup seeding.
 
 **Wallet Spend**
@@ -358,7 +358,7 @@ SUB minimum. Deducted from `total_points` and surfaced as
 - `Currency` — reward currency with default CPP, optional `converts_to_currency_id`
 - `Card` — annual fee, SUB value/spend/days, issuer, currency, network
 - `SpendCategory` — hierarchical card categories (`parent_id`, `is_system`,
-  `is_housing`, `is_foreign_eligible`); "All Other"=ID 1, "Travel"=ID 2
+  `is_housing`, `is_foreign_eligible`); "All Other"=ID 1, "Misc. Travel"=ID 2
 - `CardCategoryMultiplier` — earn rate per card/category
 - `CardMultiplierGroup` — top-N grouped category logic
 - `Credit` (system rows, `owner_user_id IS NULL`) + `CardCredit` join —

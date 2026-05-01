@@ -120,7 +120,7 @@ export function GroupSection({
           <div className="text-sm font-medium text-ink truncate">{group.name}</div>
           {(balanceLabel || incomeLabel || group.secondaries.length > 0) && (
             <div
-              className={`flex items-center gap-1.5 text-xs text-ink-muted truncate transition-opacity ${isStale ? 'opacity-50' : ''}`}
+              className={`flex items-center gap-1.5 text-xs text-ink-muted truncate transition-opacity ${isStale ? 'opacity-60' : ''}`}
               title={
                 isStale
                   ? 'Results are out of date — click Calculate to refresh'
