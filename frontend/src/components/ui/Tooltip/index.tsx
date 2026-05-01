@@ -72,7 +72,7 @@ export function Tooltip({ label, side = 'top', children }: Props) {
         transform,
         zIndex: 70,
       }}
-      className="px-2 py-1 rounded bg-ink text-page text-xs whitespace-nowrap pointer-events-none shadow-card"
+      className="px-2 py-1 rounded bg-[#0b0d11] text-white text-[11px] font-medium whitespace-nowrap pointer-events-none shadow-card"
     >
       {label}
     </span>
