@@ -100,12 +100,12 @@ export function CategoryWeightEditor({ userCategoryId, onClose }: Props) {
 
   if (isLoading) {
     return (
-      <div className="px-3 py-3 text-xs text-ink-faint">Loading defaults…</div>
+      <div className="px-4 py-3 bg-surface-2/40 border-t border-divider text-xs text-ink-faint">Loading defaults…</div>
     )
   }
   if (isError || !data) {
     return (
-      <div className="px-3 py-3 text-xs text-neg">
+      <div className="px-4 py-3 bg-surface-2/40 border-t border-divider text-xs text-neg">
         Failed to load category weights.
       </div>
     )
@@ -114,16 +114,16 @@ export function CategoryWeightEditor({ userCategoryId, onClose }: Props) {
   const totalIs100 = totalPct === 100
 
   return (
-    <div className="px-3 py-3 bg-page/40">
+    <div className="px-4 py-3 bg-surface-2/40 border-t border-divider">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-[11px] text-ink-faint uppercase tracking-wider">
+        <p className="text-[11px] text-ink-faint uppercase tracking-wider font-semibold">
           Mix for {data.user_category_name} spend
         </p>
         <button
           type="button"
           onClick={handleReset}
           disabled={resetMutation.isPending}
-          className="text-xs text-ink-muted hover:text-accent disabled:opacity-50"
+          className="text-xs text-ink-faint hover:text-accent disabled:opacity-50 transition-colors"
         >
           Reset to defaults
         </button>
@@ -147,7 +147,7 @@ export function CategoryWeightEditor({ userCategoryId, onClose }: Props) {
                     [row.earn_category_id]: e.target.value.replace(/[^0-9]/g, ''),
                   }))
                 }
-                className="w-full bg-surface-2 border border-divider text-ink text-sm tnum-mono text-right pr-5 pl-1.5 py-0.5 rounded outline-none focus:border-accent placeholder:text-ink-faint"
+                className="w-full bg-transparent border border-transparent hover:border-divider focus:bg-surface focus:border-accent focus:ring-2 focus:ring-accent-soft text-ink text-sm tnum-mono text-right pr-5 pl-1.5 py-1 rounded outline-none placeholder:text-ink-faint transition-colors"
               />
               <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none">
                 %
@@ -178,7 +178,7 @@ export function CategoryWeightEditor({ userCategoryId, onClose }: Props) {
             type="button"
             onClick={onClose}
             disabled={saveMutation.isPending}
-            className="text-xs text-ink-muted hover:text-ink px-2 py-1 rounded disabled:opacity-50"
+            className="text-xs text-ink-faint hover:text-ink px-2 py-1 rounded disabled:opacity-50 transition-colors"
           >
             Cancel
           </button>
@@ -186,7 +186,7 @@ export function CategoryWeightEditor({ userCategoryId, onClose }: Props) {
             type="button"
             onClick={handleSave}
             disabled={saveMutation.isPending}
-            className="text-xs font-medium bg-accent text-page hover:opacity-90 px-3 py-1 rounded disabled:opacity-50"
+            className="text-xs font-medium bg-accent text-on-accent hover:opacity-90 px-3 py-1 rounded disabled:opacity-50 transition-opacity"
           >
             {saveMutation.isPending ? 'Saving…' : 'Save'}
           </button>

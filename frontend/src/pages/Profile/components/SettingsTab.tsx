@@ -44,12 +44,12 @@ export function SettingsTab() {
   return (
     <div className="max-w-lg space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-ink">Settings</h2>
+        <h2 className="text-ink font-semibold text-xl tracking-tight">Settings</h2>
         <p className="text-ink-muted text-sm mt-1">Manage your account details.</p>
       </div>
 
       {/* Profile card */}
-      <div className="bg-surface-2 border border-divider rounded-xl overflow-hidden">
+      <div className="bg-surface border border-divider rounded-xl shadow-card overflow-hidden">
         {/* Avatar + name header */}
         <div className="flex items-center gap-4 px-6 py-5 border-b border-divider">
           {user.picture ? (
@@ -73,7 +73,7 @@ export function SettingsTab() {
         </div>
 
         {/* Fields */}
-        <div className="divide-y divide-divider/60">
+        <div className="divide-y divide-divider">
           {/* Username row */}
           <div className="px-6 py-4">
             <p className="text-[11px] text-ink-faint uppercase tracking-wider mb-2">Username</p>
@@ -89,11 +89,11 @@ export function SettingsTab() {
                   }}
                   autoFocus
                   maxLength={40}
-                  className="w-full bg-surface-2 border border-divider focus:border-accent text-ink text-sm rounded-lg px-3 py-2 outline-none"
+                  className="w-full bg-surface border border-divider hover:border-divider-strong focus:border-accent focus:ring-2 focus:ring-accent-soft text-ink text-sm rounded-md px-3 py-2 outline-none transition-colors"
                   placeholder="e.g. johndoe"
                 />
                 {usernameError && (
-                  <p className="text-neg text-xs">{usernameError}</p>
+                  <p className="text-[11px] text-neg">{usernameError}</p>
                 )}
                 <div className="flex items-center gap-2">
                   <Button
@@ -125,7 +125,7 @@ export function SettingsTab() {
                 <button
                   type="button"
                   onClick={startEditUsername}
-                  className="text-xs text-accent hover:opacity-80 transition-opacity shrink-0"
+                  className="text-xs font-medium text-accent hover:opacity-80 transition-opacity shrink-0"
                 >
                   {user.username ? 'Change' : 'Set username'}
                 </button>
@@ -154,8 +154,13 @@ export function SettingsTab() {
         <button
           type="button"
           onClick={signOut}
-          className="text-sm font-medium px-4 py-2 rounded-lg text-neg hover:opacity-80 border border-neg/40 hover:border-neg/60 transition-colors"
+          className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-md text-neg border border-neg/30 hover:bg-neg/10 hover:border-neg/50 transition-colors"
         >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
           Sign out
         </button>
       </div>

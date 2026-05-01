@@ -161,7 +161,7 @@ export default function Home() {
 
         {isAuthenticated && currentStep === 3 && (
           <section className="mb-20">
-            <div className="bg-surface rounded-xl shadow-card p-8 text-center">
+            <div className="bg-surface border border-divider rounded-xl shadow-card p-8 text-center">
               <h2 className="text-ink font-semibold text-xl mb-2 tracking-tight">All set.</h2>
               <p className="text-ink-muted text-sm mb-6 max-w-md mx-auto">
                 Open the Roadmap Tool to see your wallet's expected value, fees, and sign-up bonus deadlines.
@@ -206,7 +206,7 @@ function stepStatus(current: 1 | 2 | 3 | null, step: 1 | 2 | 3): StepStatus {
 
 function FeatureCard({ title, body }: { title: string; body: string }) {
   return (
-    <div className="bg-surface rounded-xl p-6 shadow-card">
+    <div className="bg-surface border border-divider rounded-xl p-6 shadow-card">
       <h3 className="text-ink font-semibold text-base mb-2">{title}</h3>
       <p className="text-ink-muted text-sm leading-relaxed">{body}</p>
     </div>
@@ -231,10 +231,10 @@ function StepCard({
   const isPending = status === 'pending'
 
   const containerClass = isCurrent
-    ? 'bg-surface ring-2 ring-accent shadow-card'
+    ? 'bg-surface border border-accent ring-2 ring-accent shadow-card'
     : isComplete
-    ? 'bg-surface-2 shadow-card'
-    : 'bg-surface shadow-card'
+    ? 'bg-surface-2 border border-divider shadow-card'
+    : 'bg-surface border border-divider shadow-card'
 
   const titleClass = isPending ? 'text-ink-muted' : 'text-ink'
   const bodyClass = isPending ? 'text-ink-faint' : 'text-ink-muted'

@@ -12,6 +12,7 @@ import { useCreditLibrary } from '../../../hooks/useCreditLibrary'
 import { queryKeys } from '../../../lib/queryKeys'
 import { formatMoney, formatPoints, pointsUnitLabel } from '../../../utils/format'
 import { Button } from '../../../components/ui/Button'
+import { Badge } from '../../../components/ui/Badge'
 import { CardPhoto } from './CardPhoto'
 
 type WalletCardModalOpen =
@@ -96,7 +97,7 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center justify-between mb-5 shrink-0">
         <div>
-          <h2 className="text-xl font-bold text-ink">My Cards</h2>
+          <h2 className="text-ink font-semibold text-xl tracking-tight">My Cards</h2>
           <p className="text-ink-muted text-sm mt-1">Manage the credit cards in your wallet.</p>
         </div>
         <Button
@@ -115,23 +116,23 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
 
       <div className="min-h-0 overflow-y-auto flex-1">
         {inWalletCards.length === 0 ? (
-          <div className="border-2 border-dashed border-divider/60 rounded-xl py-12 px-6 text-center">
+          <div className="border-2 border-dashed border-divider rounded-xl py-12 px-6 text-center">
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto text-ink-faint mb-3">
               <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
               <line x1="1" y1="10" x2="23" y2="10" />
             </svg>
-            <p className="text-ink-muted text-sm font-medium">No cards yet</p>
+            <p className="text-ink font-medium text-sm">No cards yet</p>
             <p className="text-ink-faint text-xs mt-1">Add your first credit card to your wallet.</p>
           </div>
         ) : (
-          <ul className="space-y-1.5">
+          <ul>
             {inWalletCards.map((inst) => {
               const cardName = inst.card_name ?? `Card #${inst.card_id}`
               const isPc = inst.product_change_date != null
               return (
                 <li
                   key={inst.id}
-                  className="group bg-surface-2/60 hover:bg-surface-2 border border-divider/40 hover:border-divider rounded-xl transition-colors cursor-pointer overflow-hidden"
+                  className="group bg-surface border border-divider hover:border-divider-strong hover:bg-surface-2 rounded-xl shadow-card transition-colors cursor-pointer overflow-hidden mb-2 last:mb-0"
                   onClick={() => setWalletCardModal({ mode: 'edit', instance: inst })}
                 >
                   <div className="flex items-center gap-3 px-3 py-2">
@@ -142,12 +143,7 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-ink truncate">{cardName}</p>
                         {isPc && (
-                          <span
-                            className="text-[10px] font-medium bg-violet-900/60 text-violet-300 border border-violet-700/50 rounded px-1.5 py-0.5 shrink-0"
-                            title={`Product change · ${inst.product_change_date}`}
-                          >
-                            PC
-                          </span>
+                          <Badge tone="info" title={`Product change · ${inst.product_change_date}`}>PC</Badge>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
@@ -195,7 +191,7 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
                     </div>
                     <button
                       type="button"
-                      className="p-1.5 rounded-lg text-ink-faint hover:text-neg hover:bg-neg/10 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 shrink-0"
+                      className="p-1.5 rounded-md text-ink-faint hover:text-neg hover:bg-neg/10 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 shrink-0"
                       aria-label="Remove card"
                       title="Remove"
                       onClick={(e) => {
