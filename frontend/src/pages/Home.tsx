@@ -73,18 +73,21 @@ export default function Home() {
           )}
         </section>
 
-        <section className="mb-24">
-          <div className="text-center mb-12">
-            <h2 className="text-xs uppercase tracking-widest text-ink-faint font-semibold mb-3">
+        <section className="mb-20">
+          <div className="text-center mb-10">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-ink-faint font-semibold mb-3">
               {isAuthenticated ? 'Your setup' : 'How it works'}
-            </h2>
-            <h3 className="text-3xl sm:text-4xl font-bold text-ink tracking-tight">
+            </p>
+            <h2
+              className="text-ink tracking-tight"
+              style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '-0.02em' }}
+            >
               {isAuthenticated && currentStep !== 3
                 ? "Let's get your wallet ready."
                 : 'Three steps, one number.'}
-            </h3>
+            </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <StepCard
               num={1}
               title="Add cards"
@@ -204,10 +207,10 @@ function StepCard({
   const isPending = status === 'pending'
 
   const containerClass = isCurrent
-    ? 'bg-surface border border-accent/50 ring-1 ring-accent/20'
+    ? 'bg-surface ring-2 ring-accent shadow-card'
     : isComplete
-    ? 'bg-surface/60 border border-divider'
-    : 'bg-surface border border-divider'
+    ? 'bg-surface-2 shadow-card'
+    : 'bg-surface shadow-card'
 
   const titleClass = isPending ? 'text-ink-muted' : 'text-ink'
   const bodyClass = isPending ? 'text-ink-faint' : 'text-ink-muted'
@@ -217,18 +220,18 @@ function StepCard({
       <div className="flex items-center justify-between mb-4">
         <StepBadge num={num} status={status} />
         {isComplete && (
-          <span className="text-xs font-medium text-pos">Done</span>
+          <span className="text-[11px] font-medium text-pos uppercase tracking-wider">Done</span>
         )}
         {isCurrent && (
-          <span className="text-xs font-medium text-accent">Next up</span>
+          <span className="text-[11px] font-medium text-accent uppercase tracking-wider">Next up</span>
         )}
       </div>
-      <h4 className={`font-semibold mb-2 ${titleClass}`}>{title}</h4>
+      <h3 className={`text-base font-semibold mb-2 ${titleClass}`}>{title}</h3>
       <p className={`text-sm leading-relaxed ${bodyClass}`}>{body}</p>
       {cta && (
         <Link
           to={cta.to}
-          className="inline-block mt-5 text-sm font-medium text-accent hover:text-accent transition-colors"
+          className="inline-block mt-5 text-sm font-medium text-accent hover:opacity-80 transition-opacity"
         >
           {cta.label}
         </Link>
@@ -240,7 +243,7 @@ function StepCard({
 function StepBadge({ num, status }: { num: number; status: StepStatus }) {
   if (status === 'complete') {
     return (
-      <div className="w-8 h-8 rounded-full bg-pos/10 border border-pos/30 text-pos flex items-center justify-center">
+      <div className="w-8 h-8 rounded-full bg-pos/10 text-pos flex items-center justify-center">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="20 6 9 17 4 12" />
         </svg>
@@ -249,13 +252,13 @@ function StepBadge({ num, status }: { num: number; status: StepStatus }) {
   }
   const toneClass =
     status === 'current'
-      ? 'bg-accent/15 border-accent/40 text-accent'
+      ? 'bg-accent text-on-accent'
       : status === 'pending'
-      ? 'bg-surface-2/60 border-divider text-ink-faint'
-      : 'bg-accent/10 border-accent/30 text-accent'
+      ? 'bg-surface-2 text-ink-faint'
+      : 'bg-accent/10 text-accent'
   return (
     <div
-      className={`w-8 h-8 rounded-full border flex items-center justify-center text-sm font-bold ${toneClass}`}
+      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${toneClass}`}
     >
       {num}
     </div>
