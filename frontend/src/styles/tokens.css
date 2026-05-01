@@ -1,5 +1,5 @@
 /* ──────────────────────────────────────────────────────────────────────
-   Design Tokens — Editorial Direction
+   Design Tokens — Soft-Dashboard Direction
    Single source of truth for color, type, spacing, radii, shadows.
    Light values on :root; dark overrides on [data-theme="dark"].
    Tailwind v4 picks these up via @theme inline in index.css.
