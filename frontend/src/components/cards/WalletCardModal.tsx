@@ -21,7 +21,6 @@ import { Button } from '../ui/Button'
 import { formatMoney, today } from '../../utils/format'
 import { useCardLibrary } from '../../pages/RoadmapTool/hooks/useCardLibrary'
 import { useCreditLibrary } from '../../hooks/useCreditLibrary'
-import { useAuth } from '../../auth/useAuth'
 import {
   buildWalletCardFields,
   walletFormToFutureUpdatePayload,
