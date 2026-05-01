@@ -25,13 +25,13 @@ export function Field({ label, hint, error, required = false, children }: Props)
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-ink">
+      <label htmlFor={id} className="block text-xs font-medium text-ink-muted">
         {label}
         {required && <span className="text-neg ml-1">*</span>}
       </label>
       {child}
-      {hint && !error && <p id={hintId} className="text-xs text-ink-muted">{hint}</p>}
-      {error && <p id={errorId} className="text-xs text-neg">{error}</p>}
+      {hint && !error && <p id={hintId} className="text-[11px] text-ink-faint">{hint}</p>}
+      {error && <p id={errorId} className="text-[11px] text-neg">{error}</p>}
     </div>
   )
 }
