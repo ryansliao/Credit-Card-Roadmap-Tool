@@ -229,18 +229,18 @@ export function SpendingTab() {
             <p className="text-ink-faint text-xs mt-1">Add categories to track your annual spending.</p>
           </div>
         ) : (
-          <div className="rounded-lg border border-surface-2 overflow-hidden">
+          <div className="rounded-xl bg-surface shadow-card overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-page">
+              <thead className="bg-surface">
                 <tr>
-                  <th className="text-left text-sm font-semibold text-ink-muted px-3 py-2.5 border-b border-surface-2">Category</th>
-                  <th className="text-center text-sm font-semibold text-ink-muted px-3 py-2.5 border-b border-surface-2 w-40">Annual Spend</th>
-                  <th className="w-12 border-b border-surface-2" />
+                  <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-4 py-3 border-b border-divider">Category</th>
+                  <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-4 py-3 border-b border-divider w-40">Annual Spend</th>
+                  <th className="w-12 border-b border-divider" />
                 </tr>
               </thead>
               <tbody>
                 {allOtherItem && (
-                  <tr className="border-b border-surface-2 bg-surface-2/30">
+                  <tr className="border-b border-divider bg-surface-2/40">
                     <td className="text-left px-3 py-2 text-ink font-semibold">
                       Annual Spend
                     </td>
@@ -263,7 +263,7 @@ export function SpendingTab() {
                               ;(e.currentTarget as HTMLInputElement).blur()
                             }
                           }}
-                          className="w-full min-w-0 bg-surface-2 border border-divider text-ink text-sm font-semibold tnum-mono text-right pl-4 pr-1.5 py-0.5 rounded outline-none focus:border-accent placeholder:text-ink-faint"
+                          className="w-full min-w-0 bg-transparent border border-transparent hover:border-divider focus:bg-surface focus:border-accent focus:ring-2 focus:ring-accent-soft text-ink text-sm font-semibold tnum-mono text-right pl-4 pr-1.5 py-1 rounded outline-none placeholder:text-ink-faint transition-colors"
                         />
                       </div>
                     </td>
@@ -282,11 +282,11 @@ export function SpendingTab() {
                     expandedCategoryId === item.user_spend_category.id
                   return (
                     <Fragment key={item.id}>
-                    <tr className="border-b border-surface-2/60 last:border-b-0">
-                      <td className="text-left px-3 py-2 text-ink-muted">
+                    <tr className="border-b border-divider/60 last:border-b-0 hover:bg-surface-2/40 transition-colors">
+                      <td className="text-left px-4 py-2.5 text-ink text-sm">
                         {catName}
                       </td>
-                      <td className="text-center px-2 py-2">
+                      <td className="text-center px-3 py-2">
                         <div className="relative w-full">
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none tnum-mono">$</span>
                           {rowIsAllOther ? (
@@ -310,7 +310,7 @@ export function SpendingTab() {
                                   ;(e.currentTarget as HTMLInputElement).blur()
                                 }
                               }}
-                              className="w-full min-w-0 bg-surface-2 border border-divider text-ink text-sm tnum-mono text-right pl-4 pr-1.5 py-0.5 rounded outline-none focus:border-accent placeholder:text-ink-faint"
+                              className="w-full min-w-0 bg-transparent border border-transparent hover:border-divider focus:bg-surface focus:border-accent focus:ring-2 focus:ring-accent-soft text-ink text-sm tnum-mono text-right pl-4 pr-1.5 py-1 rounded outline-none placeholder:text-ink-faint transition-colors"
                             />
                           )}
                         </div>
