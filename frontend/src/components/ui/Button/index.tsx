@@ -14,9 +14,9 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT: Record<Exclude<Variant, 'icon'>, string> = {
-  primary:   'bg-accent text-on-accent hover:opacity-90',
-  warn:      'bg-warn text-page hover:opacity-90',
-  secondary: 'bg-transparent text-ink border border-ink hover:bg-surface-2',
+  primary:   'bg-accent text-on-accent shadow-card hover:opacity-90',
+  warn:      'bg-warn text-on-accent hover:opacity-90',
+  secondary: 'bg-surface text-ink border border-divider-strong hover:bg-surface-2',
   ghost:     'bg-transparent text-ink hover:bg-surface-2',
   link:      'bg-transparent text-accent underline underline-offset-2 hover:opacity-80 px-0 py-0',
 }
@@ -50,7 +50,7 @@ export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
     <button
       ref={ref}
       disabled={disabled || loading}
-      className={`inline-flex items-center gap-2 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${base} ${SIZE[size]} ${variantClass} ${className}`}
+      className={`inline-flex items-center gap-2 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-soft ${base} ${SIZE[size]} ${variantClass} ${className}`}
       {...rest}
     >
       {loading && (
