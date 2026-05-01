@@ -41,11 +41,14 @@ export default function Home() {
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-6xl mx-auto px-4 py-12 sm:py-20">
         <section className="text-center mb-24">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-medium mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2 text-ink-faint text-xs font-medium mb-6">
             <span className="w-1.5 h-1.5 rounded-full bg-accent" />
             Credit card wallet optimizer
           </div>
-          <h1 className="text-5xl sm:text-6xl font-bold text-ink mb-6 tracking-tight leading-[1.05]">
+          <h1
+            className="text-ink mb-6 tracking-tight leading-[1.05]"
+            style={{ fontSize: 'clamp(40px, 7vw, 56px)', fontWeight: 700, letterSpacing: '-0.02em' }}
+          >
             Stop guessing which cards
             <br className="hidden sm:block" />
             <span className="text-accent"> actually pay off.</span>
@@ -58,7 +61,7 @@ export default function Home() {
           {heroCta ? (
             <Link
               to={heroCta.to}
-              className="inline-block px-7 py-3.5 bg-accent hover:bg-accent text-page font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-accent text-on-accent font-semibold text-sm rounded-lg shadow-card hover:opacity-90 transition-opacity"
             >
               {heroCta.label}
             </Link>
