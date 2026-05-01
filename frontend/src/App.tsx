@@ -62,9 +62,16 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-8 text-center">
-          <h2 className="text-xl font-bold text-neg mb-2">Something went wrong</h2>
-          <p className="text-ink-muted text-sm mb-4">{this.state.error?.message}</p>
+        <div className="max-w-md mx-auto py-20 text-center space-y-4">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-neg/10 text-neg">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <Heading level={3}>Something went wrong</Heading>
+          <p className="text-ink-muted text-sm">{this.state.error?.message ?? 'Unknown error'}</p>
           <Button
             variant="secondary"
             onClick={() => this.setState({ hasError: false, error: null })}
@@ -280,25 +287,24 @@ function UsernamePrompt() {
         <Heading level={3}>Choose a username</Heading>
       </ModalHeader>
       <ModalBody>
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <p className="text-ink-muted text-sm">Pick a username to finish setting up your account.</p>
-          <Field label="Username">
+          <Field label="Username" hint="3–30 characters: letters, numbers, underscores">
             <Input
               type="text"
-              placeholder="Username"
+              placeholder="username"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               required
               minLength={3}
               maxLength={30}
               pattern="[a-zA-Z0-9_]{3,30}"
-              title="3-30 characters: letters, numbers, underscores"
               autoFocus
             />
           </Field>
-          {error && <p className="text-neg text-xs mt-2">{error}</p>}
+          {error && <p className="text-[11px] text-neg">{error}</p>}
           <Button variant="primary" type="submit" className="w-full" loading={loading}>
-            {loading ? '...' : 'Continue'}
+            Continue
           </Button>
         </form>
       </ModalBody>
@@ -372,7 +378,7 @@ function AuthGate({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="text-center text-slate-400 py-20">Loading...</div>
+      <div className="text-center text-ink-faint py-20 text-sm">Loading…</div>
     )
   }
 
