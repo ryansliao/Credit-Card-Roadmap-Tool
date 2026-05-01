@@ -296,10 +296,10 @@ export function WalletSummaryStats({
               role="radio"
               aria-checked={includeSubs}
               onClick={() => onIncludeSubsChange(true)}
-              className={`px-3 py-1 rounded transition-colors ${
+              className={`px-3 py-1 rounded border transition-colors ${
                 includeSubs
-                  ? 'bg-surface text-ink shadow-card'
-                  : 'text-ink-faint hover:text-ink'
+                  ? 'bg-surface border-divider-strong text-ink shadow-card'
+                  : 'border-transparent text-ink-faint hover:text-ink'
               }`}
             >
               Include
@@ -309,10 +309,10 @@ export function WalletSummaryStats({
               role="radio"
               aria-checked={!includeSubs}
               onClick={() => onIncludeSubsChange(false)}
-              className={`px-3 py-1 rounded transition-colors ${
+              className={`px-3 py-1 rounded border transition-colors ${
                 !includeSubs
-                  ? 'bg-surface text-ink shadow-card'
-                  : 'text-ink-faint hover:text-ink'
+                  ? 'bg-surface border-divider-strong text-ink shadow-card'
+                  : 'border-transparent text-ink-faint hover:text-ink'
               }`}
             >
               Exclude
