@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { walletApi, walletSpendApi } from '../api/client'
 import { queryKeys } from '../lib/queryKeys'
-import { Surface } from '../components/ui/Surface'
 
 type StepStatus = 'pending' | 'current' | 'complete' | 'preview'
 
@@ -120,16 +119,19 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="mb-4">
-          <div className="text-center mb-12">
-            <h2 className="text-xs uppercase tracking-widest text-ink-faint font-semibold mb-3">
+        <section className="mb-20">
+          <div className="text-center mb-10">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-ink-faint font-semibold mb-3">
               Under the hood
-            </h2>
-            <h3 className="text-3xl sm:text-4xl font-bold text-ink tracking-tight">
+            </p>
+            <h2
+              className="text-ink tracking-tight"
+              style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '-0.02em' }}
+            >
               More than a multiplier lookup.
-            </h3>
+            </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             <FeatureCard
               title="Optimal allocation"
               body="An LP solver places each category's spend on the highest-value card, respecting top-N groups, rotating 5% pools, and currency transfers."
@@ -182,10 +184,10 @@ function stepStatus(current: 1 | 2 | 3 | null, step: 1 | 2 | 3): StepStatus {
 
 function FeatureCard({ title, body }: { title: string; body: string }) {
   return (
-    <Surface variant="panel" padding="none" className="rounded-xl p-6 hover:border-divider transition-colors">
-      <h4 className="text-ink font-semibold mb-2">{title}</h4>
+    <div className="bg-surface rounded-xl p-6 shadow-card">
+      <h3 className="text-ink font-semibold text-base mb-2">{title}</h3>
       <p className="text-ink-muted text-sm leading-relaxed">{body}</p>
-    </Surface>
+    </div>
   )
 }
 
