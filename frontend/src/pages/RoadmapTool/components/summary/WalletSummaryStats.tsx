@@ -81,10 +81,15 @@ export function WalletSummaryStats({
         (s, c) => s + (cardEafWindow(c, includeSubs) ?? 0),
         0,
       ),
-      totalAnnualPoints: selected.reduce(
-        (s, c) => s + (cardAnnualPointIncomeWindow(c, includeSubs) ?? 0),
-        0,
-      ),
+      // Convert per-card raw point income to dollars via each card's CPP,
+      // then sum. cardAnnualPointIncomeWindow returns points (effective-
+      // currency units); summing dollars across mixed currencies gives the
+      // wallet-wide value at each currency's own redemption rate.
+      totalAnnualPoints: selected.reduce((s, c) => {
+        const pts = cardAnnualPointIncomeWindow(c, includeSubs) ?? 0
+        const cpp = c.cents_per_point ?? 1
+        return s + (pts * cpp) / 100
+      }, 0),
     }
   }, [result, includeSubs])
 
