@@ -157,37 +157,39 @@ function SignInDropdown() {
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={() => { setOpen(!open); resetForm() }}
-        className="text-sm font-medium px-5 py-2 rounded-full opacity-75 hover:opacity-100 hover:bg-black/15 transition-colors"
       >
         Sign in
-      </button>
+      </Button>
       {open && (
-        <div className="absolute right-0 mt-2 w-72 bg-surface border border-divider rounded-xl shadow-xl z-50">
+        <div className="absolute right-0 mt-2 w-80 bg-surface rounded-xl shadow-modal z-50 overflow-hidden">
           <div className="flex border-b border-divider">
             <button
               type="button"
               onClick={() => { setTab('signin'); setError('') }}
-              className={`flex-1 text-sm py-2.5 font-medium transition-colors ${
-                tab === 'signin'
-                  ? 'text-ink border-b-2 border-accent'
-                  : 'text-ink-muted hover:text-ink'
+              className={`relative flex-1 text-sm py-3 font-medium transition-colors ${
+                tab === 'signin' ? 'text-ink' : 'text-ink-faint hover:text-ink'
               }`}
             >
               Sign in
+              {tab === 'signin' && (
+                <span aria-hidden="true" className="absolute left-0 right-0 -bottom-px h-0.5 bg-accent" />
+              )}
             </button>
             <button
               type="button"
               onClick={() => { setTab('signup'); setError('') }}
-              className={`flex-1 text-sm py-2.5 font-medium transition-colors ${
-                tab === 'signup'
-                  ? 'text-ink border-b-2 border-accent'
-                  : 'text-ink-muted hover:text-ink'
+              className={`relative flex-1 text-sm py-3 font-medium transition-colors ${
+                tab === 'signup' ? 'text-ink' : 'text-ink-faint hover:text-ink'
               }`}
             >
-              Sign up
+              Create account
+              {tab === 'signup' && (
+                <span aria-hidden="true" className="absolute left-0 right-0 -bottom-px h-0.5 bg-accent" />
+              )}
             </button>
           </div>
 
@@ -228,7 +230,7 @@ function SignInDropdown() {
               required
               minLength={tab === 'signup' ? 8 : undefined}
             />
-            {error && <p className="text-neg text-xs">{error}</p>}
+            {error && <p className="text-[11px] text-neg">{error}</p>}
             <Button
               variant="primary"
               type="submit"
@@ -242,7 +244,7 @@ function SignInDropdown() {
           <div className="px-4 pb-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="flex-1 border-t border-divider" />
-              <span className="text-ink-faint text-xs">or</span>
+              <span className="text-[11px] uppercase tracking-wider text-ink-faint font-medium">or</span>
               <div className="flex-1 border-t border-divider" />
             </div>
             <div ref={googleBtnRef} />
