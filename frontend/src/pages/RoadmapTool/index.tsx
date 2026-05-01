@@ -36,6 +36,7 @@ import { DeleteCardWarningModal } from '../../components/cards/DeleteCardWarning
 import { WalletSummaryStats } from './components/summary/WalletSummaryStats'
 import { Popover } from '../../components/ui/Popover'
 import { Button } from '../../components/ui/Button'
+import { Tabs } from '../../components/ui/Tabs'
 import { WalletTimelineChart } from './components/timeline/WalletTimelineChart'
 import { SpendPanel } from './components/spend/SpendPanel'
 import { ApplicationRuleWarningModal } from './components/ApplicationRuleWarningModal'
@@ -984,52 +985,28 @@ export default function RoadmapToolPage() {
                 }
               />
             </div>
-            <div className="flex flex-1 min-h-0 min-w-0 items-stretch">
-              {/* Binder-style tabs sit outside the panel on the left. */}
-              <div className="shrink-0 flex flex-col gap-1 pt-6 z-10">
-                {([
+            <div className="flex flex-col flex-1 min-h-0 min-w-0">
+              <Tabs
+                items={[
                   {
-                    key: 'timeline' as const,
-                    label: 'Timeline',
-                    icon: (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="3" y1="6" x2="21" y2="6" />
-                        <line x1="3" y1="12" x2="14" y2="12" />
-                        <line x1="3" y1="18" x2="18" y2="18" />
-                      </svg>
+                    id: 'timeline' as const,
+                    label: (
+                      <>
+                        Timeline
+                        {result?.wallet && (
+                          <span className="ml-1.5 text-[10.5px] font-medium bg-surface-2 text-ink-faint px-1.5 py-0.5 rounded-full tnum-mono">
+                            {result.wallet.card_results.filter((c) => c.selected).length}
+                          </span>
+                        )}
+                      </>
                     ),
                   },
-                  {
-                    key: 'spend' as const,
-                    label: 'Spend',
-                    icon: (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="12" y1="1" x2="12" y2="23" />
-                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                      </svg>
-                    ),
-                  },
-                ]).map((tab) => {
-                  const isActive = mainView === tab.key
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => setMainView(tab.key)}
-                      className={`px-2 py-3 rounded-l-md border border-r-0 transition-colors ${
-                        isActive
-                          ? 'bg-surface text-accent border-divider -mr-px'
-                          : 'bg-surface-2/70 text-ink-muted border-divider hover:text-ink hover:bg-surface-2'
-                      }`}
-                      aria-pressed={isActive}
-                      aria-label={tab.label}
-                      title={tab.label}
-                    >
-                      {tab.icon}
-                    </button>
-                  )
-                })}
-              </div>
+                  { id: 'spend' as const, label: 'Spend' },
+                ]}
+                active={mainView}
+                onChange={(id) => setMainView(id as 'timeline' | 'spend')}
+                className="mb-3 shrink-0"
+              />
 
               <div className="flex-1 min-w-0 min-h-0">
                 {mainView === 'timeline' ? (
