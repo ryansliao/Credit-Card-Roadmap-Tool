@@ -42,7 +42,7 @@ export function Drawer({
 
   if (!open) return null
 
-  const sideClass = side === 'right' ? 'right-0 border-l' : 'left-0 border-r'
+  const sideClass = side === 'right' ? 'right-0 rounded-l-xl' : 'left-0 rounded-r-xl'
 
   return createPortal(
     <div
@@ -55,7 +55,7 @@ export function Drawer({
         aria-modal="true"
         aria-label={ariaLabel}
         onClick={(e) => e.stopPropagation()}
-        className={`absolute top-0 bottom-0 ${sideClass} ${WIDTH_CLASS[width]} bg-surface border-divider shadow-modal overflow-y-auto ${className}`}
+        className={`absolute top-0 bottom-0 ${sideClass} ${WIDTH_CLASS[width]} bg-surface shadow-modal overflow-y-auto ${className}`}
       >
         {children}
       </div>
