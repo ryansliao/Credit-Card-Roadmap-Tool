@@ -53,7 +53,7 @@ export function Modal({
         aria-modal="true"
         aria-label={ariaLabel}
         onClick={(e) => e.stopPropagation()}
-        className={`bg-surface border border-divider rounded-xl shadow-modal w-full ${SIZE_CLASS[size]} ${className}`}
+        className={`bg-surface rounded-xl shadow-modal w-full ${SIZE_CLASS[size]} ${className}`}
       >
         {children}
       </div>
@@ -69,19 +69,19 @@ interface SectionProps {
 
 export function ModalHeader({ children, className = '' }: SectionProps) {
   return (
-    <div className={`px-6 pt-5 pb-3 border-b border-divider ${className}`}>
+    <div className={`px-5 pt-5 pb-4 border-b border-divider ${className}`}>
       {children}
     </div>
   )
 }
 
 export function ModalBody({ children, className = '' }: SectionProps) {
-  return <div className={`px-6 py-5 ${className}`}>{children}</div>
+  return <div className={`px-5 py-5 ${className}`}>{children}</div>
 }
 
 export function ModalFooter({ children, className = '' }: SectionProps) {
   return (
-    <div className={`px-6 py-4 border-t border-divider flex items-center justify-end gap-2 ${className}`}>
+    <div className={`px-5 py-4 border-t border-divider flex items-center justify-end gap-2 ${className}`}>
       {children}
     </div>
   )
