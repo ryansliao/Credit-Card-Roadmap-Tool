@@ -246,19 +246,19 @@ export function WalletTimelineChart({
                       ref={ref as React.RefObject<HTMLButtonElement>}
                       type="button"
                       onClick={onClick}
-                      className={`shrink-0 transition-colors ${
+                      className={`shrink-0 rounded p-1 transition-colors ${
                         maxSeverity === 'violated'
-                          ? 'text-neg'
+                          ? 'text-neg hover:bg-neg/10'
                           : maxSeverity === 'in_effect'
-                            ? 'text-warn'
-                            : 'text-accent'
+                            ? 'text-warn hover:bg-warn/10'
+                            : 'text-accent hover:bg-accent/10'
                       }`}
                       aria-label="Application rule status"
                       title="Application rule status"
                     >
                       <svg
-                        width="22"
-                        height="22"
+                        width="26"
+                        height="26"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"

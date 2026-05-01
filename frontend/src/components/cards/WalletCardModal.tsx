@@ -1013,7 +1013,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
               type="button"
               disabled={saveDisabled}
               onClick={() => void handlePrimary()}
-              className="p-2 rounded-lg text-ink-muted hover:text-accent hover:bg-accent/10 disabled:opacity-40 disabled:hover:text-ink-muted disabled:hover:bg-transparent transition-colors"
+              className="p-2 rounded-lg text-ink-muted hover:text-accent disabled:opacity-40 disabled:hover:text-ink-muted transition-colors"
               title={isAddFlow ? 'Add card' : 'Save changes'}
               aria-label={isAddFlow ? 'Add card' : 'Save changes'}
             >
@@ -1469,7 +1469,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               <button
                                 type="button"
                                 onClick={() => setCreditOptionsOpen(isExpanded ? null : libId)}
-                                className="text-ink-faint hover:text-ink-muted shrink-0"
+                                className="text-ink-faint hover:text-ink hover:bg-surface-2 rounded p-0.5 shrink-0 transition-colors"
                               >
                                 <svg
                                   className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
@@ -1526,7 +1526,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                     })
                                     if (isExpanded) setCreditOptionsOpen(null)
                                   }}
-                                  className="text-ink-faint hover:text-neg p-0.5 rounded hover:bg-surface-2/80"
+                                  className="text-ink-faint hover:text-neg hover:bg-neg/10 p-0.5 rounded transition-colors"
                                   title="Remove credit"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1652,7 +1652,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               setShowCreditPicker(false)
                               setCreditSearch('')
                             }}
-                            className="p-1 text-ink-faint hover:text-ink-muted rounded hover:bg-surface-2/80"
+                            className="p-1 text-ink-faint hover:text-ink hover:bg-surface-2 rounded transition-colors"
                             title="Cancel"
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

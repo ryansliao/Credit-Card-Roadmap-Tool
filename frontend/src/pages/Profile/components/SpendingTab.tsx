@@ -332,7 +332,7 @@ export function SpendingTab() {
                                 onClick={() =>
                                   setExpandedCategoryId(isOpen ? null : cat.id)
                                 }
-                                className="p-1 rounded transition-colors text-ink-faint hover:text-ink-muted hover:bg-surface-2/50"
+                                className="p-1 rounded transition-colors text-ink-faint hover:text-ink hover:bg-surface-2"
                                 title={
                                   isOpen
                                     ? isHousing
@@ -372,7 +372,7 @@ export function SpendingTab() {
                                   ref={ref as React.RefObject<HTMLButtonElement>}
                                   type="button"
                                   onClick={onClick}
-                                  className="p-1 rounded transition-colors text-ink-faint hover:text-ink-muted hover:bg-surface-2/50"
+                                  className="p-1 rounded transition-colors text-ink-faint hover:text-ink hover:bg-surface-2"
                                   title="View category details"
                                 >
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

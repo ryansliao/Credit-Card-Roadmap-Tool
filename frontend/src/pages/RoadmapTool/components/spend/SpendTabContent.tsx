@@ -432,11 +432,14 @@ export function SpendTabContent({
     }
     rotatingEntries.sort((a, b) => b.ros - a.ros)
     portalEntries.sort((a, b) => b.ros - a.ros)
-    // Cap portal to a single entry per category — showing every card whose
-    // portal beats baseline top gets noisy on Travel-heavy buckets where
-    // several cards qualify, and only the highest one is actionable.
+    // Cap rotating and portal to a single entry per category — when several
+    // cards rotate the same earn category (e.g. Discover IT + Chase Freedom
+    // Flex both rotate Amazon/PayPal under "Online Retail"), only the
+    // highest-cpp card is actionable; the rest are dominated noise. Same
+    // reasoning applies to portal-elevated picks on Travel-heavy buckets.
+    const topRotating = rotatingEntries.length > 0 ? [rotatingEntries[0]] : []
     const topPortal = portalEntries.length > 0 ? [portalEntries[0]] : []
-    return [...overrideEntries, ...baselineEntries, ...rotatingEntries, ...topPortal]
+    return [...overrideEntries, ...baselineEntries, ...topRotating, ...topPortal]
   }
 
   function formatRos(ros: number): string {
@@ -596,7 +599,7 @@ export function SpendTabContent({
                                   ref={ref as React.RefObject<HTMLButtonElement>}
                                   type="button"
                                   onClick={onClick}
-                                  className="shrink-0 p-0.5 rounded transition-colors text-ink-faint hover:text-ink-muted hover:bg-surface-2/50"
+                                  className="shrink-0 p-0.5 rounded transition-colors text-ink-faint hover:text-ink hover:bg-surface-2"
                                   title="View category details"
                                 >
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

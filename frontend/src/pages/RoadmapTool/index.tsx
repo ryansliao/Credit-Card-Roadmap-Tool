@@ -837,6 +837,7 @@ export default function RoadmapToolPage() {
               trigger={({ onClick, ref }) => (
                 <Button
                   variant="icon"
+                  tone="info"
                   size="sm"
                   onClick={onClick}
                   ref={ref as React.RefObject<HTMLButtonElement>}

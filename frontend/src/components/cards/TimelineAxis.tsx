@@ -20,21 +20,21 @@ export function TimelineAxis({ yearTicks, endMs }: TimelineAxisProps) {
       {yearTicks.map((t) => (
         <div
           key={t.label}
-          className="tnum-mono absolute top-0 bottom-0 flex items-center text-[11px] text-ink-faint"
+          className="tnum-mono absolute top-0 bottom-0 flex items-center text-xs text-ink-faint"
           style={{ left: `${t.pct}%`, transform: 'translateX(-50%)' }}
         >
           {t.label}
         </div>
       ))}
       <div
-        className="absolute flex items-center text-[11px] text-ink-muted font-semibold whitespace-nowrap pointer-events-none"
-        style={{ left: 0, top: 0, bottom: 0, transform: 'translateX(-50%)' }}
+        className="absolute flex items-center text-xs text-ink-muted font-semibold whitespace-nowrap pointer-events-none"
+        style={{ left: 0, top: 0, bottom: 0 }}
       >
         Today
       </div>
       <div
-        className="absolute flex items-center text-[11px] text-ink-muted font-semibold whitespace-nowrap pointer-events-none"
-        style={{ right: 0, top: 0, bottom: 0, transform: 'translateX(50%)' }}
+        className="absolute flex items-center text-xs text-ink-muted font-semibold whitespace-nowrap pointer-events-none"
+        style={{ right: 0, top: 0, bottom: 0 }}
         title={new Date(endMs).toLocaleDateString(undefined, {
           year: 'numeric',
           month: 'short',

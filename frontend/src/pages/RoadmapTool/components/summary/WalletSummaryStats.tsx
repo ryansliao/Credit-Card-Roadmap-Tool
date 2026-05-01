@@ -406,7 +406,7 @@ export function WalletSummaryStats({
       <div
         className={`shrink-0 w-44 border rounded-xl px-3 py-2 flex flex-col justify-center transition-colors ${panelClass}`}
       >
-        <div className="flex items-center justify-center gap-1 mb-2.5">
+        <div className="flex items-center justify-center gap-1 mb-1.5">
           <Eyebrow className="whitespace-nowrap">Sign-Up Bonuses</Eyebrow>
           <Popover
             side="bottom"

@@ -140,7 +140,7 @@ export function ScenarioPicker({
                   e.stopPropagation()
                   onDelete(s.id)
                 }}
-                className="opacity-0 group-hover:opacity-100 p-1 text-ink-faint hover:text-neg rounded transition-opacity"
+                className="opacity-0 group-hover:opacity-100 p-1 text-ink-faint hover:text-neg hover:bg-neg/10 rounded transition-opacity"
                 title="Delete scenario"
                 aria-label="Delete scenario"
               >
