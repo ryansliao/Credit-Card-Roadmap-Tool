@@ -955,7 +955,6 @@ export default function RoadmapToolPage() {
             <div className="mb-4 shrink-0">
               <WalletSummaryStats
                 result={result?.wallet ?? null}
-                roadmap={roadmap ?? null}
                 isCalculating={resultsMutation.isPending}
                 isStale={isStale}
                 hasNeverCalculated={hasNeverCalculated}
