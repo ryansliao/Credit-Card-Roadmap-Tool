@@ -191,6 +191,34 @@ export default function Styleguide() {
             <Stat label="Credits" value={<Money value={700} />} />
             <Stat label="Annual fee" value={<Money value={-795} tone="auto" />} align="right" />
           </div>
+          <Stat
+            label="Effective annual fee"
+            info={
+              <Popover
+                side="bottom"
+                portal
+                trigger={({ onClick, ref }) => (
+                  <button
+                    ref={ref as React.RefObject<HTMLButtonElement>}
+                    type="button"
+                    onClick={onClick}
+                    aria-label="What is effective annual fee?"
+                    className="text-ink-faint hover:text-accent transition-colors"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </button>
+                )}
+              >
+                <p className="text-xs text-ink-muted">The wallet's true yearly cost (or value) once rewards, credits, and SUBs are netted out against fees.</p>
+              </Popover>
+            }
+            value={<Money value={-1247} feature tone="auto" />}
+            caption="net wallet value · 1.5y projection"
+          />
         </section>
         <section id="surface" className="space-y-4">
           <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-faint">Surface</p>

@@ -1,5 +1,5 @@
 /* ──────────────────────────────────────────────────────────────────────
-   Design Tokens — Editorial Direction
+   Design Tokens — Soft-Dashboard Direction
    Single source of truth for color, type, spacing, radii, shadows.
    Light values on :root; dark overrides on [data-theme="dark"].
    Tailwind v4 picks these up via @theme inline in index.css.
@@ -7,25 +7,23 @@
 
 :root {
   /* Color — semantic, role-based naming */
-  --color-page: #faf8f3;
+  --color-page: #f3f4f6;
   --color-surface: #ffffff;
-  --color-surface-2: #ebe5d6;
-  --color-ink: #1a1a1a;
-  --color-ink-muted: #3f3a30;
-  --color-ink-faint: #6e6452;
-  --color-divider: #c2b89e;
-  --color-divider-strong: #a09173;
+  --color-surface-2: #fafbfc;
+  --color-ink: #111827;
+  --color-ink-muted: #4b5563;
+  --color-ink-faint: #9ca3af;
+  --color-divider: #e5e7eb;
+  --color-divider-strong: #d1d5db;
   --color-accent: #b04256;
   --color-accent-soft: rgba(176, 66, 86, 0.10);
-  --color-on-accent: #faf8f3;
+  --color-on-accent: #ffffff;
   --color-pos: #15803d;
   --color-neg: #a83210;
   --color-warn: #9e5d09;
   --color-info: #3a4f6e;
 
-  /* Chart palette — saturated, distinct from muted semantic tokens.
-     Used by the wallet timeline bars. SUB segments share --chart-points
-     and differentiate via a diagonal-stripe overlay. */
+  /* Chart palette — distinct from semantic tokens */
   --chart-cash: #16a34a;
   --chart-points: #4f46e5;
 
@@ -35,9 +33,9 @@
   --radius-lg: 12px;
   --radius-xl: 14px;
 
-  /* Shadows — editorial leans on borders, shadows are minimal */
-  --shadow-card: 0 1px 2px rgba(26, 26, 26, 0.04), 0 1px 1px rgba(26, 26, 26, 0.02);
-  --shadow-modal: 0 24px 48px -12px rgba(26, 26, 26, 0.18), 0 8px 16px -8px rgba(26, 26, 26, 0.10);
+  /* Shadows — soft-dashboard leans on shadows for depth */
+  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.04), 0 1px 3px rgba(17, 24, 39, 0.04);
+  --shadow-modal: 0 24px 48px -12px rgba(17, 24, 39, 0.18), 0 8px 16px -8px rgba(17, 24, 39, 0.10);
 
   /* Type families (Tailwind picks up --font-* automatically) */
   --font-display: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -46,16 +44,17 @@
 }
 
 [data-theme="dark"] {
-  --color-page: #1a1a1a;
-  --color-surface: #232323;
-  --color-surface-2: #2e2e2e;
+  --color-page: #0b0d11;
+  --color-surface: #16181d;
+  --color-surface-2: #1d2026;
   --color-ink: #f5f5f5;
   --color-ink-muted: #a3a3a3;
-  --color-ink-faint: #737373;
-  --color-divider: #2e2e2e;
-  --color-divider-strong: #4a4a4a;
+  --color-ink-faint: #6b7280;
+  --color-divider: #2a2e36;
+  --color-divider-strong: #3b424d;
   --color-accent: #b04256;
   --color-accent-soft: rgba(176, 66, 86, 0.22);
+  --color-on-accent: #ffffff;
   --color-pos: #22c55e;
   --color-neg: #e08c79;
   --color-warn: #d6a85b;
@@ -63,6 +62,6 @@
 
   --chart-points: #818cf8;
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 1px rgba(0, 0, 0, 0.2);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25);
   --shadow-modal: 0 24px 48px -12px rgba(0, 0, 0, 0.6), 0 8px 16px -8px rgba(0, 0, 0, 0.4);
 }

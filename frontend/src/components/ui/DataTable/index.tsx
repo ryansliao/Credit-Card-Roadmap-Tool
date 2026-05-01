@@ -19,7 +19,7 @@ function Body({ children, className = '', ...rest }: HTMLAttributes<HTMLTableSec
 
 function Row({ children, className = '', ...rest }: HTMLAttributes<HTMLTableRowElement>) {
   return (
-    <tr {...rest} className={`border-b border-divider last:border-b-0 ${className}`}>
+    <tr {...rest} className={`border-b border-divider last:border-b-0 hover:bg-surface-2 transition-colors ${className}`}>
       {children}
     </tr>
   )
