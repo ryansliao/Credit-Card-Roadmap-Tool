@@ -158,6 +158,28 @@ export default function Home() {
             />
           </div>
         </section>
+
+        {isAuthenticated && currentStep === 3 && (
+          <section className="mb-20">
+            <div className="bg-surface rounded-xl shadow-card p-8 text-center">
+              <h2 className="text-ink font-semibold text-xl mb-2 tracking-tight">All set.</h2>
+              <p className="text-ink-muted text-sm mb-6 max-w-md mx-auto">
+                Open the Roadmap Tool to see your wallet's expected value, fees, and sign-up bonus deadlines.
+              </p>
+              <Link
+                to="/roadmap-tool"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-accent text-on-accent font-semibold text-sm rounded-lg shadow-card hover:opacity-90 transition-opacity"
+              >
+                Open Roadmap Tool →
+              </Link>
+            </div>
+          </section>
+        )}
+        <footer className="border-t border-divider pt-6 pb-4 text-[11px] text-ink-faint text-center">
+          <p>
+            Wallet projections are estimates only. Cents-per-point values are configurable defaults — adjust to match your redemption habits in the Roadmap Tool.
+          </p>
+        </footer>
       </div>
     </div>
   )
