@@ -36,7 +36,6 @@ import { DeleteCardWarningModal } from '../../components/cards/DeleteCardWarning
 import { WalletSummaryStats } from './components/summary/WalletSummaryStats'
 import { Popover } from '../../components/ui/Popover'
 import { Button } from '../../components/ui/Button'
-import { Heading } from '../../components/ui/Heading'
 import { WalletTimelineChart } from './components/timeline/WalletTimelineChart'
 import { SpendPanel } from './components/spend/SpendPanel'
 import { ApplicationRuleWarningModal } from './components/ApplicationRuleWarningModal'
@@ -812,142 +811,131 @@ export default function RoadmapToolPage() {
           <div className="h-full bg-accent animate-progress-bar" />
         </div>
       )}
-      <header className="mb-3 shrink-0 flex items-start justify-between gap-4">
-        <div className="min-w-0 flex items-center gap-3">
-          <Heading level={3} className="shrink-0">Roadmap Tool</Heading>
-          {scenarios.length > 0 && (
-            <ScenarioPicker
-              scenarios={scenarios}
-              currentId={activeScenarioId}
-              onSelect={(id) => navigate(`/roadmap-tool/scenarios/${id}`)}
-              onAddScenario={() => {
-                setAddScenarioError(null)
-                setShowAddScenario(true)
-              }}
-              onMakeDefault={(id) => makeDefaultMutation.mutate(id)}
-              onDelete={(id) => deleteScenarioMutation.mutate(id)}
-            />
-          )}
-        </div>
+      <header className="mb-4 shrink-0 flex items-center gap-3">
+        <h1 className="text-base font-bold text-ink tracking-tight shrink-0">Roadmap</h1>
+        {scenarios.length > 0 && (
+          <ScenarioPicker
+            scenarios={scenarios}
+            currentId={activeScenarioId}
+            onSelect={(id) => navigate(`/roadmap-tool/scenarios/${id}`)}
+            onAddScenario={() => {
+              setAddScenarioError(null)
+              setShowAddScenario(true)
+            }}
+            onMakeDefault={(id) => makeDefaultMutation.mutate(id)}
+            onDelete={(id) => deleteScenarioMutation.mutate(id)}
+          />
+        )}
         {activeScenarioId != null && (
-          <div className="shrink-0 flex items-center gap-2">
-            <Popover
-              side="bottom"
-              portal
-              trigger={({ onClick, ref }) => (
-                <Button
-                  variant="icon"
-                  tone="info"
-                  size="sm"
-                  onClick={onClick}
-                  ref={ref as React.RefObject<HTMLButtonElement>}
-                  aria-label="How the roadmap is calculated"
-                  title="How the roadmap is calculated"
-                >
-                  <svg
-                    width={18}
-                    height={18}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="16" x2="12" y2="12" />
-                    <line x1="12" y1="8" x2="12.01" y2="8" />
-                  </svg>
-                </Button>
-              )}
-            >
-              <div className="space-y-3 text-xs text-ink-muted leading-relaxed">
-                <p className="text-sm font-semibold text-ink">How the Roadmap Is Calculated</p>
+          <Popover
+            side="bottom"
+            portal
+            trigger={({ onClick, ref }) => (
+              <button
+                ref={ref as React.RefObject<HTMLButtonElement>}
+                type="button"
+                onClick={onClick}
+                aria-label="How the roadmap is calculated"
+                title="How the roadmap is calculated"
+                className="w-7 h-7 inline-flex items-center justify-center rounded-md text-ink-faint hover:text-ink hover:bg-surface-2 transition-colors"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+              </button>
+            )}
+          >
+            <div className="space-y-3 text-xs text-ink-muted leading-relaxed">
+              <p className="text-sm font-semibold text-ink">How the Roadmap Is Calculated</p>
+              <p>
+                The roadmap turns your cards, spending, and time horizon into the
+                rewards, credits, fees, and Effective Annual Fee shown in the
+                summary and timeline.
+              </p>
+              <div>
+                <p className="text-ink-muted font-medium mb-1">How spend is assigned</p>
                 <p>
-                  The roadmap turns your cards, spending, and time horizon into the
-                  rewards, credits, fees, and Effective Annual Fee shown in the
-                  summary and timeline.
-                </p>
-                <div>
-                  <p className="text-ink-muted font-medium mb-1">How spend is assigned</p>
-                  <p>
-                    Each dollar of spend goes to the card that earns the most on
-                    it — no double-counting across cards. If two cards tie, the
-                    dollars are split evenly.
-                  </p>
-                </div>
-                <div>
-                  <p className="text-ink-muted font-medium mb-1">Time periods</p>
-                  <p>
-                    Cards only count during the periods they're active. When cards
-                    have start or close dates, the projection is split into chunks
-                    at every card open, close, sign-up-bonus earn, and cap reset,
-                    and each chunk uses only the cards active then.
-                  </p>
-                </div>
-                <div>
-                  <p className="text-ink-muted font-medium mb-1">Sign-up bonuses</p>
-                  <p>
-                    Sign-up bonus minimums are tracked against their deadlines,
-                    and priority spend is steered to cards with an active offer.
-                    The lost value from diverting that spend away from your
-                    best-earning card is deducted.
-                  </p>
-                </div>
-                <div>
-                  <p className="text-ink-muted font-medium mb-1">Fees, credits, and perks</p>
-                  <p>
-                    Annual fees, statement credits, first-year fee waivers, and
-                    one-time perks all get netted in. One-time perks are spread
-                    evenly across the projection years.
-                  </p>
-                </div>
-                <div>
-                  <p className="text-ink-muted font-medium mb-1">Foreign spend and point upgrades</p>
-                  <p>
-                    Foreign-transaction rules split eligible categories into
-                    domestic and foreign portions, favoring no-fee Visa/Mastercard
-                    cards abroad. Point-upgrade pairings (e.g. Freedom + Sapphire)
-                    boost the value of cards whose points become worth more when
-                    paired with a premium card in the wallet.
-                  </p>
-                </div>
-                <p className="text-ink-faint">
-                  For more detail on any of the numbers, click the ⓘ next to the
-                  stat you're curious about.
+                  Each dollar of spend goes to the card that earns the most on
+                  it — no double-counting across cards. If two cards tie, the
+                  dollars are split evenly.
                 </p>
               </div>
-            </Popover>
-            <Button
-              variant={
-                resultsMutation.isPending
-                  ? 'primary'
-                  : isStale
-                  ? 'warn'
-                  : 'primary'
-              }
-              size="sm"
-              loading={resultsMutation.isPending}
-              disabled={resultsMutation.isPending || !needsCalculate}
-              onClick={calculateNow}
-              aria-live="polite"
-              title={
-                isStale
-                  ? 'Results are out of date — click to recalculate'
-                  : needsInitialCalc
-                  ? 'Click to calculate your scenario'
-                  : 'Results are up to date'
-              }
-            >
-              {resultsMutation.isPending
-                ? 'Calculating…'
-                : needsCalculate
-                ? isStale
-                  ? 'Recalculate'
-                  : 'Calculate'
-                : 'Up to Date'}
-            </Button>
-          </div>
+              <div>
+                <p className="text-ink-muted font-medium mb-1">Time periods</p>
+                <p>
+                  Cards only count during the periods they're active. When cards
+                  have start or close dates, the projection is split into chunks
+                  at every card open, close, sign-up-bonus earn, and cap reset,
+                  and each chunk uses only the cards active then.
+                </p>
+              </div>
+              <div>
+                <p className="text-ink-muted font-medium mb-1">Sign-up bonuses</p>
+                <p>
+                  Sign-up bonus minimums are tracked against their deadlines,
+                  and priority spend is steered to cards with an active offer.
+                  The lost value from diverting that spend away from your
+                  best-earning card is deducted.
+                </p>
+              </div>
+              <div>
+                <p className="text-ink-muted font-medium mb-1">Fees, credits, and perks</p>
+                <p>
+                  Annual fees, statement credits, first-year fee waivers, and
+                  one-time perks all get netted in. One-time perks are spread
+                  evenly across the projection years.
+                </p>
+              </div>
+              <div>
+                <p className="text-ink-muted font-medium mb-1">Foreign spend and point upgrades</p>
+                <p>
+                  Foreign-transaction rules split eligible categories into
+                  domestic and foreign portions, favoring no-fee Visa/Mastercard
+                  cards abroad. Point-upgrade pairings (e.g. Freedom + Sapphire)
+                  boost the value of cards whose points become worth more when
+                  paired with a premium card in the wallet.
+                </p>
+              </div>
+              <p className="text-ink-faint">
+                For more detail on any of the numbers, click the ⓘ next to the
+                stat you're curious about.
+              </p>
+            </div>
+          </Popover>
+        )}
+        <div className="flex-1" />
+        {activeScenarioId != null && (
+          <Button
+            variant={
+              resultsMutation.isPending
+                ? 'primary'
+                : isStale
+                ? 'warn'
+                : 'primary'
+            }
+            size="sm"
+            loading={resultsMutation.isPending}
+            disabled={resultsMutation.isPending || !needsCalculate}
+            onClick={calculateNow}
+            aria-live="polite"
+            title={
+              isStale
+                ? 'Results are out of date — click to recalculate'
+                : needsInitialCalc
+                ? 'Click to calculate your scenario'
+                : 'Results are up to date'
+            }
+          >
+            {resultsMutation.isPending
+              ? 'Calculating…'
+              : needsCalculate
+              ? isStale
+                ? 'Recalculate'
+                : 'Calculate'
+              : 'Up to Date'}
+          </Button>
         )}
       </header>
 
