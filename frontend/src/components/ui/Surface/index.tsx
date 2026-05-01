@@ -12,8 +12,8 @@ interface Props extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
 }
 
 const VARIANT_CLASS: Record<Variant, string> = {
-  panel: 'bg-surface shadow-card',
-  inset: 'bg-surface-2',
+  panel: 'bg-surface border border-divider shadow-card',
+  inset: 'bg-surface-2 border border-divider',
   bare: 'bg-transparent',
 }
 const PADDING_CLASS: Record<Padding, string> = {
