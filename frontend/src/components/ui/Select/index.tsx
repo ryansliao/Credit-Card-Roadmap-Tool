@@ -14,7 +14,7 @@ export const Select = forwardRef<HTMLSelectElement, Props>(function Select(
       <select
         ref={ref}
         aria-invalid={invalid || undefined}
-        className={`w-full appearance-none bg-surface text-ink border ${invalid ? 'border-neg' : 'border-divider'} rounded-md pl-3 pr-8 py-2 text-sm focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft ${className}`}
+        className={`w-full appearance-none bg-surface text-ink border ${invalid ? 'border-neg' : 'border-divider'} rounded-md pl-3 pr-8 py-2 text-sm hover:border-divider-strong focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft transition-colors ${className}`}
         {...rest}
       >
         {children}
