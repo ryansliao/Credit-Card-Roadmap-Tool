@@ -289,17 +289,17 @@ export function WalletSummaryStats({
           <div
             role="radiogroup"
             aria-label="Include Sign Up Bonuses in calculation"
-            className="inline-flex bg-surface-2 border border-divider-strong rounded-md p-0.5 text-xs font-medium"
+            className="inline-flex bg-divider rounded-md p-0.5 text-xs font-medium"
           >
             <button
               type="button"
               role="radio"
               aria-checked={includeSubs}
               onClick={() => onIncludeSubsChange(true)}
-              className={`px-3 py-1 rounded border transition-colors ${
+              className={`px-3 py-1 rounded transition-colors ${
                 includeSubs
-                  ? 'bg-surface border-divider-strong text-ink shadow-card'
-                  : 'border-transparent text-ink-faint hover:text-ink'
+                  ? 'bg-surface text-ink shadow-card'
+                  : 'text-ink-muted hover:text-ink'
               }`}
             >
               Include
@@ -309,10 +309,10 @@ export function WalletSummaryStats({
               role="radio"
               aria-checked={!includeSubs}
               onClick={() => onIncludeSubsChange(false)}
-              className={`px-3 py-1 rounded border transition-colors ${
+              className={`px-3 py-1 rounded transition-colors ${
                 !includeSubs
-                  ? 'bg-surface border-divider-strong text-ink shadow-card'
-                  : 'border-transparent text-ink-faint hover:text-ink'
+                  ? 'bg-surface text-ink shadow-card'
+                  : 'text-ink-muted hover:text-ink'
               }`}
             >
               Exclude
