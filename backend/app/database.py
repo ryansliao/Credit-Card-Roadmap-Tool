@@ -6,9 +6,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, Mapper
 from sqlalchemy.schema import CreateColumn
 
 load_dotenv()
@@ -56,6 +56,16 @@ AsyncSessionLocal = async_sessionmaker(
 
 class Base(DeclarativeBase):
     pass
+
+
+# Fetch server-generated values (server_default, server_onupdate, onupdate)
+# back into the in-memory instance during flush via OUTPUT/RETURNING. Without
+# this, accessing such columns (e.g. updated_at) after commit triggers a
+# synchronous lazy-load that fails under AsyncSession (MissingGreenlet) when
+# serialising via Pydantic.
+@event.listens_for(Mapper, "mapper_configured")
+def _enable_eager_defaults(mapper: Mapper, _class: type) -> None:
+    mapper.eager_defaults = True
 
 
 async def get_db() -> AsyncSession:
