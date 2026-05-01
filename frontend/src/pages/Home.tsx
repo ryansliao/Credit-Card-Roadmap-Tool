@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { walletApi, walletSpendApi } from '../api/client'
 import { queryKeys } from '../lib/queryKeys'
-import { Surface } from '../components/ui/Surface'
 
 type StepStatus = 'pending' | 'current' | 'complete' | 'preview'
 
@@ -41,11 +40,14 @@ export default function Home() {
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-6xl mx-auto px-4 py-12 sm:py-20">
         <section className="text-center mb-24">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-medium mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2 text-ink-faint text-xs font-medium mb-6">
             <span className="w-1.5 h-1.5 rounded-full bg-accent" />
             Credit card wallet optimizer
           </div>
-          <h1 className="text-5xl sm:text-6xl font-bold text-ink mb-6 tracking-tight leading-[1.05]">
+          <h1
+            className="text-ink mb-6 tracking-tight leading-[1.05]"
+            style={{ fontSize: 'clamp(40px, 7vw, 56px)', fontWeight: 700, letterSpacing: '-0.02em' }}
+          >
             Stop guessing which cards
             <br className="hidden sm:block" />
             <span className="text-accent"> actually pay off.</span>
@@ -58,7 +60,7 @@ export default function Home() {
           {heroCta ? (
             <Link
               to={heroCta.to}
-              className="inline-block px-7 py-3.5 bg-accent hover:bg-accent text-page font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-accent text-on-accent font-semibold text-sm rounded-lg shadow-card hover:opacity-90 transition-opacity"
             >
               {heroCta.label}
             </Link>
@@ -70,18 +72,21 @@ export default function Home() {
           )}
         </section>
 
-        <section className="mb-24">
-          <div className="text-center mb-12">
-            <h2 className="text-xs uppercase tracking-widest text-ink-faint font-semibold mb-3">
+        <section className="mb-20">
+          <div className="text-center mb-10">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-ink-faint font-semibold mb-3">
               {isAuthenticated ? 'Your setup' : 'How it works'}
-            </h2>
-            <h3 className="text-3xl sm:text-4xl font-bold text-ink tracking-tight">
+            </p>
+            <h2
+              className="text-ink tracking-tight"
+              style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '-0.02em' }}
+            >
               {isAuthenticated && currentStep !== 3
                 ? "Let's get your wallet ready."
                 : 'Three steps, one number.'}
-            </h3>
+            </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <StepCard
               num={1}
               title="Add cards"
@@ -114,16 +119,19 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="mb-4">
-          <div className="text-center mb-12">
-            <h2 className="text-xs uppercase tracking-widest text-ink-faint font-semibold mb-3">
+        <section className="mb-20">
+          <div className="text-center mb-10">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-ink-faint font-semibold mb-3">
               Under the hood
-            </h2>
-            <h3 className="text-3xl sm:text-4xl font-bold text-ink tracking-tight">
+            </p>
+            <h2
+              className="text-ink tracking-tight"
+              style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '-0.02em' }}
+            >
               More than a multiplier lookup.
-            </h3>
+            </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             <FeatureCard
               title="Optimal allocation"
               body="An LP solver places each category's spend on the highest-value card, respecting top-N groups, rotating 5% pools, and currency transfers."
@@ -150,6 +158,28 @@ export default function Home() {
             />
           </div>
         </section>
+
+        {isAuthenticated && currentStep === 3 && (
+          <section className="mb-20">
+            <div className="bg-surface rounded-xl shadow-card p-8 text-center">
+              <h2 className="text-ink font-semibold text-xl mb-2 tracking-tight">All set.</h2>
+              <p className="text-ink-muted text-sm mb-6 max-w-md mx-auto">
+                Open the Roadmap Tool to see your wallet's expected value, fees, and sign-up bonus deadlines.
+              </p>
+              <Link
+                to="/roadmap-tool"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-accent text-on-accent font-semibold text-sm rounded-lg shadow-card hover:opacity-90 transition-opacity"
+              >
+                Open Roadmap Tool →
+              </Link>
+            </div>
+          </section>
+        )}
+        <footer className="border-t border-divider pt-6 pb-4 text-[11px] text-ink-faint text-center">
+          <p>
+            Wallet projections are estimates only. Cents-per-point values are configurable defaults — adjust to match your redemption habits in the Roadmap Tool.
+          </p>
+        </footer>
       </div>
     </div>
   )
@@ -176,10 +206,10 @@ function stepStatus(current: 1 | 2 | 3 | null, step: 1 | 2 | 3): StepStatus {
 
 function FeatureCard({ title, body }: { title: string; body: string }) {
   return (
-    <Surface variant="panel" padding="none" className="rounded-xl p-6 hover:border-divider transition-colors">
-      <h4 className="text-ink font-semibold mb-2">{title}</h4>
+    <div className="bg-surface rounded-xl p-6 shadow-card">
+      <h3 className="text-ink font-semibold text-base mb-2">{title}</h3>
       <p className="text-ink-muted text-sm leading-relaxed">{body}</p>
-    </Surface>
+    </div>
   )
 }
 
@@ -201,10 +231,10 @@ function StepCard({
   const isPending = status === 'pending'
 
   const containerClass = isCurrent
-    ? 'bg-surface border border-accent/50 ring-1 ring-accent/20'
+    ? 'bg-surface ring-2 ring-accent shadow-card'
     : isComplete
-    ? 'bg-surface/60 border border-divider'
-    : 'bg-surface border border-divider'
+    ? 'bg-surface-2 shadow-card'
+    : 'bg-surface shadow-card'
 
   const titleClass = isPending ? 'text-ink-muted' : 'text-ink'
   const bodyClass = isPending ? 'text-ink-faint' : 'text-ink-muted'
@@ -214,18 +244,18 @@ function StepCard({
       <div className="flex items-center justify-between mb-4">
         <StepBadge num={num} status={status} />
         {isComplete && (
-          <span className="text-xs font-medium text-pos">Done</span>
+          <span className="text-[11px] font-medium text-pos uppercase tracking-wider">Done</span>
         )}
         {isCurrent && (
-          <span className="text-xs font-medium text-accent">Next up</span>
+          <span className="text-[11px] font-medium text-accent uppercase tracking-wider">Next up</span>
         )}
       </div>
-      <h4 className={`font-semibold mb-2 ${titleClass}`}>{title}</h4>
+      <h3 className={`text-base font-semibold mb-2 ${titleClass}`}>{title}</h3>
       <p className={`text-sm leading-relaxed ${bodyClass}`}>{body}</p>
       {cta && (
         <Link
           to={cta.to}
-          className="inline-block mt-5 text-sm font-medium text-accent hover:text-accent transition-colors"
+          className="inline-block mt-5 text-sm font-medium text-accent hover:opacity-80 transition-opacity"
         >
           {cta.label}
         </Link>
@@ -237,7 +267,7 @@ function StepCard({
 function StepBadge({ num, status }: { num: number; status: StepStatus }) {
   if (status === 'complete') {
     return (
-      <div className="w-8 h-8 rounded-full bg-pos/10 border border-pos/30 text-pos flex items-center justify-center">
+      <div className="w-8 h-8 rounded-full bg-pos/10 text-pos flex items-center justify-center">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="20 6 9 17 4 12" />
         </svg>
@@ -246,13 +276,13 @@ function StepBadge({ num, status }: { num: number; status: StepStatus }) {
   }
   const toneClass =
     status === 'current'
-      ? 'bg-accent/15 border-accent/40 text-accent'
+      ? 'bg-accent text-on-accent'
       : status === 'pending'
-      ? 'bg-surface-2/60 border-divider text-ink-faint'
-      : 'bg-accent/10 border-accent/30 text-accent'
+      ? 'bg-surface-2 text-ink-faint'
+      : 'bg-accent/10 text-accent'
   return (
     <div
-      className={`w-8 h-8 rounded-full border flex items-center justify-center text-sm font-bold ${toneClass}`}
+      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${toneClass}`}
     >
       {num}
     </div>

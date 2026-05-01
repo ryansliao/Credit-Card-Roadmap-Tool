@@ -13,6 +13,7 @@ import { Input } from './components/ui/Input'
 import { Field } from './components/ui/Field'
 import { Modal, ModalHeader, ModalBody } from './components/ui/Modal'
 import { Heading } from './components/ui/Heading'
+import { ThemeToggle } from './components/ui/ThemeToggle'
 
 declare global {
   interface Window {
@@ -61,9 +62,16 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-8 text-center">
-          <h2 className="text-xl font-bold text-neg mb-2">Something went wrong</h2>
-          <p className="text-ink-muted text-sm mb-4">{this.state.error?.message}</p>
+        <div className="max-w-md mx-auto py-20 text-center space-y-4">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-neg/10 text-neg">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <Heading level={3}>Something went wrong</Heading>
+          <p className="text-ink-muted text-sm">{this.state.error?.message ?? 'Unknown error'}</p>
           <Button
             variant="secondary"
             onClick={() => this.setState({ hasError: false, error: null })}
@@ -156,37 +164,39 @@ function SignInDropdown() {
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={() => { setOpen(!open); resetForm() }}
-        className="text-sm font-medium px-5 py-2 rounded-full opacity-75 hover:opacity-100 hover:bg-black/15 transition-colors"
       >
         Sign in
-      </button>
+      </Button>
       {open && (
-        <div className="absolute right-0 mt-2 w-72 bg-surface border border-divider rounded-xl shadow-xl z-50">
+        <div className="absolute right-0 mt-2 w-80 bg-surface rounded-xl shadow-modal z-50 overflow-hidden">
           <div className="flex border-b border-divider">
             <button
               type="button"
               onClick={() => { setTab('signin'); setError('') }}
-              className={`flex-1 text-sm py-2.5 font-medium transition-colors ${
-                tab === 'signin'
-                  ? 'text-ink border-b-2 border-accent'
-                  : 'text-ink-muted hover:text-ink'
+              className={`relative flex-1 text-sm py-3 font-medium transition-colors ${
+                tab === 'signin' ? 'text-ink' : 'text-ink-faint hover:text-ink'
               }`}
             >
               Sign in
+              {tab === 'signin' && (
+                <span aria-hidden="true" className="absolute left-0 right-0 -bottom-px h-0.5 bg-accent" />
+              )}
             </button>
             <button
               type="button"
               onClick={() => { setTab('signup'); setError('') }}
-              className={`flex-1 text-sm py-2.5 font-medium transition-colors ${
-                tab === 'signup'
-                  ? 'text-ink border-b-2 border-accent'
-                  : 'text-ink-muted hover:text-ink'
+              className={`relative flex-1 text-sm py-3 font-medium transition-colors ${
+                tab === 'signup' ? 'text-ink' : 'text-ink-faint hover:text-ink'
               }`}
             >
-              Sign up
+              Create account
+              {tab === 'signup' && (
+                <span aria-hidden="true" className="absolute left-0 right-0 -bottom-px h-0.5 bg-accent" />
+              )}
             </button>
           </div>
 
@@ -227,7 +237,7 @@ function SignInDropdown() {
               required
               minLength={tab === 'signup' ? 8 : undefined}
             />
-            {error && <p className="text-neg text-xs">{error}</p>}
+            {error && <p className="text-[11px] text-neg">{error}</p>}
             <Button
               variant="primary"
               type="submit"
@@ -241,7 +251,7 @@ function SignInDropdown() {
           <div className="px-4 pb-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="flex-1 border-t border-divider" />
-              <span className="text-ink-faint text-xs">or</span>
+              <span className="text-[11px] uppercase tracking-wider text-ink-faint font-medium">or</span>
               <div className="flex-1 border-t border-divider" />
             </div>
             <div ref={googleBtnRef} />
@@ -277,25 +287,24 @@ function UsernamePrompt() {
         <Heading level={3}>Choose a username</Heading>
       </ModalHeader>
       <ModalBody>
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <p className="text-ink-muted text-sm">Pick a username to finish setting up your account.</p>
-          <Field label="Username">
+          <Field label="Username" hint="3–30 characters: letters, numbers, underscores">
             <Input
               type="text"
-              placeholder="Username"
+              placeholder="username"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               required
               minLength={3}
               maxLength={30}
               pattern="[a-zA-Z0-9_]{3,30}"
-              title="3-30 characters: letters, numbers, underscores"
               autoFocus
             />
           </Field>
-          {error && <p className="text-neg text-xs mt-2">{error}</p>}
+          {error && <p className="text-[11px] text-neg">{error}</p>}
           <Button variant="primary" type="submit" className="w-full" loading={loading}>
-            {loading ? '...' : 'Continue'}
+            Continue
           </Button>
         </form>
       </ModalBody>
@@ -307,29 +316,37 @@ function Nav() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth()
 
   return (
-    <nav className="bg-accent text-on-accent px-6 py-2.5 flex items-center gap-2">
-      <Link to="/" className="font-bold text-lg mr-6 hover:opacity-80 transition-opacity">
+    <nav className="bg-surface border-b border-divider px-6 h-14 flex items-center gap-2">
+      <Link to="/" className="text-base font-bold text-ink hover:text-accent transition-colors mr-6">
         CardSolver
       </Link>
       {isAuthenticated && (
         <NavLink
           to="/roadmap-tool"
           className={({ isActive }) =>
-            `text-sm font-medium px-5 py-2 rounded-full transition-colors ${
-              isActive
-                ? 'bg-black/20'
-                : 'opacity-75 hover:opacity-100 hover:bg-black/15'
+            `relative text-sm font-medium px-1 py-4 transition-colors ${
+              isActive ? 'text-ink' : 'text-ink-faint hover:text-ink'
             }`
           }
         >
-          Roadmap Tool
+          {({ isActive }) => (
+            <>
+              Roadmap Tool
+              {isActive && (
+                <span aria-hidden="true" className="absolute left-0 right-0 -bottom-px h-0.5 bg-accent" />
+              )}
+            </>
+          )}
         </NavLink>
       )}
       <div className="flex-1" />
       {!isLoading && (
         isAuthenticated && user ? (
-          <div className="flex items-center gap-3">
-            <Link to="/profile" className="flex items-center gap-2 px-3 py-1 rounded-full opacity-75 hover:opacity-100 hover:bg-black/15 transition-colors -mr-2">
+          <div className="flex items-center gap-2">
+            <Link
+              to="/profile"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md text-ink-faint hover:text-ink hover:bg-surface-2 transition-colors"
+            >
               {user.picture && (
                 <img
                   src={user.picture}
@@ -340,16 +357,16 @@ function Nav() {
               )}
               <span className="text-sm hidden sm:inline">{user.username ?? user.name}</span>
             </Link>
-            <button
-              type="button"
-              onClick={signOut}
-              className="text-sm font-medium px-5 py-2 rounded-full opacity-75 hover:opacity-100 hover:bg-black/15 transition-colors ml-2"
-            >
+            <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={signOut}>
               Sign out
-            </button>
+            </Button>
           </div>
         ) : (
-          <SignInDropdown />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <SignInDropdown />
+          </div>
         )
       )}
     </nav>
@@ -361,7 +378,7 @@ function AuthGate({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="text-center text-slate-400 py-20">Loading...</div>
+      <div className="text-center text-ink-faint py-20 text-sm">Loading…</div>
     )
   }
 
