@@ -61,7 +61,7 @@ export default function Profile() {
       </nav>
 
       {/* Content */}
-      <div className="flex-1 min-w-0 min-h-0 bg-surface rounded-xl shadow-card p-6 overflow-auto">
+      <div className="flex-1 min-w-0 min-h-0 bg-surface border border-divider rounded-xl shadow-card p-6 overflow-auto">
         {activeTab === 'wallet' && (
           <WalletTab
             cardInstances={wallet?.card_instances ?? []}

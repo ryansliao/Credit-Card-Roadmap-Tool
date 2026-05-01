@@ -114,7 +114,7 @@ export function SpendingTab() {
       </div>
 
       <div className="flex gap-3 mb-4 shrink-0">
-        <div className="bg-surface rounded-xl shadow-card px-4 py-3 flex-1 min-w-0 flex flex-col justify-center">
+        <div className="bg-surface border border-divider rounded-xl shadow-card px-4 py-3 flex-1 min-w-0 flex flex-col justify-center">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1">
               <span className="text-[10px] text-ink-muted uppercase tracking-wider">Foreign Spend</span>
@@ -229,7 +229,7 @@ export function SpendingTab() {
             <p className="text-ink-faint text-xs mt-1">Add categories to track your annual spending.</p>
           </div>
         ) : (
-          <div className="rounded-xl bg-surface shadow-card overflow-hidden">
+          <div className="rounded-xl bg-surface border border-divider shadow-card overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-surface">
                 <tr>

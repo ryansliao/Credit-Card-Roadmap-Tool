@@ -26,8 +26,10 @@ export function AppearanceTab() {
               role="radio"
               aria-checked={selected}
               onClick={() => setPreference(opt.id)}
-              className={`bg-surface rounded-xl shadow-card overflow-hidden transition-all text-left ${
-                selected ? 'ring-2 ring-accent' : 'hover:-translate-y-0.5'
+              className={`bg-surface border rounded-xl shadow-card overflow-hidden transition-all text-left ${
+                selected
+                  ? 'border-accent ring-2 ring-accent'
+                  : 'border-divider hover:border-divider-strong hover:-translate-y-0.5'
               }`}
             >
               <ThemePreview preview={opt.preview} />

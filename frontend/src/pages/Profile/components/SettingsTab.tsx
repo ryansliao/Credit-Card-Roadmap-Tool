@@ -49,7 +49,7 @@ export function SettingsTab() {
       </div>
 
       {/* Profile card */}
-      <div className="bg-surface rounded-xl shadow-card overflow-hidden">
+      <div className="bg-surface border border-divider rounded-xl shadow-card overflow-hidden">
         {/* Avatar + name header */}
         <div className="flex items-center gap-4 px-6 py-5 border-b border-divider">
           {user.picture ? (

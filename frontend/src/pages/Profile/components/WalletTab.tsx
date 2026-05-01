@@ -132,7 +132,7 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
               return (
                 <li
                   key={inst.id}
-                  className="group bg-surface hover:bg-surface-2 rounded-xl shadow-card transition-colors cursor-pointer overflow-hidden mb-2 last:mb-0"
+                  className="group bg-surface border border-divider hover:border-divider-strong hover:bg-surface-2 rounded-xl shadow-card transition-colors cursor-pointer overflow-hidden mb-2 last:mb-0"
                   onClick={() => setWalletCardModal({ mode: 'edit', instance: inst })}
                 >
                   <div className="flex items-center gap-3 px-3 py-2">
