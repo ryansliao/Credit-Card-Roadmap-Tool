@@ -13,7 +13,6 @@ import { Input } from './components/ui/Input'
 import { Field } from './components/ui/Field'
 import { Modal, ModalHeader, ModalBody } from './components/ui/Modal'
 import { Heading } from './components/ui/Heading'
-import { ThemeToggle } from './components/ui/ThemeToggle'
 
 declare global {
   interface Window {
@@ -357,16 +356,12 @@ function Nav() {
               )}
               <span className="text-sm hidden sm:inline">{user.username ?? user.name}</span>
             </Link>
-            <ThemeToggle />
             <Button variant="ghost" size="sm" onClick={signOut}>
               Sign out
             </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <SignInDropdown />
-          </div>
+          <SignInDropdown />
         )
       )}
     </nav>
