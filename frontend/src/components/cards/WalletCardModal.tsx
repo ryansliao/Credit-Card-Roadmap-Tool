@@ -1806,61 +1806,62 @@ export function WalletCardModal(props: WalletCardModalProps) {
                     No wallet spend categories yet.
                   </p>
                 ) : (
-                  <ul className="grid grid-cols-2 gap-x-2 gap-y-1 auto-rows-min flex-1 min-h-0 overflow-y-auto border border-divider rounded-lg p-2">
-                    {[...walletSpendItems]
-                      .filter((item) => item.user_spend_category != null)
-                      .sort((a, b) =>
-                        (a.user_spend_category?.name ?? '').localeCompare(
-                          b.user_spend_category?.name ?? '',
-                          undefined,
-                          { sensitivity: 'base' },
-                        ),
-                      )
-                      .map((item) => {
-                        const userCat = item.user_spend_category!
-                        const earnCatIds = userCat.mappings.map((m) => m.earn_category_id)
-                        const claimedByOther = earnCatIds.some((id) => priorityClaimsByOther.has(id))
-                        const checked = earnCatIds.length > 0 && earnCatIds.every((id) => priorityCategoryIds.has(id))
-                        const disabled = claimedByOther && !checked
-                        return (
-                          <li key={item.id}>
-                            <label
-                              className={`flex items-center gap-2 text-xs px-1 py-1 rounded ${
-                                disabled
-                                  ? 'text-ink-faint cursor-not-allowed'
-                                  : 'text-ink cursor-pointer hover:bg-surface-2/40'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                className="accent-accent"
-                                checked={checked}
-                                disabled={disabled}
-                                onChange={() => {
-                                  setPriorityCategoryIds((prev) => {
-                                    const next = new Set(prev)
-                                    if (checked) {
-                                      earnCatIds.forEach((id) => next.delete(id))
-                                    } else {
-                                      earnCatIds.forEach((id) => next.add(id))
-                                    }
-                                    return next
-                                  })
-                                }}
-                              />
-                              <span className="flex-1 min-w-0 truncate">
-                                {userCat.name}
-                              </span>
-                              {disabled && (
-                                <span className="text-[10px] text-ink-faint shrink-0">
-                                  Claimed By Another Card
-                                </span>
-                              )}
-                            </label>
-                          </li>
+                  <div className="flex-1 min-h-0 flex flex-col">
+                    <p className="text-[11px] uppercase tracking-wider text-ink-faint font-semibold mb-2">
+                      Pin categories to this card
+                    </p>
+                    <ul className="divide-y divide-divider/60 -mx-2 flex-1 min-h-0 overflow-y-auto">
+                      {[...walletSpendItems]
+                        .filter((item) => item.user_spend_category != null)
+                        .sort((a, b) =>
+                          (a.user_spend_category?.name ?? '').localeCompare(
+                            b.user_spend_category?.name ?? '',
+                            undefined,
+                            { sensitivity: 'base' },
+                          ),
                         )
-                      })}
-                  </ul>
+                        .map((item) => {
+                          const userCat = item.user_spend_category!
+                          const earnCatIds = userCat.mappings.map((m) => m.earn_category_id)
+                          const claimedByOther = earnCatIds.some((id) => priorityClaimsByOther.has(id))
+                          const checked = earnCatIds.length > 0 && earnCatIds.every((id) => priorityCategoryIds.has(id))
+                          const disabled = claimedByOther && !checked
+                          return (
+                            <li key={item.id}>
+                              <label
+                                className={`flex items-center gap-2 py-2 px-2 rounded transition-colors ${
+                                  disabled ? 'text-ink-faint cursor-not-allowed' : 'text-ink hover:bg-surface-2/40 cursor-pointer'
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  disabled={disabled}
+                                  onChange={() => {
+                                    setPriorityCategoryIds((prev) => {
+                                      const next = new Set(prev)
+                                      if (checked) {
+                                        earnCatIds.forEach((id) => next.delete(id))
+                                      } else {
+                                        earnCatIds.forEach((id) => next.add(id))
+                                      }
+                                      return next
+                                    })
+                                  }}
+                                />
+                                <span className="flex-1 min-w-0 truncate text-sm">
+                                  {userCat.name}
+                                </span>
+                                {disabled && (
+                                  <span className="text-[11px] text-ink-faint shrink-0">
+                                    Claimed by another card
+                                  </span>
+                                )}
+                              </label>
+                            </li>
+                          )
+                        })}
+                    </ul>
+                  </div>
                 )}
               </div>
             )}
