@@ -18,17 +18,15 @@ export function SpendPanel({
   isStale,
 }: Props) {
   return (
-    <div className="bg-surface border border-divider rounded-xl p-4 min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 overflow-auto">
-        <SpendTabContent
-          selectedCards={selectedCards}
-          walletCards={walletCards}
-          categoryPriorities={categoryPriorities}
-          isTotal={false}
-          totalYears={totalYears}
-          isStale={isStale}
-        />
-      </div>
+    <div className="bg-surface border border-divider rounded-xl shadow-card min-w-0 min-h-0 h-full flex flex-col overflow-hidden p-4">
+      <SpendTabContent
+        selectedCards={selectedCards}
+        walletCards={walletCards}
+        categoryPriorities={categoryPriorities}
+        isTotal={false}
+        totalYears={totalYears}
+        isStale={isStale}
+      />
     </div>
   )
 }

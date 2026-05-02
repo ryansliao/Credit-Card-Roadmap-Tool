@@ -171,11 +171,12 @@ export function WalletTimelineChart({
   const rightColumnPx = Math.max(0, scrollWidthPx - LEFT_GUTTER)
 
   return (
-    <div className="bg-surface border border-divider rounded-xl pt-2 px-4 pb-4 min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
+    <div className="bg-surface border border-divider rounded-xl shadow-card min-w-0 min-h-0 h-full flex flex-col overflow-hidden">
       {visibleCards.length === 0 ? (
         <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto">
-          <div className="flex flex-col items-center gap-3 py-10">
-            <p className="text-ink-faint text-sm">No cards yet.</p>
+          <div className="flex flex-col items-center gap-3 py-16">
+            <p className="text-ink-muted text-sm font-medium">No cards yet</p>
+            <p className="text-ink-faint text-xs -mt-2">Add a card to start your roadmap.</p>
             <Button type="button" variant="primary" onClick={onAddCard}>
               <svg
                 width="14"
@@ -196,6 +197,118 @@ export function WalletTimelineChart({
         </div>
       ) : (
         <>
+          {visibleCards.length > 0 && (
+            <div className="flex items-center gap-2 px-4 pt-3 pb-2 shrink-0">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={onAddCard}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Add card
+              </Button>
+              {applicableRules.length > 0 && (
+                <Popover
+                  side="bottom"
+                  portal
+                  trigger={({ onClick, ref }) => (
+                    <button
+                      ref={ref as React.RefObject<HTMLButtonElement>}
+                      type="button"
+                      onClick={onClick}
+                      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider transition-colors ${
+                        maxSeverity === 'violated'
+                          ? 'bg-neg/10 text-neg hover:bg-neg/15'
+                          : maxSeverity === 'in_effect'
+                            ? 'bg-warn/10 text-warn hover:bg-warn/15'
+                            : 'bg-accent-soft text-accent hover:bg-accent/15'
+                      }`}
+                      aria-label="Application rule status"
+                      title="Application rule status"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                      {applicableRules.length === 1 ? 'Rule alert' : `${applicableRules.length} rule alerts`}
+                    </button>
+                  )}
+                >
+                  <div className="min-w-[280px] max-w-sm">
+                    <p className="text-sm font-semibold text-ink mb-2">Application Rules</p>
+                    <p className="text-xs text-ink-muted mb-3">Issuer velocity rules tracked across your cards.</p>
+                    <ul className="space-y-2">
+                      {applicableRules.map((r) => {
+                        const containerClass =
+                          r.severity === 'violated'
+                            ? 'bg-neg/10 border-neg/30'
+                            : r.severity === 'in_effect'
+                              ? 'bg-warn/10 border-warn/30'
+                              : 'bg-surface-2 border-divider'
+                        const titleClass =
+                          r.severity === 'violated'
+                            ? 'text-neg'
+                            : r.severity === 'in_effect'
+                              ? 'text-warn'
+                              : 'text-ink'
+                        const intervalClass =
+                          r.severity === 'violated'
+                            ? 'text-neg'
+                            : r.severity === 'in_effect'
+                              ? 'text-warn'
+                              : 'text-ink-muted'
+                        return (
+                          <li key={r.rule_id} className={`rounded-md border px-2.5 py-2 ${containerClass}`}>
+                            <div className="flex items-baseline gap-1.5 min-w-0">
+                              <span className={`font-medium truncate ${titleClass}`}>{r.rule_name}</span>
+                              {r.issuer_name && (
+                                <span className="text-[10px] text-ink-faint shrink-0">{r.issuer_name}</span>
+                              )}
+                            </div>
+                            {r.description && (
+                              <p className="text-[11px] text-ink-muted mt-0.5">{r.description}</p>
+                            )}
+                            {r.at_risk_intervals.length > 0 && (
+                              <ul className="mt-1 space-y-0.5">
+                                {r.at_risk_intervals.map((iv, idx) => (
+                                  <li key={idx} className={`text-[11px] ${intervalClass}`}>
+                                    At limit <span className="tnum-mono">{formatDate(iv.start)} → {formatDate(iv.end)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                </Popover>
+              )}
+              <div className="flex-1" />
+              <div className="hidden sm:flex items-center gap-3 text-[11px] text-ink-faint">
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden className="w-7 h-2.5 rounded-full" style={{ background: 'color-mix(in oklab, var(--chart-points) 18%, transparent)', border: '1px solid var(--chart-points)' }} />
+                  Active card
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    aria-hidden
+                    className="w-7 h-2.5 rounded-full border"
+                    style={{
+                      backgroundImage: `repeating-linear-gradient(45deg, color-mix(in oklab, var(--chart-points) 38%, transparent) 0, color-mix(in oklab, var(--chart-points) 38%, transparent) 4px, color-mix(in oklab, var(--chart-points) 10%, transparent) 4px, color-mix(in oklab, var(--chart-points) 10%, transparent) 8px)`,
+                      borderColor: 'var(--chart-points)',
+                    }}
+                  />
+                  SUB earning
+                </span>
+              </div>
+            </div>
+          )}
           {/* Axis header — outside the scroll container so the vertical
               scrollbar starts at the first currency row, not above. The
               same scrollbar-gutter is applied here so the right edge
@@ -212,134 +325,7 @@ export function WalletTimelineChart({
               className={`bg-surface ${DIVIDER_CLASS} px-3 flex items-center gap-2`}
               style={{ height: AXIS_HEIGHT }}
             >
-              <h2 className="text-base font-semibold text-ink">Cards</h2>
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={onAddCard}
-                aria-label="Add card"
-                title="Add card"
-                className="!py-1"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                Add Card
-              </Button>
-              {applicableRules.length > 0 && (
-                <Popover
-                  side="bottom"
-                  portal
-                  trigger={({ onClick, ref }) => (
-                    <button
-                      ref={ref as React.RefObject<HTMLButtonElement>}
-                      type="button"
-                      onClick={onClick}
-                      className={`shrink-0 rounded p-1 transition-colors ${
-                        maxSeverity === 'violated'
-                          ? 'text-neg hover:bg-neg/10'
-                          : maxSeverity === 'in_effect'
-                            ? 'text-warn hover:bg-warn/10'
-                            : 'text-accent hover:bg-accent/10'
-                      }`}
-                      aria-label="Application rule status"
-                      title="Application rule status"
-                    >
-                      <svg
-                        width="26"
-                        height="26"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                        <line x1="12" y1="9" x2="12" y2="13" />
-                        <line x1="12" y1="17" x2="12.01" y2="17" />
-                      </svg>
-                    </button>
-                  )}
-                >
-                  <div className="min-w-[280px] max-w-sm">
-                    <p className="text-sm font-semibold text-ink mb-2">Application Rules</p>
-                    <p className="text-xs text-ink-muted mb-3">
-                      Issuer velocity rules tracked across your cards.
-                    </p>
-                    <ul className="space-y-2">
-                      {applicableRules.map((r) => {
-                        const containerClass =
-                          r.severity === 'violated'
-                            ? 'border-neg/50 bg-neg/20'
-                            : r.severity === 'in_effect'
-                              ? 'border-warn/60 bg-warn/25'
-                              : 'border-divider bg-surface-2/40'
-                        const titleClass =
-                          r.severity === 'violated'
-                            ? 'text-neg'
-                            : r.severity === 'in_effect'
-                              ? 'text-warn'
-                              : 'text-ink'
-                        const intervalClass =
-                          r.severity === 'violated'
-                            ? 'text-neg'
-                            : r.severity === 'in_effect'
-                              ? 'text-warn'
-                              : 'text-ink-muted'
-                        return (
-                          <li
-                            key={r.rule_id}
-                            className={`rounded-md border px-2.5 py-2 ${containerClass}`}
-                          >
-                            <div className="flex items-baseline gap-1.5 min-w-0">
-                              <span className={`font-medium truncate ${titleClass}`}>
-                                {r.rule_name}
-                              </span>
-                              {r.issuer_name && (
-                                <span className="text-[10px] text-ink-faint shrink-0">
-                                  {r.issuer_name}
-                                </span>
-                              )}
-                            </div>
-                            {r.description && (
-                              <p className="text-[11px] text-ink-muted mt-0.5">
-                                {r.description}
-                              </p>
-                            )}
-                            {r.at_risk_intervals.length > 0 && (
-                              <ul className="mt-1 space-y-0.5">
-                                {r.at_risk_intervals.map((iv, idx) => (
-                                  <li
-                                    key={idx}
-                                    className={`text-[11px] ${intervalClass}`}
-                                  >
-                                    At limit{' '}
-                                    <span className="tnum-mono">
-                                      {formatDate(iv.start)} → {formatDate(iv.end)}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </div>
-                </Popover>
-              )}
+              <span className="text-[11px] uppercase tracking-wider text-ink-faint font-semibold">Cards</span>
             </div>
             <div
               className={`bg-surface ${DIVIDER_CLASS} relative`}

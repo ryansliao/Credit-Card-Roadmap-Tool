@@ -498,9 +498,9 @@ export function SpendTabContent({
       {isLoading ? (
         <div className="text-ink-faint text-sm">Loading…</div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-divider">
+        <div className="flex-1 min-h-0 overflow-auto">
           {showCalculatePrompt && (
-            <div className="px-3 py-2 text-xs text-accent bg-accent/10 border-b border-accent/40">
+            <div className="px-3 py-2 text-xs text-accent bg-accent-soft border border-accent/30 rounded-md mb-2">
               Click <span className="font-semibold text-accent">Calculate</span> to see your top earning card per category.
             </div>
           )}
@@ -513,25 +513,25 @@ export function SpendTabContent({
             </colgroup>
             <thead className="sticky top-0 bg-surface z-10">
               <tr>
-                <th className="text-left text-sm font-semibold text-ink-muted px-3 py-2.5 border-b border-r border-divider">
+                <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-b border-r border-divider">
                   Category
                 </th>
-                <th className="text-center text-sm font-semibold text-ink-muted px-3 py-2.5 border-b border-r border-divider whitespace-nowrap">
+                <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-b border-r border-divider whitespace-nowrap">
                   Annual Spend
                 </th>
-                <th className="text-center text-sm font-semibold text-ink-muted px-3 py-2.5 border-b border-r border-divider whitespace-nowrap">
+                <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-b border-r border-divider whitespace-nowrap">
                   Annual Point Income
                 </th>
                 <th
                   rowSpan={2}
-                  className="text-center text-sm font-semibold text-ink-muted px-3 py-2.5 border-b-2 border-divider bg-surface whitespace-nowrap"
+                  className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-b-2 border-divider bg-surface whitespace-nowrap"
                 >
                   Top ROS Card
                 </th>
               </tr>
               {/* Total row — kept inside thead so it sticks together with
                   the header row when the table body scrolls. */}
-              <tr className="border-b-2 border-divider bg-surface-2/50">
+              <tr className="bg-surface-2/40 border-b border-divider">
                 <th
                   scope="row"
                   className="text-left px-3 py-2 text-ink font-semibold border-r border-divider/60"
@@ -539,7 +539,7 @@ export function SpendTabContent({
                   Total
                 </th>
                 <td className="text-center px-2 py-2 border-r border-divider/60">
-                  <div className="text-ink font-semibold tnum-mono">
+                  <div className="text-ink font-bold tnum-mono">
                     ${spendItems.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
                   </div>
                 </td>
@@ -580,7 +580,7 @@ export function SpendTabContent({
                 const topEntries = topCardsForCategory(item.user_spend_category)
                 const noTop = topEntries.length === 0
                 return (
-                  <tr key={item.id} className="border-b border-divider/60">
+                  <tr key={item.id} className="border-b border-divider/60 last:border-b-0 hover:bg-surface-2/40 transition-colors">
                     <td className="text-left px-3 py-2 text-ink border-r border-divider/60">
                       <div className="flex items-center gap-1.5">
                         <span className="truncate" title={catName}>
