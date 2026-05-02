@@ -144,7 +144,18 @@ export function WalletSummaryStats({
             }
             value={
               hasStats && result ? (
-                <Money value={totalEffectiveAF} precision={0} feature tone="auto" />
+                <Money
+                  value={totalEffectiveAF}
+                  precision={0}
+                  feature
+                  tone={
+                    totalEffectiveAF < 0
+                      ? 'pos'
+                      : totalEffectiveAF > 0
+                        ? 'neg'
+                        : 'neutral'
+                  }
+                />
               ) : (
                 <span className="text-2xl font-bold text-ink-faint tnum-mono">—</span>
               )
@@ -195,7 +206,7 @@ export function WalletSummaryStats({
             }
             value={
               hasStats && result ? (
-                <Points value={totalAnnualPoints} exact feature className="text-pos" />
+                <Points value={totalAnnualPoints} exact feature />
               ) : (
                 <span className="text-2xl font-bold text-ink-faint tnum-mono">—</span>
               )

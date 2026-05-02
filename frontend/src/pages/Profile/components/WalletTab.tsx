@@ -114,7 +114,7 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
         </Button>
       </div>
 
-      <div className="min-h-0 overflow-y-auto flex-1">
+      <div className="min-h-0 overflow-y-auto flex-1 pt-0.5">
         {inWalletCards.length === 0 ? (
           <div className="border-2 border-dashed border-divider rounded-xl py-12 px-6 text-center">
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto text-ink-faint mb-3">
@@ -132,7 +132,7 @@ export function WalletTab({ cardInstances, isLoading }: WalletTabProps) {
               return (
                 <li
                   key={inst.id}
-                  className="group bg-surface border border-divider hover:border-divider-strong hover:bg-surface-2 rounded-xl shadow-card transition-colors cursor-pointer overflow-hidden mb-2 last:mb-0"
+                  className="group bg-surface border border-divider hover:border-divider-strong hover:bg-surface-2 hover:-translate-y-0.5 rounded-xl shadow-card transition-all cursor-pointer overflow-hidden mb-2 last:mb-0"
                   onClick={() => setWalletCardModal({ mode: 'edit', instance: inst })}
                 >
                   <div className="flex items-center gap-3 px-3 py-2">

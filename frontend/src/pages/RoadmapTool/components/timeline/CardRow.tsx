@@ -93,12 +93,11 @@ function SubEarningSegment({
   const roundRight = lifetimeRoundsRight && segmentTouchesLifetimeRight
   const roundedClass = `${roundLeft ? 'rounded-l-full' : ''} ${roundRight ? 'rounded-r-full' : ''}`.trim()
 
-  // Same indigo as the lifetime bar, but rendered as diagonal stripes so
-  // the SUB slice reads as a textured region of the same color rather
-  // than a separate hue. Stripe colors alternate between a 35% and 10%
-  // mix of --chart-points so the pattern is visible against any
-  // background but still feels like part of the bar.
-  const stripeColor = 'var(--chart-points)'
+  // Diagonal stripes in the same accent hue as the lifetime bar so the
+  // SUB slice reads as a textured region of the same color rather than
+  // a separate hue. Two opacity stops (38% / 10%) keep the pattern
+  // visible against any background but still feel like part of the bar.
+  const stripeColor = 'var(--color-accent)'
   const stripes = `repeating-linear-gradient(
     45deg,
     color-mix(in oklab, ${stripeColor} 38%, transparent) 0,
@@ -325,7 +324,7 @@ export function CardRow({
             scenario use the close-date or product-change overlay in the
             modal. Future cards keep the toggle since they're hypothetical. */}
         {wc.is_future ? (
-          <span className="ml-auto shrink-0">
+          <span className="ml-auto shrink-0 inline-flex items-center">
             <Toggle
               checked={enabled}
               disabled={isUpdating}

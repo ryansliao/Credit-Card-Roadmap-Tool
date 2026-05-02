@@ -28,7 +28,7 @@ export function TimelineAxis({ yearTicks, endMs }: TimelineAxisProps) {
       ))}
       <div
         className="absolute flex items-center text-xs text-ink-muted font-semibold whitespace-nowrap pointer-events-none"
-        style={{ left: 0, top: 0, bottom: 0 }}
+        style={{ left: 0, top: 0, bottom: 0, transform: 'translateX(-50%)' }}
       >
         Today
       </div>

@@ -1,0 +1,55 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - link "CardSolver" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - button "Sign in" [ref=e7]
+  - main [ref=e8]:
+    - generic [ref=e11]:
+      - generic [ref=e12]:
+        - generic [ref=e13]: Credit card wallet optimizer
+        - heading "Stop guessing which cards actually pay off." [level=1] [ref=e15]:
+          - text: Stop guessing which cards
+          - text: actually pay off.
+        - paragraph [ref=e16]: Model your real or planned wallet, enter your annual spend, and get a segment-aware projection of rewards, credits, and sign-up bonuses — with each category allocated optimally across every card.
+        - paragraph [ref=e17]: Sign in from the navbar to get started.
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - paragraph [ref=e20]: How it works
+          - heading "Three steps, one number." [level=2] [ref=e21]
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - generic [ref=e25]: "1"
+            - heading "Add cards" [level=3] [ref=e26]
+            - paragraph [ref=e27]: Build your wallet from the card library. Set open dates, acquisition type, SUB overrides, and future applications you're considering.
+          - generic [ref=e28]:
+            - generic [ref=e30]: "2"
+            - heading "Enter annual spend" [level=3] [ref=e31]
+            - paragraph [ref=e32]: Break out real spend by category. Set your foreign-spend share and tune per-card credit and multiplier overrides.
+          - generic [ref=e33]:
+            - generic [ref=e35]: "3"
+            - heading "Chart your roadmap" [level=3] [ref=e36]
+            - paragraph [ref=e37]: Compare expected value per card, add ones you're considering, drop the ones that don't earn their keep, and track SUB deadlines along the way.
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - paragraph [ref=e40]: Under the hood
+          - heading "More than a multiplier lookup." [level=2] [ref=e41]
+        - generic [ref=e42]:
+          - generic [ref=e43]:
+            - heading "Optimal allocation" [level=3] [ref=e44]
+            - paragraph [ref=e45]: An LP solver places each category's spend on the highest-value card, respecting top-N groups, rotating 5% pools, and currency transfers.
+          - generic [ref=e46]:
+            - heading "Multi-year projections" [level=3] [ref=e47]
+            - paragraph [ref=e48]: Segment-aware math splits your window at every card open, close, and SUB-earn boundary — so year-1 and steady-state are both honest.
+          - generic [ref=e49]:
+            - heading "SUB tracking" [level=3] [ref=e50]
+            - paragraph [ref=e51]: Projected earn dates from your actual spend rate, with opportunity cost baked into the total. Mark SUBs earned to stop projecting them.
+          - generic [ref=e52]:
+            - heading "Issuer rules" [level=3] [ref=e53]
+            - paragraph [ref=e54]: 5/24 counter, Amex 1/90, Citi 1/8 and 2/65 — warnings surface on the roadmap before you apply, not after.
+          - generic [ref=e55]:
+            - heading "Foreign spend & currencies" [level=3] [ref=e56]
+            - paragraph [ref=e57]: FTF-aware allocation on foreign-eligible categories, per-wallet CPP overrides, and currency conversions like UR Cash → Chase UR.
+          - generic [ref=e58]:
+            - heading "Wallet modeling" [level=3] [ref=e59]
+            - paragraph [ref=e60]: Mix owned cards with future applications. Override fees, credits, SUBs, and multipliers per wallet without touching the card library.
+      - paragraph [ref=e62]: Wallet projections are estimates only. Cents-per-point values are configurable defaults — adjust to match your redemption habits in the Roadmap Tool.

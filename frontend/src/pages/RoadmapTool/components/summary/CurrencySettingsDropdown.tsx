@@ -69,7 +69,7 @@ export function CurrencySettingsDropdown({ scenarioId, walletCards, currencyId, 
   return (
     <div
       className="relative z-20 bg-surface/70 border-b border-divider px-5 pt-2 pb-4"
-      style={{ gridColumn: '1 / -1', width: leftGutterPx }}
+      style={{ gridColumn: '2 / -1', width: leftGutterPx }}
     >
       {isLoading || !currency ? (
         <div className="text-ink-faint text-sm">Loading…</div>
@@ -77,8 +77,8 @@ export function CurrencySettingsDropdown({ scenarioId, walletCards, currencyId, 
         <div className="space-y-3">
           {!isCash && (
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1">
+              <div className="flex items-baseline justify-between mb-1.5">
+                <div className="flex items-baseline gap-1">
                   <Eyebrow>Cents Per Point</Eyebrow>
                   {hasNoTransferInfo && (
                     <Popover

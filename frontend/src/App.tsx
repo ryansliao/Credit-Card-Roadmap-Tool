@@ -167,6 +167,7 @@ function SignInDropdown() {
         variant="secondary"
         size="sm"
         onClick={() => { setOpen(!open); resetForm() }}
+        className="hover:bg-surface! hover:text-accent"
       >
         Sign in
       </Button>
@@ -356,7 +357,12 @@ function Nav() {
               )}
               <span className="text-sm hidden sm:inline">{user.username ?? user.name}</span>
             </Link>
-            <Button variant="ghost" size="sm" onClick={signOut}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={signOut}
+              className="hover:bg-transparent! hover:text-accent"
+            >
               Sign out
             </Button>
           </div>

@@ -11,7 +11,6 @@ import type {
 import { walletApi, walletSpendApi } from '../../../../api/client'
 import type { ResolvedCard } from '../../lib/resolveScenarioCards'
 import { Popover } from '../../../../components/ui/Popover'
-import { Badge } from '../../../../components/ui/Badge'
 import { formatMoneyExact, formatPointsExact } from '../../../../utils/format'
 import { queryKeys } from '../../../../lib/queryKeys'
 import { useCardLibrary } from '../../hooks/useCardLibrary'
@@ -45,6 +44,95 @@ function CardPhoto({ slug, name }: { slug: string | null; name: string }) {
       className="w-full h-full object-contain"
       onError={() => setFailed(true)}
     />
+  )
+}
+
+/** Tiny stacked-segment sparkline showing how a user category fans out
+ * into earn categories. The largest segment is `bg-ink-muted`; the rest
+ * are `bg-ink-faint`. Hidden when no mappings carry positive weight. */
+function CategorySparkline({
+  mappings,
+}: {
+  mappings: UserSpendCategory['mappings']
+}) {
+  const sorted = useMemo(
+    () =>
+      mappings
+        .filter((m) => m.default_weight > 0)
+        .sort((a, b) => b.default_weight - a.default_weight),
+    [mappings],
+  )
+  if (sorted.length === 0) return null
+  const tooltip = sorted
+    .map((m) => `${m.earn_category.category} ${Math.round(m.default_weight * 100)}%`)
+    .join(' · ')
+  return (
+    <div
+      className="flex gap-px w-[60px] h-1.5 rounded-full overflow-hidden bg-surface-2 shrink-0"
+      title={tooltip}
+      aria-label={tooltip}
+    >
+      {sorted.map((m, i) => (
+        <span
+          key={m.id}
+          className={i === 0 ? 'bg-ink-muted' : 'bg-ink-faint'}
+          style={{ flexGrow: m.default_weight }}
+        />
+      ))}
+    </div>
+  )
+}
+
+type RosTileTag = 'baseline' | 'rotating' | 'portal' | 'override'
+
+/** Photo-led ROS chip — 64px-wide tile with a 64×40 card photo on top
+ * (preserves credit-card aspect ratio so card art stays recognizable),
+ * the ROS percentage below, and an optional corner dot indicating the
+ * tag (Portal / Rotating / Override). Card name lives in the tooltip.
+ *
+ * Tag dot colors map to existing semantic tokens — Portal→warn,
+ * Rotating→info, Override→pos — to match other surfaces in the app. */
+function RosTile({
+  cardName,
+  photoSlug,
+  rosLabel,
+  tag,
+}: {
+  cardName: string
+  photoSlug: string | null
+  rosLabel: string
+  tag: RosTileTag
+}) {
+  const tagDotClass: Record<RosTileTag, string | null> = {
+    baseline: null,
+    portal: 'bg-warn',
+    rotating: 'bg-info',
+    override: 'bg-pos',
+  }
+  const tagDescription: Record<RosTileTag, string> = {
+    baseline: '',
+    portal: ' · Portal (requires booking through this card\'s travel portal)',
+    rotating: ' · Rotating (only when this category is in the active rotating bonus)',
+    override: ' · Override (manually pinned for this category)',
+  }
+  return (
+    <div
+      className="w-16 flex flex-col items-center"
+      title={`${cardName} · ${rosLabel}${tagDescription[tag]}`}
+    >
+      <div className="relative w-16 h-10 bg-surface-2/50 border border-divider rounded-md overflow-hidden transition-colors group-hover:border-accent">
+        <CardPhoto slug={photoSlug} name={cardName} />
+        {tagDotClass[tag] && (
+          <span
+            aria-hidden
+            className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full border border-surface ${tagDotClass[tag]}`}
+          />
+        )}
+      </div>
+      <span className="text-[11px] font-semibold text-ink tnum-mono mt-1 leading-none">
+        {rosLabel}
+      </span>
+    </div>
   )
 }
 
@@ -486,6 +574,25 @@ export function SpendTabContent({
     return formatPointsExact(adjusted)
   }
 
+  // Toolbar aggregates: total annual spend across all categories and the
+  // currently-cycled card's total earn across categories. Drives the two
+  // figures shown to the right of the cycler.
+  const spendTotal = useMemo(
+    () => spendItems.reduce((sum, item) => sum + (item.amount || 0), 0),
+    [spendItems],
+  )
+  const selectedCardTotalEarn = useMemo(() => {
+    if (!currentCard) return null
+    let total = 0
+    for (const item of spendItems) {
+      total += earnForUserCategory(currentCard, item.user_spend_category ?? null)
+    }
+    return total
+    // earnForUserCategory closes over earnByCategoryByCard which already
+    // memoizes per selectedCards; recomputing on the same inputs is cheap.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCard, spendItems, earnByCategoryByCard])
+
   // First-time empty state: wallet has cards but no calc has run, so the
   // backend hasn't produced any selected card results to populate the Top
   // ROS column or per-card income figures. Show an inline prompt above the
@@ -498,227 +605,261 @@ export function SpendTabContent({
       {isLoading ? (
         <div className="text-ink-faint text-sm">Loading…</div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-auto">
+        <>
           {showCalculatePrompt && (
             <div className="px-3 py-2 text-xs text-accent bg-accent-soft border border-accent/30 rounded-md mb-2">
               Click <span className="font-semibold text-accent">Calculate</span> to see your top earning card per category.
             </div>
           )}
-          <table className="w-full text-sm border-collapse table-fixed">
-            <colgroup>
-              <col />
-              <col className="w-28" />
-              <col className="w-72" />
-              <col className="w-80" />
-            </colgroup>
-            <thead className="sticky top-0 bg-surface z-10 [&_th]:bg-surface [&_td]:bg-surface-2/40 [&>tr:first-child>th]:bg-surface">
-              <tr>
-                <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-r border-divider shadow-[inset_0_-1px_0_var(--color-divider)]">
-                  Category
-                </th>
-                <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-r border-divider whitespace-nowrap shadow-[inset_0_-1px_0_var(--color-divider)]">
-                  Annual Spend
-                </th>
-                <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-r border-divider whitespace-nowrap shadow-[inset_0_-1px_0_var(--color-divider)]">
-                  Annual Point Income
-                </th>
-                <th
-                  rowSpan={2}
-                  className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 whitespace-nowrap shadow-[inset_0_-1px_0_var(--color-divider)]"
+
+          {/* Toolbar — card cycler + aggregate stats. Replaces the in-thead
+              prev/next controls and the dedicated Total row that used to
+              live inside the table head. */}
+          <div className="flex items-center gap-3 px-3 py-2 mb-2 bg-surface-2/50 border border-divider rounded-lg flex-wrap">
+            <span className="text-[10px] uppercase tracking-wider text-ink-faint font-semibold shrink-0">
+              View card
+            </span>
+            <div className="inline-flex items-center gap-1.5 px-1.5 py-0.5 border border-divider rounded-full bg-surface">
+              <button
+                type="button"
+                onClick={() => cycleCard(-1)}
+                disabled={cardCount < 2}
+                className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-ink-faint hover:text-accent hover:bg-surface-2 disabled:opacity-30 disabled:hover:text-ink-faint disabled:hover:bg-transparent transition-colors"
+                aria-label="Previous card"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+              <div className="w-8 h-5 rounded-sm overflow-hidden bg-surface-2/50 shrink-0">
+                <CardPhoto
+                  slug={currentCard?.photo_slug ?? null}
+                  name={currentCard?.card_name ?? ''}
+                />
+              </div>
+              <span className="text-xs font-medium text-ink whitespace-nowrap w-[200px] text-center truncate">
+                {currentCard?.card_name ?? '—'}
+              </span>
+              <button
+                type="button"
+                onClick={() => cycleCard(1)}
+                disabled={cardCount < 2}
+                className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-ink-faint hover:text-accent hover:bg-surface-2 disabled:opacity-30 disabled:hover:text-ink-faint disabled:hover:bg-transparent transition-colors"
+                aria-label="Next card"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </div>
+            <span className="inline-flex items-baseline gap-1.5 text-xs">
+              <span className="text-[9px] uppercase tracking-wider text-ink-faint font-semibold">
+                Total spend
+              </span>
+              <span className="font-semibold tnum-mono text-ink">
+                ${spendTotal.toLocaleString()}
+              </span>
+            </span>
+            {currentCard && selectedCardTotalEarn != null && (
+              <span className="inline-flex items-baseline gap-1.5 text-xs">
+                <span className="text-[9px] uppercase tracking-wider text-ink-faint font-semibold">
+                  Card earn
+                </span>
+                <span
+                  className={`font-semibold tnum-mono text-ink ${isStale ? 'opacity-60' : ''}`}
+                  title={isStale ? 'Out of date' : undefined}
                 >
-                  Top ROS Card
-                </th>
-              </tr>
-              {/* Total row — kept inside thead so it sticks together with
-                  the header row when the table body scrolls. */}
-              <tr>
-                <th
-                  scope="row"
-                  className="text-left px-3 py-2 text-ink font-semibold border-r border-divider/60 shadow-[inset_0_-1px_0_var(--color-divider)]"
-                >
-                  Total
-                </th>
-                <td className="text-center px-2 py-2 border-r border-divider/60 shadow-[inset_0_-1px_0_var(--color-divider)]">
-                  <div className="text-ink font-bold tnum-mono">
-                    ${spendItems.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
-                  </div>
-                </td>
-                <td className="px-2 py-2 text-ink-muted border-r border-divider/60 shadow-[inset_0_-1px_0_var(--color-divider)]">
-                  <div className="flex items-center justify-between gap-2 w-full">
-                    <button
-                      type="button"
-                      onClick={() => cycleCard(-1)}
-                      disabled={cardCount < 2}
-                      className="shrink-0 p-0.5 rounded text-ink-faint hover:text-ink hover:bg-surface-2 disabled:opacity-30 disabled:hover:text-ink-faint disabled:hover:bg-transparent"
-                      aria-label="Previous card"
+                  {formatCardEarn(currentCard, selectedCardTotalEarn)}
+                </span>
+              </span>
+            )}
+            <div className="ml-auto flex items-center gap-4 text-[11px] text-ink-faint">
+              <span
+                className="inline-flex items-center gap-1.5"
+                title="Booking through this card's travel portal"
+              >
+                <span aria-hidden className="w-2 h-2 rounded-full bg-warn" />
+                Portal
+              </span>
+              <span
+                className="inline-flex items-center gap-1.5"
+                title="Only when this category is in the active rotating bonus"
+              >
+                <span aria-hidden className="w-2 h-2 rounded-full bg-info" />
+                Rotating
+              </span>
+              <span
+                className="inline-flex items-center gap-1.5"
+                title="Manually pinned for this category"
+              >
+                <span aria-hidden className="w-2 h-2 rounded-full bg-pos" />
+                Override
+              </span>
+            </div>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-auto">
+            <table className="w-full text-sm border-collapse table-fixed">
+              <colgroup>
+                <col />
+                <col className="w-32" />
+                <col className="w-40" />
+                <col />
+              </colgroup>
+              <thead className="sticky top-0 bg-surface z-10">
+                <tr>
+                  <th className="text-left text-[10px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-2.5 border-b border-divider">
+                    Category
+                  </th>
+                  <th className="text-center text-[10px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-2.5 border-b border-divider whitespace-nowrap">
+                    Annual Spend
+                  </th>
+                  <th className="text-center text-[10px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-2.5 border-b border-divider whitespace-nowrap">
+                    Selected Card
+                  </th>
+                  <th className="text-left text-[10px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-2.5 border-b border-divider">
+                    Top ROS Cards
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {spendItems.map((item) => {
+                  const catName = item.user_spend_category?.name ?? 'Unknown'
+                  const topEntries = topCardsForCategory(item.user_spend_category)
+                  const noTop = topEntries.length === 0
+                  return (
+                    <tr
+                      key={item.id}
+                      className="border-b border-divider/60 last:border-b-0 hover:bg-surface-2/40 transition-colors"
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="15 18 9 12 15 6" />
-                      </svg>
-                    </button>
-                    <span className="flex-1 min-w-0 truncate text-center" title={currentCard?.card_name ?? ''}>
-                      {currentCard?.card_name ?? '—'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => cycleCard(1)}
-                      disabled={cardCount < 2}
-                      className="shrink-0 p-0.5 rounded text-ink-faint hover:text-ink hover:bg-surface-2 disabled:opacity-30 disabled:hover:text-ink-faint disabled:hover:bg-transparent"
-                      aria-label="Next card"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </thead>
-            <tbody>
-              {spendItems.map((item) => {
-                const catName = item.user_spend_category?.name ?? 'Unknown'
-                const topEntries = topCardsForCategory(item.user_spend_category)
-                const noTop = topEntries.length === 0
-                return (
-                  <tr key={item.id} className="border-b border-divider/60 last:border-b-0 hover:bg-surface-2/40 transition-colors">
-                    <td className="text-left px-3 py-2 text-ink border-r border-divider/60">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate" title={catName}>
-                          {catName}
-                        </span>
-                        {item.user_spend_category && item.user_spend_category.mappings.length > 0 && (() => {
-                          const cat = item.user_spend_category
-                          const isHousing = cat.name.trim().toLowerCase() === 'housing'
-                          const displayMappings = effectiveMappings(cat)
-                          return (
-                            <Popover
-                              side="bottom"
-                              portal
-                              trigger={({ onClick, ref }) => (
-                                <button
-                                  ref={ref as React.RefObject<HTMLButtonElement>}
-                                  type="button"
-                                  onClick={onClick}
-                                  className="shrink-0 p-0.5 rounded transition-colors text-ink-faint hover:text-ink hover:bg-surface-2"
-                                  title="View category details"
+                      <td className="text-left px-3 py-2.5 align-middle">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-ink truncate" title={catName}>
+                            {catName}
+                          </span>
+                          {item.user_spend_category &&
+                            item.user_spend_category.mappings.length > 0 &&
+                            (() => {
+                              const cat = item.user_spend_category
+                              const isHousing =
+                                cat.name.trim().toLowerCase() === 'housing'
+                              const displayMappings = effectiveMappings(cat)
+                              return (
+                                <Popover
+                                  side="bottom"
+                                  portal
+                                  trigger={({ onClick, ref }) => (
+                                    <button
+                                      ref={ref as React.RefObject<HTMLButtonElement>}
+                                      type="button"
+                                      onClick={onClick}
+                                      className="shrink-0 p-0.5 rounded transition-colors text-ink-faint hover:text-ink hover:bg-surface-2"
+                                      title="View category details"
+                                    >
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <path d="M12 16v-4" />
+                                        <path d="M12 8h.01" />
+                                      </svg>
+                                    </button>
+                                  )}
                                 >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <path d="M12 16v-4" />
-                                    <path d="M12 8h.01" />
-                                  </svg>
-                                </button>
-                              )}
-                            >
-                              {cat.description && <p className="text-xs text-ink-muted mb-1.5">{cat.description}</p>}
-                              <p className="text-ink-muted font-medium mb-1.5">{cat.name}</p>
-                              <p className="text-[10px] text-ink-faint uppercase tracking-wider mb-1.5">Includes spend on</p>
-                              <ul className="space-y-1">
-                                {displayMappings
-                                  .slice()
-                                  .sort((a, b) => b.default_weight - a.default_weight)
-                                  .map((mapping) => (
-                                    <li key={mapping.id} className="flex items-center justify-between gap-3">
-                                      <span className="text-ink-muted">{mapping.earn_category.category}</span>
-                                      <span className="text-ink-faint tnum-mono">
-                                        {Math.round(mapping.default_weight * 100)}%
-                                      </span>
-                                    </li>
-                                  ))}
-                              </ul>
-                              {isHousing && (
-                                <p className="text-xs text-ink-faint mt-2">
-                                  Set by Housing Type in the Profile / Spending tab.
-                                </p>
-                              )}
-                            </Popover>
-                          )
-                        })()}
-                      </div>
-                    </td>
-                    <td className="text-center px-2 py-2 border-r border-divider/60">
-                      <span className="text-ink tnum-mono">
-                        ${item.amount === 0 ? '0' : Math.round(item.amount).toLocaleString()}
-                      </span>
-                    </td>
-                    <td
-                      className={`text-center tnum-mono px-3 py-2 text-ink border-r border-divider/60 transition-opacity ${isStale ? 'opacity-60' : ''}`}
-                      title={isStale ? 'Out of date' : undefined}
-                    >
-                      {currentCard ? (
-                        (() => {
-                          const pts = earnForUserCategory(currentCard, item.user_spend_category)
-                          return pts > 0 ? (
-                            formatCardEarn(currentCard, pts)
-                          ) : (
-                            <span className="text-ink-faint">—</span>
-                          )
-                        })()
-                      ) : (
-                        <span className="text-ink-faint">—</span>
-                      )}
-                    </td>
-                    <td
-                      className={`px-3 py-2 text-ink transition-opacity ${isStale ? 'opacity-60' : ''}`}
-                      title={isStale ? 'Out of date' : undefined}
-                    >
-                      {noTop ? (
-                        <div className="text-center text-ink-faint">—</div>
-                      ) : (
-                        <div className="flex flex-col gap-1.5">
-                          {topEntries.map((entry) => (
-                            <div
-                              key={`${entry.card.card_id}-${entry.tag}`}
-                              className="flex items-center gap-2 min-w-0"
-                            >
-                              <div className="w-[60px] h-9 shrink-0 rounded overflow-hidden bg-surface-2/50">
-                                <CardPhoto slug={entry.card.photo_slug} name={entry.card.card_name} />
-                              </div>
-                              <div className="min-w-0 flex-1 text-left">
-                                <div className="text-xs text-ink truncate mb-0.5" title={entry.card.card_name}>
-                                  {entry.card.card_name}
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <div className="text-xs font-semibold text-accent tnum-mono">
-                                    {formatRos(entry.ros)}
-                                  </div>
-                                  {entry.tag === 'portal' && (
-                                    <Badge
-                                      tone="warn"
-                                      title="Requires booking through this card's travel portal"
-                                    >
-                                      Portal
-                                    </Badge>
+                                  {cat.description && (
+                                    <p className="text-xs text-ink-muted mb-1.5">
+                                      {cat.description}
+                                    </p>
                                   )}
-                                  {entry.tag === 'rotating' && (
-                                    <Badge
-                                      tone="info"
-                                      title="Only applies when this category is in the card's active rotating bonus"
-                                    >
-                                      Rotating
-                                    </Badge>
+                                  <p className="text-ink-muted font-medium mb-1.5">{cat.name}</p>
+                                  <p className="text-[10px] text-ink-faint uppercase tracking-wider mb-1.5">
+                                    Includes spend on
+                                  </p>
+                                  <ul className="space-y-1">
+                                    {displayMappings
+                                      .slice()
+                                      .sort((a, b) => b.default_weight - a.default_weight)
+                                      .map((mapping) => (
+                                        <li
+                                          key={mapping.id}
+                                          className="flex items-center justify-between gap-3"
+                                        >
+                                          <span className="text-ink-muted">
+                                            {mapping.earn_category.category}
+                                          </span>
+                                          <span className="text-ink-faint tnum-mono">
+                                            {Math.round(mapping.default_weight * 100)}%
+                                          </span>
+                                        </li>
+                                      ))}
+                                  </ul>
+                                  {isHousing && (
+                                    <p className="text-xs text-ink-faint mt-2">
+                                      Set by Housing Type in the Profile / Spending tab.
+                                    </p>
                                   )}
-                                  {entry.tag === 'override' && (
-                                    <Badge
-                                      tone="pos"
-                                      title="This card is manually pinned for this category in the current scenario"
-                                    >
-                                      Override
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
+                                </Popover>
+                              )
+                            })()}
+                          {item.user_spend_category && (
+                            <CategorySparkline
+                              mappings={effectiveMappings(item.user_spend_category)}
+                            />
+                          )}
                         </div>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                      <td className="text-center px-3 py-2.5 align-middle">
+                        <span className="text-ink tnum-mono">
+                          ${item.amount === 0 ? '0' : Math.round(item.amount).toLocaleString()}
+                        </span>
+                      </td>
+                      <td
+                        className={`text-center px-3 py-2.5 text-ink tnum-mono align-middle transition-opacity ${isStale ? 'opacity-60' : ''}`}
+                        title={isStale ? 'Out of date' : undefined}
+                      >
+                        {currentCard ? (
+                          (() => {
+                            const pts = earnForUserCategory(
+                              currentCard,
+                              item.user_spend_category,
+                            )
+                            return pts > 0 ? (
+                              formatCardEarn(currentCard, pts)
+                            ) : (
+                              <span className="text-ink-faint">—</span>
+                            )
+                          })()
+                        ) : (
+                          <span className="text-ink-faint">—</span>
+                        )}
+                      </td>
+                      <td
+                        className={`px-3 py-2.5 align-middle transition-opacity ${isStale ? 'opacity-60' : ''}`}
+                        title={isStale ? 'Out of date' : undefined}
+                      >
+                        {noTop ? (
+                          <span className="text-xs text-ink-faint italic">
+                            — no card with a multiplier
+                          </span>
+                        ) : (
+                          <div className="flex flex-wrap gap-2.5 items-start">
+                            {topEntries.map((entry) => (
+                              <RosTile
+                                key={`${entry.card.card_id}-${entry.tag}`}
+                                cardName={entry.card.card_name}
+                                photoSlug={entry.card.photo_slug}
+                                rosLabel={formatRos(entry.ros)}
+                                tag={entry.tag}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )

@@ -55,14 +55,18 @@ export function CurrencyPhoto({
       return (
         <div
           className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center"
-          style={{ backgroundColor: 'var(--chart-cash)' }}
+          style={{
+            backgroundColor: 'var(--color-accent)',
+            boxShadow:
+              '0 0 0 2px color-mix(in oklab, var(--color-accent) 35%, transparent)',
+          }}
         >
           <svg
             width="16"
             height="16"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="white"
+            stroke="var(--color-on-accent)"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -76,7 +80,11 @@ export function CurrencyPhoto({
     return (
       <div
         className="w-7 h-7 rounded-full shrink-0"
-        style={{ backgroundColor: fallbackColor }}
+        style={{
+          backgroundColor: fallbackColor,
+          boxShadow:
+            '0 0 0 2px color-mix(in oklab, var(--color-accent) 35%, transparent)',
+        }}
       />
     )
   }
@@ -85,6 +93,10 @@ export function CurrencyPhoto({
       src={`/photos/currencies/${slug}`}
       alt={name}
       className="w-7 h-7 rounded-full object-cover shrink-0"
+      style={{
+        boxShadow:
+          '0 0 0 2px color-mix(in oklab, var(--color-accent) 35%, transparent)',
+      }}
       onError={() => setFailed(true)}
     />
   )

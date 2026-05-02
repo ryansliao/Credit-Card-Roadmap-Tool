@@ -108,8 +108,8 @@ export function WalletPortalSharesEditor({
           const pct = Math.round(value * 100)
           return (
             <li key={portal.id}>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1">
+              <div className="flex items-baseline justify-between mb-1.5">
+                <div className="flex items-baseline gap-1">
                   <Eyebrow>Travel Portal Spend</Eyebrow>
                   <Popover
                     side="bottom"

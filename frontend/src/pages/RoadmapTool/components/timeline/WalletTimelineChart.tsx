@@ -45,7 +45,9 @@ interface Props {
   onAddCard: () => void
 }
 
-const LEFT_GUTTER = 420 // px
+const RAIL_COL = 40 // px — merged currency rail (icon + accent connector)
+const CARD_COL = 380 // px — per-card cell + currency header row content
+const LEFT_GUTTER = RAIL_COL + CARD_COL // px — combined left gutter; gridlines + chart math read this
 const AXIS_HEIGHT = 32
 const DIVIDER_CLASS = 'border-b border-divider'
 
@@ -70,6 +72,14 @@ export function WalletTimelineChart({
   const { rules: applicableRules, maxSeverity } = useMemo(
     () => enrichRuleStatuses(roadmap),
     [roadmap],
+  )
+  // Headline count only includes rules at-risk or worse (in-effect / violated).
+  // Inactive rules still surface in the popover for context but don't push the
+  // counter up — issuer rules that aren't currently applying shouldn't read as
+  // "alerts" the user has to act on.
+  const alertCount = useMemo(
+    () => applicableRules.filter((r) => r.severity !== 'inactive').length,
+    [applicableRules],
   )
 
   const range = useMemo<Range>(() => {
@@ -211,7 +221,7 @@ export function WalletTimelineChart({
                 </svg>
                 Add card
               </Button>
-              {applicableRules.length > 0 && (
+              {alertCount > 0 && (
                 <Popover
                   side="bottom"
                   portal
@@ -235,7 +245,7 @@ export function WalletTimelineChart({
                         <line x1="12" y1="9" x2="12" y2="13" />
                         <line x1="12" y1="17" x2="12.01" y2="17" />
                       </svg>
-                      {applicableRules.length === 1 ? 'Rule alert' : `${applicableRules.length} rule alerts`}
+                      {alertCount === 1 ? 'Rule alert' : `${alertCount} rule alerts`}
                     </button>
                   )}
                 >
@@ -292,7 +302,7 @@ export function WalletTimelineChart({
               <div className="flex-1" />
               <div className="hidden sm:flex items-center gap-3 text-[11px] text-ink-faint">
                 <span className="inline-flex items-center gap-1.5">
-                  <span aria-hidden className="w-7 h-2.5 rounded-full" style={{ background: 'color-mix(in oklab, var(--chart-points) 18%, transparent)', border: '1px solid var(--chart-points)' }} />
+                  <span aria-hidden className="w-7 h-2.5 rounded-full" style={{ background: 'color-mix(in oklab, var(--color-accent) 18%, transparent)', border: '1px solid var(--color-accent)' }} />
                   Active card
                 </span>
                 <span className="inline-flex items-center gap-1.5">
@@ -300,8 +310,8 @@ export function WalletTimelineChart({
                     aria-hidden
                     className="w-7 h-2.5 rounded-full border"
                     style={{
-                      backgroundImage: `repeating-linear-gradient(45deg, color-mix(in oklab, var(--chart-points) 38%, transparent) 0, color-mix(in oklab, var(--chart-points) 38%, transparent) 4px, color-mix(in oklab, var(--chart-points) 10%, transparent) 4px, color-mix(in oklab, var(--chart-points) 10%, transparent) 8px)`,
-                      borderColor: 'var(--chart-points)',
+                      backgroundImage: `repeating-linear-gradient(45deg, color-mix(in oklab, var(--color-accent) 38%, transparent) 0, color-mix(in oklab, var(--color-accent) 38%, transparent) 4px, color-mix(in oklab, var(--color-accent) 10%, transparent) 4px, color-mix(in oklab, var(--color-accent) 10%, transparent) 8px)`,
+                      borderColor: 'var(--color-accent)',
                     }}
                   />
                   SUB earning
@@ -317,10 +327,17 @@ export function WalletTimelineChart({
           <div
             className="grid shrink-0 overflow-hidden"
             style={{
-              gridTemplateColumns: `${LEFT_GUTTER}px 1fr`,
+              gridTemplateColumns: `${RAIL_COL}px ${CARD_COL}px 1fr`,
               scrollbarGutter: 'stable',
             }}
           >
+            {/* Rail column header — empty; the rail itself is unlabeled.
+                No right-border here so the axis row doesn't show a divider
+                above the rail (the rail's own border-r picks up below). */}
+            <div
+              className={`bg-surface ${DIVIDER_CLASS}`}
+              style={{ height: AXIS_HEIGHT }}
+            />
             <div
               className={`bg-surface ${DIVIDER_CLASS} px-3 flex items-center gap-2`}
               style={{ height: AXIS_HEIGHT }}
@@ -342,7 +359,7 @@ export function WalletTimelineChart({
           >
             <div
               className="relative"
-              style={{ display: 'grid', gridTemplateColumns: `${LEFT_GUTTER}px 1fr` }}
+              style={{ display: 'grid', gridTemplateColumns: `${RAIL_COL}px ${CARD_COL}px 1fr` }}
             >
               {/* Year gridlines — z-[25] so they cross over the currency
                   header rows (z-20) instead of being masked by them. Bars

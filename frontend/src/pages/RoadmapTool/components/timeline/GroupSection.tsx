@@ -10,8 +10,8 @@ import {
   formatSecondaryBalance,
 } from './lib/timelineFormatters'
 
-const CURRENCY_ROW_HEIGHT = 45
-const LEFT_GUTTER = 420
+const CURRENCY_ROW_HEIGHT = 44
+const CARD_COL = 380
 const DIVIDER_CLASS = 'border-b border-divider'
 
 export interface SecondaryAnnual {
@@ -100,67 +100,64 @@ export function GroupSection({
       suffix: '/yr',
     }
 
+  const cardCount = group.cards.length
+  const isCash = group.rewardKind === 'cash'
+  const settingsAvailable = group.currencyId != null && !isCash
+  // Rail merges across the header row + dropdown (when expanded) + every
+  // card row in the group. The dropdown spans cols 2/-1 only so the rail
+  // in col 1 stays unbroken under it, visually anchoring the dropdown to
+  // its currency.
+  const railRowSpan = 1 + (isExpanded ? 1 : 0) + Math.max(1, cardCount)
+
   return (
     <>
-      {/* Group header: split into two cells so the gear lives inside the
-          left (Cards) column, right-aligned. Opaque bg + z-20 so the
-          Today line / year gridlines stop at this row rather than crossing
-          through the text. */}
+      {/* Currency rail — column 1, merged across the entire group block.
+          Holds the currency icon and a thin accent connector that visually
+          anchors the cards beneath this currency. */}
       <div
-        className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} hover:bg-surface-2/40 transition-colors`}
-        style={{ height: CURRENCY_ROW_HEIGHT, borderLeft: `3px solid ${group.color}` }}
+        className="relative bg-surface-2 border-b border-r border-divider flex flex-col items-center pt-2 pb-2"
+        style={{ gridColumn: 1, gridRow: `span ${railRowSpan}` }}
       >
         <CurrencyPhoto
           slug={group.photoSlug}
           name={group.name}
           fallbackColor={group.color}
-          isCash={group.rewardKind === 'cash'}
+          isCash={isCash}
         />
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-ink truncate">{group.name}</div>
-          {(balanceLabel || incomeLabel || group.secondaries.length > 0) && (
-            <div
-              className={`flex items-center gap-1.5 text-xs text-ink-muted truncate transition-opacity ${isStale ? 'opacity-60' : ''}`}
-              title={
-                isStale
-                  ? 'Results are out of date — click Calculate to refresh'
-                  : undefined
-              }
-            >
-              {balanceLabel != null ? (
-                <span className="tnum-mono">{balanceLabel}</span>
-              ) : (
-                <span>—</span>
-              )}
-              {incomeLabel && (
-                <>
-                  <span className="text-ink-faint text-sm leading-none">·</span>
-                  <span className="text-ink-faint">
-                    <span className="tnum-mono">{incomeLabel.number}</span>
-                    {incomeLabel.suffix}
-                  </span>
-                </>
-              )}
-              {group.secondaries.map((s) => {
-                const parts = formatSecondaryBalance(s)
-                return (
-                  <span key={`bal-${s.id}`} className="text-ink-faint">
-                    <span className="mr-1 text-ink-faint">·</span>
-                    <span className="tnum-mono">{parts.number}</span>
-                    {parts.suffix}
-                  </span>
-                )
-              })}
-            </div>
-          )}
-        </div>
-        {group.currencyId != null && group.rewardKind !== 'cash' && (
+        <div
+          aria-hidden
+          className="mt-2 w-0.5 flex-1 rounded-full"
+          style={{
+            backgroundColor: 'color-mix(in oklab, var(--color-accent) 35%, transparent)',
+          }}
+        />
+      </div>
+
+      {/* Currency header — split into two cells along the Cards / Timeline
+          column boundary so the Today + End vertical gridlines pass through
+          uninterrupted. Cards-column cell holds the name + Cash pill +
+          gear (gear pushed to the right edge of its cell via ml-auto, so
+          it sits just before the Today line). Timeline-column cell holds
+          the stats inside an opaque bg-surface chip (z-[30]) so year
+          gridlines don't slice through the text; mr-2 leaves an 8px gap
+          before the End line. */}
+      <div
+        className={`relative flex items-center gap-2 px-3 ${DIVIDER_CLASS} hover:bg-surface-2/40 transition-colors`}
+        style={{ gridColumn: 2, height: CURRENCY_ROW_HEIGHT }}
+      >
+        <span className="text-sm font-semibold text-ink truncate">{group.name}</span>
+        {isCash && (
+          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-ink-faint bg-surface-2 px-1.5 py-0.5 rounded-full">
+            Cash
+          </span>
+        )}
+        {settingsAvailable && (
           <button
             type="button"
             onClick={() => onToggleExpanded(group.currencyId!)}
-            className={`ml-auto p-1.5 rounded transition-colors shrink-0 ${
+            className={`shrink-0 ml-auto p-1.5 rounded transition-colors ${
               isExpanded
-                ? 'bg-surface text-accent'
+                ? 'bg-accent-soft text-accent'
                 : 'text-ink-faint hover:text-accent hover:bg-surface-2'
             }`}
             title={
@@ -172,8 +169,8 @@ export function GroupSection({
             aria-expanded={isExpanded}
           >
             <svg
-              width="18"
-              height="18"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -191,23 +188,59 @@ export function GroupSection({
           </button>
         )}
       </div>
-      {/* Right cell — timeline side of the currency header row; carries the
-          income total (if any) and keeps the background tint aligned. z-20
-          + opaque bg so the Today line and year gridlines don't bleed
-          through the text. */}
       <div
-        className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} hover:bg-surface-2/40 transition-colors`}
-        style={{ height: CURRENCY_ROW_HEIGHT }}
-      />
+        className={`relative flex items-center ${DIVIDER_CLASS} hover:bg-surface-2/40 transition-colors`}
+        style={{ gridColumn: 3, height: CURRENCY_ROW_HEIGHT }}
+      >
+        <div
+          className={`ml-auto mr-1 px-1 relative z-[30] bg-surface flex items-center gap-1.5 text-xs text-ink-muted truncate transition-opacity ${isStale ? 'opacity-60' : ''}`}
+          title={
+            isStale
+              ? 'Results are out of date — click Calculate to refresh'
+              : undefined
+          }
+        >
+          {incomeLabel && (
+            <span className="text-ink-faint">
+              <span className="tnum-mono">{incomeLabel.number}</span>
+              {incomeLabel.suffix}
+            </span>
+          )}
+          <span className="text-ink-faint text-sm leading-none">·</span>
+          {balanceLabel != null ? (
+            <span className="tnum-mono">{balanceLabel}</span>
+          ) : (
+            <span>—</span>
+          )}
+          {group.secondaries.map((s) => {
+            const parts = formatSecondaryBalance(s)
+            return (
+              <span key={`bal-${s.id}`} className="text-ink-faint">
+                <span className="mr-1 text-ink-faint">·</span>
+                <span className="tnum-mono">{parts.number}</span>
+                {parts.suffix}
+              </span>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Currency settings — opens directly beneath the currency header row
+          (between the header and the first card) so the dropdown stays
+          visually attached to its currency. Spans cols 2/-1 only; the rail
+          in col 1 continues unbroken behind it. */}
       {isExpanded && group.currencyId != null && (
         <CurrencySettingsDropdown
           scenarioId={scenarioId}
           walletCards={walletCards}
           currencyId={group.currencyId}
-          leftGutterPx={LEFT_GUTTER}
+          leftGutterPx={CARD_COL}
           onClose={() => onToggleExpanded(group.currencyId!)}
         />
       )}
+
+      {/* Card rows — each renders 2 cells (display:contents) which auto-flow
+          into columns 2 + 3 of the rows the rail occupies. */}
       {group.cards.map(({ wc, cr, secondary }) => (
         <CardRow
           key={wc.id}
