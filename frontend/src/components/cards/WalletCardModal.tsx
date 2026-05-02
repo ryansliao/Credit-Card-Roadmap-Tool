@@ -1193,17 +1193,9 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       <p className="text-xs font-medium text-ink-muted">Acquisition</p>
                       <div role="radiogroup" aria-label="Acquisition" className="space-y-2">
                         {([
-                          {
-                            v: 'open' as const,
-                            label: 'Account Opening',
-                            desc: 'New card from this issuer. Counts toward 5/24 and other velocity rules.',
-                          },
-                          {
-                            v: 'pc' as const,
-                            label: 'Product Change',
-                            desc: "Switching from another card. Account number is preserved; doesn't count as a new app.",
-                          },
-                        ]).map(({ v, label, desc }) => {
+                          { v: 'open' as const, label: 'Account Opening' },
+                          { v: 'pc' as const, label: 'Product Change' },
+                        ]).map(({ v, label }) => {
                           const selected = acquisitionMode === v
                           return (
                             <button
@@ -1224,11 +1216,8 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                   selected ? 'border-accent bg-accent' : 'border-divider-strong'
                                 }`}
                               />
-                              <span className="min-w-0">
-                                <span className={`block text-sm font-medium ${selected ? 'text-accent' : 'text-ink'}`}>
-                                  {label}
-                                </span>
-                                <span className="block text-[11px] text-ink-faint mt-0.5">{desc}</span>
+                              <span className={`text-sm font-medium ${selected ? 'text-accent' : 'text-ink'}`}>
+                                {label}
                               </span>
                             </button>
                           )
@@ -1558,25 +1547,17 @@ export function WalletCardModal(props: WalletCardModalProps) {
                             : lc?.credit_currency_id ?? null
                         const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
                         const isCash = !cur || cur.reward_kind === 'cash'
-                        const sourceLine = isUserOwned
-                          ? 'Custom · only on this card'
-                          : 'From library default'
                         return (
                           <li key={libId}>
                             <div className="bg-surface-2/40 rounded-lg p-3">
                               <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-sm font-medium text-ink truncate">
-                                      {lc?.credit_name ?? `Credit #${libId}`}
-                                    </p>
-                                    {isUserOwned && (
-                                      <Badge tone="accent">Custom</Badge>
-                                    )}
-                                  </div>
-                                  <p className="text-[11px] text-ink-faint mt-0.5">
-                                    {sourceLine}
+                                <div className="min-w-0 flex-1 flex items-center gap-2">
+                                  <p className="text-sm font-medium text-ink truncate">
+                                    {lc?.credit_name ?? `Credit #${libId}`}
                                   </p>
+                                  {isUserOwned && (
+                                    <Badge tone="accent">Custom</Badge>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   <div className="relative w-24">
