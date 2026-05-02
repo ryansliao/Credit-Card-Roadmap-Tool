@@ -46,7 +46,7 @@ interface Props {
 }
 
 const LEFT_GUTTER = 420 // px
-const AXIS_HEIGHT = 50
+const AXIS_HEIGHT = 32
 const DIVIDER_CLASS = 'border-b border-divider'
 
 export function WalletTimelineChart({
