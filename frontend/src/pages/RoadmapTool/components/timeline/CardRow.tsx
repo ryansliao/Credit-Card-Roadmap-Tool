@@ -255,7 +255,7 @@ export function CardRow({
     <div className="group contents">
       {/* Left gutter */}
       <div
-        className={`flex items-center gap-2 px-3 ${DIVIDER_CLASS} transition-colors group-hover:bg-surface-2/60`}
+        className={`flex items-center gap-2 px-3 ${DIVIDER_CLASS} transition-colors group-hover:bg-surface-2/40`}
         style={{ height: rowHeight }}
       >
         <button
@@ -273,7 +273,7 @@ export function CardRow({
             </div>
             {incomeLabel && (
               <div
-                className={`text-xs text-ink-faint truncate transition-opacity ${isStale ? 'opacity-60' : ''}`}
+                className={`text-[11px] text-ink-faint tnum-mono truncate transition-opacity ${isStale ? 'opacity-60' : ''}`}
                 title={isStale ? 'Out of date' : undefined}
               >
                 <span className="tnum-mono">{incomeLabel.number}</span>
@@ -325,16 +325,18 @@ export function CardRow({
             scenario use the close-date or product-change overlay in the
             modal. Future cards keep the toggle since they're hypothetical. */}
         {wc.is_future ? (
-          <Toggle
-            checked={enabled}
-            disabled={isUpdating}
-            onChange={(e) => onToggleEnabled(wc.instance_id, e.target.checked)}
-            aria-label={enabled ? 'Disable card' : 'Enable card'}
-            title={enabled ? 'Disable card' : 'Enable card'}
-          />
+          <span className="ml-auto shrink-0">
+            <Toggle
+              checked={enabled}
+              disabled={isUpdating}
+              onChange={(e) => onToggleEnabled(wc.instance_id, e.target.checked)}
+              aria-label={enabled ? 'Disable card' : 'Enable card'}
+              title={enabled ? 'Disable card' : 'Enable card'}
+            />
+          </span>
         ) : (
           <Tooltip label="Owned card — locked from this view">
-            <span className="shrink-0 text-warn inline-flex items-center justify-center w-9 h-5">
+            <span className="ml-auto shrink-0 text-warn inline-flex items-center justify-center w-9 h-5">
               <svg
                 width="18"
                 height="18"
