@@ -1867,9 +1867,14 @@ export function WalletCardModal(props: WalletCardModalProps) {
             )}
 
             {formError && (
-              <p className="text-xs text-neg bg-neg/10 border border-neg/50 rounded-lg mx-0 mt-3 px-3 py-2">
-                {formError}
-              </p>
+              <div className="mt-3 px-3 py-2 rounded-md bg-neg/10 border border-neg/30 text-[11px] text-neg flex items-start gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 mt-0.5">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>{formError}</span>
+              </div>
             )}
           </div>
         )}

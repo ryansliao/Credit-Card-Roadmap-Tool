@@ -43,14 +43,15 @@ export function DeleteCardWarningModal({ cardName, onConfirm, onClose, isLoading
         >
           Cancel
         </Button>
-        <button
+        <Button
           type="button"
+          variant="primary"
           onClick={onConfirm}
-          className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-md bg-neg text-white hover:opacity-90 transition-opacity disabled:opacity-50"
-          disabled={isLoading}
+          loading={isLoading}
+          className="!bg-neg !text-on-accent hover:!opacity-90"
         >
-          {isLoading ? 'Removing…' : 'Remove card'}
-        </button>
+          Delete
+        </Button>
       </ModalFooter>
     </Modal>
   )
