@@ -107,7 +107,7 @@ export function GroupSection({
           Today line / year gridlines stop at this row rather than crossing
           through the text. */}
       <div
-        className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} bg-surface-2`}
+        className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} hover:bg-surface-2/40 transition-colors`}
         style={{ height: CURRENCY_ROW_HEIGHT, borderLeft: `3px solid ${group.color}` }}
       >
         <CurrencyPhoto
@@ -196,7 +196,7 @@ export function GroupSection({
           + opaque bg so the Today line and year gridlines don't bleed
           through the text. */}
       <div
-        className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} bg-surface-2`}
+        className={`relative z-20 flex items-center gap-2 px-3 ${DIVIDER_CLASS} hover:bg-surface-2/40 transition-colors`}
         style={{ height: CURRENCY_ROW_HEIGHT }}
       />
       {isExpanded && group.currencyId != null && (
