@@ -21,6 +21,9 @@ import { Button } from '../ui/Button'
 import { Heading } from '../ui/Heading'
 import { Badge } from '../ui/Badge'
 import { Tabs } from '../ui/Tabs'
+import { Field } from '../ui/Field'
+import { Input } from '../ui/Input'
+import { Select } from '../ui/Select'
 import { formatMoney, today } from '../../utils/format'
 import { useCardLibrary } from '../../pages/RoadmapTool/hooks/useCardLibrary'
 import { useCreditLibrary } from '../../hooks/useCreditLibrary'
@@ -1181,19 +1184,26 @@ export function WalletCardModal(props: WalletCardModalProps) {
                   When and how this card entered the wallet, and whether it's still active.
                 </p>
 
-                {/* Acquisition toggle + matching date input. Mirrors the
-                    Card Status / Closed Date layout. The toggle is hidden for
-                    owned-base ADD (implicit "open new") and overlay
+                {/* Acquisition toggle + matching date input. The toggle is hidden
+                    for owned-base ADD (implicit "open new") and overlay
                     (read-only); those modes show just the Opening Date. */}
                 {(isFuture || (isOwnedBase && !isAddFlow)) ? (
-                  <div className="grid grid-cols-2 gap-3 items-start">
-                    <div>
-                      <label className="text-xs text-ink-muted mb-1 block">Acquisition</label>
-                      <div role="radiogroup" className="flex flex-col bg-surface-2/30 border border-divider rounded-lg overflow-hidden">
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-ink-muted">Acquisition</p>
+                      <div role="radiogroup" aria-label="Acquisition" className="space-y-2">
                         {([
-                          { v: 'open' as const, label: 'Account Opening' },
-                          { v: 'pc' as const, label: 'Product Change' },
-                        ]).map(({ v, label }, i) => {
+                          {
+                            v: 'open' as const,
+                            label: 'Account Opening',
+                            desc: 'New card from this issuer. Counts toward 5/24 and other velocity rules.',
+                          },
+                          {
+                            v: 'pc' as const,
+                            label: 'Product Change',
+                            desc: "Switching from another card. Account number is preserved; doesn't count as a new app.",
+                          },
+                        ]).map(({ v, label, desc }) => {
                           const selected = acquisitionMode === v
                           return (
                             <button
@@ -1202,32 +1212,32 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               role="radio"
                               aria-checked={selected}
                               onClick={() => handleAcquisitionModeChange(v)}
-                              className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
-                                i > 0 ? 'border-t border-divider/60' : ''
-                              } ${
+                              className={`w-full text-left flex items-start gap-3 px-3 py-3 rounded-lg border transition-colors ${
                                 selected
-                                  ? 'bg-surface-2 text-ink'
-                                  : 'text-ink-muted hover:bg-surface-2/60'
+                                  ? 'border-accent bg-accent-soft'
+                                  : 'border-divider hover:border-divider-strong bg-surface'
                               }`}
                             >
-                              <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                selected ? 'border-accent' : 'border-divider'
-                              }`}>
-                                {selected && <span className="w-1.5 h-1.5 bg-accent rounded-full" />}
+                              <span
+                                aria-hidden
+                                className={`mt-0.5 shrink-0 w-3.5 h-3.5 rounded-full border transition-colors ${
+                                  selected ? 'border-accent bg-accent' : 'border-divider-strong'
+                                }`}
+                              />
+                              <span className="min-w-0">
+                                <span className={`block text-sm font-medium ${selected ? 'text-accent' : 'text-ink'}`}>
+                                  {label}
+                                </span>
+                                <span className="block text-[11px] text-ink-faint mt-0.5">{desc}</span>
                               </span>
-                              {label}
                             </button>
                           )
                         })}
                       </div>
                     </div>
-                    <div>
-                      <label className="text-xs text-ink-muted mb-1 block">
-                        {acquisitionMode === 'pc' ? 'Product Change Date *' : 'Opening Date *'}
-                      </label>
-                      <input
+                    <Field label={acquisitionMode === 'pc' ? 'Product Change Date' : 'Opening Date'} required>
+                      <Input
                         type="date"
-                        className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent"
                         value={acquisitionMode === 'pc' ? productChangeDate : openingDate}
                         onChange={(e) =>
                           acquisitionMode === 'pc'
@@ -1235,31 +1245,25 @@ export function WalletCardModal(props: WalletCardModalProps) {
                             : setOpeningDate(e.target.value)
                         }
                       />
-                    </div>
+                    </Field>
                   </div>
                 ) : (
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">
-                      Opening Date *
-                    </label>
-                    <input
+                  <Field label="Opening Date" required>
+                    <Input
                       type="date"
                       disabled={isOverlay}
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={openingDate}
                       onChange={(e) => setOpeningDate(e.target.value)}
                     />
-                  </div>
+                  </Field>
                 )}
 
                 {/* Changing From: editable picker in scenario-future ADD (PC),
                     read-only "Changed From" display in scenario-future EDIT
                     when the source is already pinned. */}
                 {isFuture && acquisitionMode === 'pc' && isAddFlow && (
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">Changing From *</label>
-                    <select
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent"
+                  <Field label="Changing From" required>
+                    <Select
                       value={pcFromInstanceId}
                       onChange={(e) => e.target.value ? selectPcFromInstance(Number(e.target.value)) : setPcFromInstanceId('')}
                     >
@@ -1269,8 +1273,8 @@ export function WalletCardModal(props: WalletCardModalProps) {
                           {inst.card_name}
                         </option>
                       ))}
-                    </select>
-                  </div>
+                    </Select>
+                  </Field>
                 )}
 
                 {!isAddFlow && isFuture && acquisitionMode === 'pc' && pcFromInstanceId !== '' && (() => {
@@ -1414,17 +1418,15 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       )}
                     </div>
                     {closedDate && (
-                      <div>
-                        <label className="text-xs text-ink-muted mb-1 block">Closed Date</label>
-                        <input
+                      <Field label="Closed Date">
+                        <Input
                           type="date"
                           min={openingDate}
                           disabled={cardStatusLocked}
-                          className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed"
                           value={closedDate}
                           onChange={(e) => setClosedDate(e.target.value)}
                         />
-                      </div>
+                      </Field>
                     )}
                   </div>
                 )}
