@@ -77,7 +77,7 @@ export function CurrencySettingsDropdown({ scenarioId, walletCards, currencyId, 
         <div className="space-y-3">
           {!isCash && (
             <div>
-              <div className="flex items-center justify-between text-[11px] text-ink-muted mb-1.5">
+              <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1">
                   <Eyebrow>Cents Per Point</Eyebrow>
                   {hasNoTransferInfo && (
@@ -145,8 +145,8 @@ export function CurrencySettingsDropdown({ scenarioId, walletCards, currencyId, 
                     </Popover>
                   )}
                 </div>
-                <span className="text-accent tabular-nums">
-                  {clampedCpp.toFixed(2)}¢
+                <span className="text-xs font-medium text-ink-muted tabular-nums">
+                  <span className="text-accent">{clampedCpp.toFixed(2)}¢</span>
                 </span>
               </div>
               <input

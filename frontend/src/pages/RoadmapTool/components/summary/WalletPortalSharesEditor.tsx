@@ -108,7 +108,7 @@ export function WalletPortalSharesEditor({
           const pct = Math.round(value * 100)
           return (
             <li key={portal.id}>
-              <div className="flex items-center justify-between text-[11px] text-ink-muted mb-1.5">
+              <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1">
                   <Eyebrow>Travel Portal Spend</Eyebrow>
                   <Popover
@@ -150,9 +150,9 @@ export function WalletPortalSharesEditor({
                     </div>
                   </Popover>
                 </div>
-                <span>
+                <span className="text-xs font-medium text-ink-muted tabular-nums">
                   {portal.name}:{' '}
-                  <span className="text-accent tabular-nums">{pct}%</span>
+                  <span className="text-accent">{pct}%</span>
                 </span>
               </div>
               <input
