@@ -20,6 +20,7 @@ import { Modal, ModalHeader, ModalBody, ModalFooter } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Heading } from '../ui/Heading'
 import { Badge } from '../ui/Badge'
+import { Tabs } from '../ui/Tabs'
 import { formatMoney, today } from '../../utils/format'
 import { useCardLibrary } from '../../pages/RoadmapTool/hooks/useCardLibrary'
 import { useCreditLibrary } from '../../hooks/useCreditLibrary'
@@ -1122,41 +1123,49 @@ export function WalletCardModal(props: WalletCardModalProps) {
 
       {/* ── Tab bar ── */}
       {(isAddFlow || lib) && (
-        <div className="flex-shrink-0 flex gap-1 px-6 border-b border-divider">
-          {([
-            { id: 'lifecycle' as const, label: 'Lifecycle', badge: 0 },
-            ...(cardSelected
-              ? [
-                  { id: 'bonuses' as const, label: 'Bonuses & Fees', badge: 0 },
-                  {
-                    id: 'credits' as const,
-                    label: 'Credits',
-                    badge: Object.keys(selectedCredits).length,
-                  },
-                ]
-              : []),
-            ...(cardSelected && categoryTabEnabled
-              ? [{ id: 'priority' as const, label: 'Categories', badge: priorityUserCatCount }]
-              : []),
-          ]).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveTab(t.id)}
-              className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
-                activeTab === t.id
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-ink-muted hover:text-ink'
-              }`}
-            >
-              {t.label}
-              {(t.id === 'credits' || t.id === 'priority') && t.badge > 0 && (
-                <span className={`ml-1.5 ${activeTab === t.id ? 'text-accent' : 'text-ink-faint'}`}>
-                  ({t.badge})
-                </span>
-              )}
-            </button>
-          ))}
+        <div className="flex-shrink-0 px-5">
+          <Tabs
+            items={[
+              { id: 'lifecycle' as const, label: 'Lifecycle' },
+              ...(cardSelected
+                ? [
+                    { id: 'bonuses' as const, label: 'Bonuses & Fees' },
+                    {
+                      id: 'credits' as const,
+                      label: (
+                        <>
+                          Credits
+                          {Object.keys(selectedCredits).length > 0 && (
+                            <span className="ml-1.5 text-[10.5px] font-medium bg-surface-2 text-ink-faint px-1.5 py-0.5 rounded-full tnum-mono">
+                              {Object.keys(selectedCredits).length}
+                            </span>
+                          )}
+                        </>
+                      ),
+                    },
+                  ]
+                : []),
+              ...(cardSelected && categoryTabEnabled
+                ? [
+                    {
+                      id: 'priority' as const,
+                      label: (
+                        <>
+                          Categories
+                          {priorityUserCatCount > 0 && (
+                            <span className="ml-1.5 text-[10.5px] font-medium bg-surface-2 text-ink-faint px-1.5 py-0.5 rounded-full tnum-mono">
+                              {priorityUserCatCount}
+                            </span>
+                          )}
+                        </>
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+            active={activeTab}
+            onChange={(id) => setActiveTab(id as typeof activeTab)}
+          />
         </div>
       )}
 
