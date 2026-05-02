@@ -511,39 +511,39 @@ export function SpendTabContent({
               <col className="w-72" />
               <col className="w-80" />
             </colgroup>
-            <thead className="sticky top-0 bg-surface z-10">
+            <thead className="sticky top-0 bg-surface z-10 [&_th]:bg-surface [&_td]:bg-surface-2/40 [&>tr:first-child>th]:bg-surface">
               <tr>
-                <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-b border-r border-divider">
+                <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-r border-divider shadow-[inset_0_-1px_0_var(--color-divider)]">
                   Category
                 </th>
-                <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-b border-r border-divider whitespace-nowrap">
+                <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-r border-divider whitespace-nowrap shadow-[inset_0_-1px_0_var(--color-divider)]">
                   Annual Spend
                 </th>
-                <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-b border-r border-divider whitespace-nowrap">
+                <th className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-r border-divider whitespace-nowrap shadow-[inset_0_-1px_0_var(--color-divider)]">
                   Annual Point Income
                 </th>
                 <th
                   rowSpan={2}
-                  className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 border-b-2 border-divider bg-surface whitespace-nowrap"
+                  className="text-center text-[11px] font-semibold uppercase tracking-wider text-ink-faint px-3 py-3 whitespace-nowrap shadow-[inset_0_-1px_0_var(--color-divider)]"
                 >
                   Top ROS Card
                 </th>
               </tr>
               {/* Total row — kept inside thead so it sticks together with
                   the header row when the table body scrolls. */}
-              <tr className="bg-surface-2/40 border-b border-divider">
+              <tr>
                 <th
                   scope="row"
-                  className="text-left px-3 py-2 text-ink font-semibold border-r border-divider/60"
+                  className="text-left px-3 py-2 text-ink font-semibold border-r border-divider/60 shadow-[inset_0_-1px_0_var(--color-divider)]"
                 >
                   Total
                 </th>
-                <td className="text-center px-2 py-2 border-r border-divider/60">
+                <td className="text-center px-2 py-2 border-r border-divider/60 shadow-[inset_0_-1px_0_var(--color-divider)]">
                   <div className="text-ink font-bold tnum-mono">
                     ${spendItems.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
                   </div>
                 </td>
-                <td className="px-2 py-2 text-ink-muted border-r border-divider/60">
+                <td className="px-2 py-2 text-ink-muted border-r border-divider/60 shadow-[inset_0_-1px_0_var(--color-divider)]">
                   <div className="flex items-center justify-between gap-2 w-full">
                     <button
                       type="button"
