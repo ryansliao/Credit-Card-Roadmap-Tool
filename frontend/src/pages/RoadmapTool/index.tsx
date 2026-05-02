@@ -813,7 +813,7 @@ export default function RoadmapToolPage() {
         </div>
       )}
       <header className="mb-4 shrink-0 flex items-center gap-3">
-        <h1 className="text-base font-bold text-ink tracking-tight shrink-0">Roadmap</h1>
+        <h1 className="text-xl font-bold text-ink tracking-tight shrink-0">Roadmap Tool</h1>
         {scenarios.length > 0 && (
           <ScenarioPicker
             scenarios={scenarios}
