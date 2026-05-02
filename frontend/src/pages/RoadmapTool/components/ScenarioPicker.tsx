@@ -85,15 +85,17 @@ export function ScenarioPicker({
       {open && (
         <div
           role="listbox"
-          className="absolute top-full mt-1 left-0 z-50 min-w-[18rem] max-h-72 overflow-auto rounded-md bg-surface border border-divider shadow-lg py-1"
+          className="absolute right-0 mt-2 w-72 bg-surface rounded-xl shadow-modal z-50 overflow-hidden"
         >
           {scenarios.map((s) => (
             <div
               key={s.id}
               role="option"
               aria-selected={s.id === currentId}
-              className={`group flex items-center gap-1 px-2 py-1.5 text-sm transition-colors hover:bg-surface-2 ${
-                s.id === currentId ? 'text-accent font-semibold' : 'text-ink'
+              className={`group flex items-center gap-2 px-3 py-2 text-left transition-colors ${
+                s.id === currentId
+                  ? 'bg-accent-soft text-accent'
+                  : 'text-ink hover:bg-surface-2'
               }`}
             >
               <button
@@ -128,7 +130,7 @@ export function ScenarioPicker({
                     e.stopPropagation()
                     onMakeDefault(s.id)
                   }}
-                  className="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-warn hover:bg-warn/10 rounded transition-opacity"
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-ink-faint hover:text-ink hover:bg-surface-2 transition-colors"
                   title="Make default"
                 >
                   Default
@@ -140,7 +142,7 @@ export function ScenarioPicker({
                   e.stopPropagation()
                   onDelete(s.id)
                 }}
-                className="opacity-0 group-hover:opacity-100 p-1 text-ink-faint hover:text-neg hover:bg-neg/10 rounded transition-opacity"
+                className="opacity-0 group-hover:opacity-100 p-1 rounded text-ink-faint hover:text-neg hover:bg-surface-2 transition-colors"
                 title="Delete scenario"
                 aria-label="Delete scenario"
               >
@@ -151,14 +153,13 @@ export function ScenarioPicker({
               </button>
             </div>
           ))}
-          <div className="border-t border-divider/60 my-1" />
           <button
             type="button"
             onClick={() => {
               setOpen(false)
               onAddScenario()
             }}
-            className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-sm text-accent hover:bg-surface-2 transition-colors"
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-accent hover:bg-accent-soft border-t border-divider transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <line x1="12" y1="5" x2="12" y2="19" />
