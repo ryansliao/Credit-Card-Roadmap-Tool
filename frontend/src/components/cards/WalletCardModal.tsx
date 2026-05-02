@@ -24,6 +24,7 @@ import { Tabs } from '../ui/Tabs'
 import { Field } from '../ui/Field'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
+import { Checkbox } from '../ui/Checkbox'
 import { formatMoney, today } from '../../utils/format'
 import { useCardLibrary } from '../../pages/RoadmapTool/hooks/useCardLibrary'
 import { useCreditLibrary } from '../../hooks/useCreditLibrary'
@@ -295,7 +296,6 @@ export function WalletCardModal(props: WalletCardModalProps) {
     >
   >({})
   const [creditSearch, setCreditSearch] = useState('')
-  const [creditOptionsOpen, setCreditOptionsOpen] = useState<number | null>(null)
   const [showCreditPicker, setShowCreditPicker] = useState(false)
   const [priorityCategoryIds, setPriorityCategoryIds] = useState<Set<number>>(new Set())
   const [formError, setFormError] = useState<string | null>(null)
@@ -1528,11 +1528,10 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       No credits selected. Add credits this card grants from the picker below.
                     </p>
                   ) : (
-                    <ul className="divide-y divide-divider/40 flex-1 min-h-0 overflow-y-auto">
+                    <ul className="flex flex-col gap-2 px-6 py-3 flex-1 min-h-0 overflow-y-auto">
                       {Object.entries(selectedCredits).map(([idStr, value]) => {
                         const libId = Number(idStr)
                         const lc = creditLibraryById.get(libId)
-                        const isExpanded = creditOptionsOpen === libId
                         // Pending currency edit (buffered until Save) drives the $/pts
                         // affordances so the input UI matches the user's pick instantly.
                         const pendingEdits = creditFlagEdits[libId]
@@ -1540,162 +1539,144 @@ export function WalletCardModal(props: WalletCardModalProps) {
                           'credit_currency_id' in (pendingEdits ?? {})
                             ? pendingEdits!.credit_currency_id
                             : lc?.credit_currency_id ?? null
+                        // ``After Year 1`` / ``One-Time`` are per-instance overrides —
+                        // any user can flip them on any credit and the change persists
+                        // as a column override on WalletCardCredit / ScenarioCardCredit
+                        // (NULL on the row inherits the library default). Currency is
+                        // intentionally library-only and stays gated to user-owned
+                        // credits. Edits buffer in ``creditFlagEdits`` and only persist
+                        // on Save.
+                        const isUserOwned = lc?.owner_user_id != null
+                        const edits = creditFlagEdits[libId]
+                        const effExcludesFirstYear =
+                          edits?.excludes_first_year ?? lc?.excludes_first_year ?? false
+                        const effIsOneTime =
+                          edits?.is_one_time ?? lc?.is_one_time ?? false
+                        const effCurrencyId =
+                          'credit_currency_id' in (edits ?? {})
+                            ? edits!.credit_currency_id
+                            : lc?.credit_currency_id ?? null
+                        const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
+                        const isCash = !cur || cur.reward_kind === 'cash'
+                        const sourceLine = isUserOwned
+                          ? 'Custom · only on this card'
+                          : 'From library default'
                         return (
                           <li key={libId}>
-                            <div className="flex items-center justify-between gap-2 px-6 py-2 text-sm">
-                              <button
-                                type="button"
-                                onClick={() => setCreditOptionsOpen(isExpanded ? null : libId)}
-                                className="text-ink-faint hover:text-ink hover:bg-surface-2 rounded p-0.5 shrink-0 transition-colors"
-                              >
-                                <svg
-                                  className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                                </svg>
-                              </button>
-                              <span className="text-ink truncate min-w-0 flex-1">
-                                {lc?.credit_name ?? `Credit #${libId}`}
-                              </span>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <div className="relative">
-                                  {(() => {
-                                    const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
-                                    const isCash = !cur || cur.reward_kind === 'cash'
-                                    return isCash ? (
-                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none">$</span>
-                                    ) : null
-                                  })()}
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    step={(() => {
-                                      const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
-                                      return (!cur || cur.reward_kind === 'cash') ? '0.01' : '1'
-                                    })()}
-                                    value={value === 0 ? '' : value}
-                                    placeholder="0"
-                                    onChange={(e) => {
-                                      const raw = e.target.value
-                                      const parsed = raw === '' ? 0 : Number.parseFloat(raw)
-                                      if (Number.isNaN(parsed) || parsed < 0) return
-                                      setSelectedCredits((prev) => ({
-                                        ...prev,
-                                        [libId]: parsed,
-                                      }))
-                                    }}
-                                    className={`w-24 bg-surface-2 border border-divider text-ink text-xs tabular-nums pr-2 py-1 rounded outline-none focus:border-accent placeholder:text-ink-faint ${
-                                      (() => {
-                                        const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
-                                        return (!cur || cur.reward_kind === 'cash') ? 'pl-5' : 'pl-2'
-                                      })()
-                                    }`}
-                                  />
+                            <div className="bg-surface-2/40 rounded-lg p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium text-ink truncate">
+                                      {lc?.credit_name ?? `Credit #${libId}`}
+                                    </p>
+                                    {isUserOwned && (
+                                      <Badge tone="accent">Custom</Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-ink-faint mt-0.5">
+                                    {sourceLine}
+                                  </p>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedCredits((prev) => {
-                                      const next = { ...prev }
-                                      delete next[libId]
-                                      return next
-                                    })
-                                    if (isExpanded) setCreditOptionsOpen(null)
-                                  }}
-                                  className="text-ink-faint hover:text-neg hover:bg-neg/10 p-0.5 rounded transition-colors"
-                                  title="Remove credit"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <div className="relative w-24">
+                                    {isCash && (
+                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none">$</span>
+                                    )}
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step={isCash ? '0.01' : '1'}
+                                      value={value === 0 ? '' : value}
+                                      placeholder="0"
+                                      onChange={(e) => {
+                                        const raw = e.target.value
+                                        const parsed = raw === '' ? 0 : Number.parseFloat(raw)
+                                        if (Number.isNaN(parsed) || parsed < 0) return
+                                        setSelectedCredits((prev) => ({
+                                          ...prev,
+                                          [libId]: parsed,
+                                        }))
+                                      }}
+                                      className={`w-full bg-surface-2 border border-divider text-ink text-xs tabular-nums text-right pr-2 py-1 rounded outline-none focus:border-accent placeholder:text-ink-faint ${isCash ? 'pl-5' : 'pl-2'}`}
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedCredits((prev) => {
+                                        const next = { ...prev }
+                                        delete next[libId]
+                                        return next
+                                      })
+                                    }}
+                                    className="text-ink-faint hover:text-neg hover:bg-neg/10 p-0.5 rounded transition-colors"
+                                    title="Remove credit"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                            {isExpanded && (() => {
-                              // ``After Year 1`` / ``One-Time`` are per-instance overrides —
-                              // any user can flip them on any credit and the change persists
-                              // as a column override on WalletCardCredit / ScenarioCardCredit
-                              // (NULL on the row inherits the library default). Currency is
-                              // intentionally library-only and stays gated to user-owned
-                              // credits. Edits buffer in ``creditFlagEdits`` and only persist
-                              // on Save.
-                              const isUserOwned = lc?.owner_user_id != null
-                              const edits = creditFlagEdits[libId]
-                              const effExcludesFirstYear =
-                                edits?.excludes_first_year ?? lc?.excludes_first_year ?? false
-                              const effIsOneTime =
-                                edits?.is_one_time ?? lc?.is_one_time ?? false
-                              const effCurrencyId =
-                                'credit_currency_id' in (edits ?? {})
-                                  ? edits!.credit_currency_id
-                                  : lc?.credit_currency_id ?? null
-                              return (
-                              <div className="flex items-center gap-3 px-6 pb-2.5 pt-0.5 text-xs text-ink-muted">
-                                <label className="flex items-center gap-1.5 select-none cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={effExcludesFirstYear}
-                                    onChange={() => {
-                                      if (!lc) return
-                                      setCreditFlagEdits((prev) => ({
-                                        ...prev,
-                                        [libId]: {
-                                          ...prev[libId],
-                                          excludes_first_year: !effExcludesFirstYear,
-                                        },
-                                      }))
-                                    }}
-                                    className="accent-warn w-3 h-3"
-                                  />
-                                  <span>After Year 1</span>
-                                </label>
-                                <label className="flex items-center gap-1.5 select-none cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={effIsOneTime}
-                                    onChange={() => {
-                                      if (!lc) return
-                                      setCreditFlagEdits((prev) => ({
-                                        ...prev,
-                                        [libId]: {
-                                          ...prev[libId],
-                                          is_one_time: !effIsOneTime,
-                                        },
-                                      }))
-                                    }}
-                                    className="accent-accent w-3 h-3"
-                                  />
-                                  <span>One-Time</span>
-                                </label>
-                                <div className="flex-1" />
-                                <select
-                                  disabled={!isUserOwned}
-                                  value={effCurrencyId ?? 'null'}
-                                  onChange={(e) => {
-                                    if (!lc || !isUserOwned) return
-                                    const cid = e.target.value === 'null' ? null : Number(e.target.value)
+                              <div className="mt-3 pt-3 border-t border-divider/60 flex flex-wrap gap-4">
+                                <Checkbox
+                                  checked={effExcludesFirstYear}
+                                  onChange={() => {
+                                    if (!lc) return
                                     setCreditFlagEdits((prev) => ({
                                       ...prev,
                                       [libId]: {
                                         ...prev[libId],
-                                        credit_currency_id: cid,
+                                        excludes_first_year: !effExcludesFirstYear,
                                       },
                                     }))
                                   }}
-                                  className="w-60 bg-surface-2 border border-divider text-ink text-xs px-2 py-1 rounded outline-none focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed truncate"
-                                >
-                                  {(currencies ?? []).filter((cur) => {
-                                    // Cash + every currency in the card issuer's ecosystem.
-                                    if (cur.reward_kind === 'cash') return true
-                                    return issuerCurrencyIds.has(cur.id)
-                                  }).map((cur) => (
-                                    <option key={cur.id} value={cur.id}>{cur.name}</option>
-                                  ))}
-                                </select>
+                                  label="Excludes first year"
+                                />
+                                <Checkbox
+                                  checked={effIsOneTime}
+                                  onChange={() => {
+                                    if (!lc) return
+                                    setCreditFlagEdits((prev) => ({
+                                      ...prev,
+                                      [libId]: {
+                                        ...prev[libId],
+                                        is_one_time: !effIsOneTime,
+                                      },
+                                    }))
+                                  }}
+                                  label="One-time only"
+                                />
+                                {isUserOwned && (
+                                  <div className="w-full mt-1">
+                                    <select
+                                      value={effCurrencyId ?? 'null'}
+                                      onChange={(e) => {
+                                        if (!lc) return
+                                        const cid = e.target.value === 'null' ? null : Number(e.target.value)
+                                        setCreditFlagEdits((prev) => ({
+                                          ...prev,
+                                          [libId]: {
+                                            ...prev[libId],
+                                            credit_currency_id: cid,
+                                          },
+                                        }))
+                                      }}
+                                      className="w-full bg-surface-2 border border-divider text-ink text-xs px-2 py-1 rounded outline-none focus:border-accent truncate"
+                                    >
+                                      {(currencies ?? []).filter((cur) => {
+                                        // Cash + every currency in the card issuer's ecosystem.
+                                        if (cur.reward_kind === 'cash') return true
+                                        return issuerCurrencyIds.has(cur.id)
+                                      }).map((cur) => (
+                                        <option key={cur.id} value={cur.id}>{cur.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
                               </div>
-                              )
-                            })()}
+                            </div>
                           </li>
                         )
                       })}
@@ -1706,12 +1687,13 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       <button
                         type="button"
                         onClick={() => setShowCreditPicker(true)}
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-accent hover:text-accent hover:bg-surface-2/40 rounded transition-colors"
+                        className="w-full flex items-center justify-center gap-1.5 py-3 text-sm font-medium text-accent hover:text-accent border-2 border-dashed border-divider hover:border-accent rounded-lg transition-colors"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="12" y1="5" x2="12" y2="19" />
+                          <line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
-                        Add Credit
+                        Add credit
                       </button>
                     ) : (
                       <div className="space-y-1.5">
