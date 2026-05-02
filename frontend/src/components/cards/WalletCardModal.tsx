@@ -16,8 +16,10 @@ import {
   walletSpendApi,
 } from '../../api/client'
 import type { ResolvedCard } from '../../pages/RoadmapTool/lib/resolveScenarioCards'
-import { Modal } from '../ui/Modal'
+import { Modal, ModalHeader, ModalBody, ModalFooter } from '../ui/Modal'
 import { Button } from '../ui/Button'
+import { Heading } from '../ui/Heading'
+import { Badge } from '../ui/Badge'
 import { formatMoney, today } from '../../utils/format'
 import { useCardLibrary } from '../../pages/RoadmapTool/hooks/useCardLibrary'
 import { useCreditLibrary } from '../../hooks/useCreditLibrary'
@@ -1078,81 +1080,45 @@ export function WalletCardModal(props: WalletCardModalProps) {
       className="flex flex-col h-[640px] max-h-[90vh]"
     >
       {/* ── Fixed header ── */}
-      <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-divider">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1 space-y-1">
-            <h2 className="text-lg font-semibold text-ink">{title}</h2>
-            {(lib?.network_tier || lib?.issuer) && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-faint">
-                {lib?.network_tier && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="uppercase tracking-wide">Network</span>
-                    <span className="font-medium bg-surface-2 text-ink-muted border border-divider rounded px-1.5 py-0.5">
-                      {lib.network_tier.name}
-                    </span>
-                  </div>
-                )}
-                {lib?.issuer && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="uppercase tracking-wide">Issuer</span>
-                    <span className="font-medium bg-surface-2 text-ink-muted border border-divider rounded px-1.5 py-0.5">
-                      {lib.issuer.name}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
+      <ModalHeader>
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <Heading level={3}>{title}</Heading>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {lib?.network_tier && (
+                <Badge tone="neutral">{lib.network_tier.name}</Badge>
+              )}
+              {lib?.issuer && (
+                <Badge tone="neutral">{lib.issuer.name}</Badge>
+              )}
+              {!isAddFlow && (
+                isOverlayContext ? (
+                  <Badge tone="warn">Owned · scenario edit</Badge>
+                ) : isFuture ? (
+                  <Badge tone="accent">Future</Badge>
+                ) : (
+                  <Badge tone="neutral">Owned</Badge>
+                )
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {!isAddFlow && isOverlayContext && onClearOverlay && (
-              <button
-                type="button"
-                disabled={isLoading || !resolvedCard?.is_overlay_modified}
-                onClick={onClearOverlay}
-                className="px-2 py-1 text-xs rounded-md text-warn hover:bg-warn/10 disabled:opacity-40 transition-colors"
-                title="Reset to base values (clears the overlay)"
-              >
-                Reset
-              </button>
-            )}
-            {onDeleteHandler && (
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={onDeleteHandler}
-                className="p-2 rounded-lg text-ink-faint hover:text-neg hover:bg-neg/10 disabled:opacity-50 transition-colors"
-                title={isFuture ? 'Delete future card' : 'Delete card'}
-                aria-label="Delete card"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
-            )}
+          {onDeleteHandler && (
             <button
               type="button"
-              disabled={saveDisabled}
-              onClick={() => void handlePrimary()}
-              className="p-2 rounded-lg text-ink-muted hover:text-accent disabled:opacity-40 disabled:hover:text-ink-muted transition-colors"
-              title={isAddFlow ? 'Add card' : 'Save changes'}
-              aria-label={isAddFlow ? 'Add card' : 'Save changes'}
+              disabled={isLoading}
+              onClick={onDeleteHandler}
+              className="shrink-0 w-8 h-8 inline-flex items-center justify-center rounded-md text-ink-faint hover:text-neg hover:bg-neg/10 disabled:opacity-50 transition-colors"
+              title={isFuture ? 'Delete future card' : 'Delete card'}
+              aria-label="Delete card"
             >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                <polyline points="17 21 17 13 7 13 7 21" />
-                <polyline points="7 3 7 8 15 8" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
               </svg>
             </button>
-          </div>
+          )}
         </div>
-      </div>
-
-      {isOverlayContext && (
-        <div className="flex-shrink-0 px-6 py-2 text-[11px] text-warn bg-warn/10 border-b border-warn/40">
-          Editing in this scenario only — your owned card stays unchanged.
-        </div>
-      )}
+      </ModalHeader>
 
       {/* ── Tab bar ── */}
       {(isAddFlow || lib) && (
@@ -1195,11 +1161,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
       )}
 
       {/* ── Body ── */}
-      <div
-        className={`px-6 pt-3 flex-1 min-h-0 flex flex-col ${
-          activeTab === 'credits' ? 'pb-0' : 'pb-4'
-        }`}
-      >
+      <ModalBody className={`flex-1 min-h-0 flex flex-col ${activeTab === 'credits' ? '!pb-0' : ''}`}>
         {!isAddFlow && !lib ? (
           <p className="text-sm text-ink-muted py-8 text-center">Loading card…</p>
         ) : (
@@ -1934,28 +1896,55 @@ export function WalletCardModal(props: WalletCardModalProps) {
             )}
           </div>
         )}
-      </div>
+      </ModalBody>
 
-      {/* ── Fixed footer ── */}
-      {/* Next is a step-through affordance for the add flow only — when
-          editing an existing card the user can click tabs directly. */}
-      {isAddFlow && hasNextTab && (
-        <div className="flex-shrink-0 flex items-center gap-2 px-6 py-4 border-t border-divider">
+      {/* ── Footer ── */}
+      <ModalFooter>
+        {!isAddFlow && isOverlayContext && onClearOverlay && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={isLoading || !resolvedCard?.is_overlay_modified}
+            onClick={onClearOverlay}
+            className="!text-warn hover:!text-warn"
+          >
+            Reset overlay
+          </Button>
+        )}
+        <div className="flex-1" />
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={isLoading}
+          onClick={onClose}
+        >
+          Cancel
+        </Button>
+        {isAddFlow && hasNextTab ? (
           <Button
             type="button"
             variant="primary"
+            size="sm"
             disabled={isLoading}
-            className="flex-1 justify-center"
             onClick={() => setActiveTab(tabOrder[currentTabIndex + 1])}
           >
-            Next
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14" />
-              <path d="M13 6l6 6-6 6" />
-            </svg>
+            Next →
           </Button>
-        </div>
-      )}
+        ) : (
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={saveDisabled}
+            loading={isLoading}
+            onClick={() => void handlePrimary()}
+          >
+            {isAddFlow ? 'Add card' : 'Save changes'}
+          </Button>
+        )}
+      </ModalFooter>
     </Modal>
   )
 }
