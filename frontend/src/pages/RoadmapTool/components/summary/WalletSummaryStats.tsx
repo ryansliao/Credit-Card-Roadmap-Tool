@@ -116,7 +116,7 @@ export function WalletSummaryStats({
     <div className={`flex flex-col gap-3 transition-opacity ${showStaleHint ? 'opacity-60' : ''}`}>
       {/* Hero stats trio */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-surface border border-divider rounded-xl shadow-card p-4">
+        <div className="bg-surface border border-divider rounded-xl shadow-card px-4 py-2.5">
           <Stat
             label="Effective annual fee"
             info={
@@ -161,7 +161,7 @@ export function WalletSummaryStats({
           />
         </div>
 
-        <div className="bg-surface border border-divider rounded-xl shadow-card p-4">
+        <div className="bg-surface border border-divider rounded-xl shadow-card px-4 py-2.5">
           <Stat
             label="Annual fees"
             info={
@@ -184,7 +184,7 @@ export function WalletSummaryStats({
           />
         </div>
 
-        <div className="bg-surface border border-divider rounded-xl shadow-card p-4">
+        <div className="bg-surface border border-divider rounded-xl shadow-card px-4 py-2.5">
           <Stat
             label="Annual point income"
             info={
