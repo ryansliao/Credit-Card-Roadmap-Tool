@@ -1550,7 +1550,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                         const isCash = !cur || cur.reward_kind === 'cash'
                         return (
                           <li key={libId}>
-                            <div className="bg-surface-2/40 rounded-lg p-3">
+                            <div className="bg-surface border border-divider rounded-lg p-3">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1 flex items-center gap-2">
                                   <p className="text-sm font-medium text-ink truncate">
