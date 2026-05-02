@@ -20,7 +20,7 @@ export function TimelineAxis({ yearTicks, endMs }: TimelineAxisProps) {
       {yearTicks.map((t) => (
         <div
           key={t.label}
-          className="tnum-mono absolute top-0 bottom-0 flex items-center text-xs text-ink-faint"
+          className="tnum-mono absolute top-0 bottom-0 flex items-center text-[10px] text-ink-faint"
           style={{ left: `${t.pct}%`, transform: 'translateX(-50%)' }}
         >
           {t.label}
