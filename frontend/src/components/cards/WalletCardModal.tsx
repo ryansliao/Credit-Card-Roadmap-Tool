@@ -1192,12 +1192,12 @@ export function WalletCardModal(props: WalletCardModalProps) {
                           {
                             v: 'open' as const,
                             label: 'Account Opening',
-                            desc: 'New card from this issuer. Counts toward 5/24 and other velocity rules.',
+                            desc: 'Open a new card account via application.',
                           },
                           {
                             v: 'pc' as const,
                             label: 'Product Change',
-                            desc: "Switching from another card. Account number is preserved; doesn't count as a new app.",
+                            desc: "Switch to a new card while preserving the opened account.",
                           },
                         ]).map(({ v, label, desc }) => {
                           const selected = acquisitionMode === v
@@ -1208,7 +1208,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               role="radio"
                               aria-checked={selected}
                               onClick={() => handleAcquisitionModeChange(v)}
-                              className={`w-full text-left flex items-start gap-3 px-3 py-3 rounded-lg border transition-colors ${
+                              className={`w-full text-left flex items-start gap-3 px-3 py-3 rounded-lg border shadow-card transition-colors ${
                                 selected
                                   ? 'border-accent bg-accent-soft'
                                   : 'border-divider hover:border-divider-strong bg-surface'
@@ -1282,7 +1282,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       <label className="text-xs text-ink-muted mb-1 block">
                         Changed From
                       </label>
-                      <div className="w-full bg-surface/60 border border-divider text-ink text-sm px-3 py-2 rounded-lg">
+                      <div className="w-full bg-surface/60 border border-divider shadow-card text-ink text-sm px-3 py-2 rounded-lg">
                         {fromInst?.card_name ?? `Instance #${pcFromInstanceId}`}
                       </div>
                     </div>
@@ -1362,7 +1362,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       <label className="text-xs text-ink-muted mb-1 block">Card Status</label>
                       <div
                         role="radiogroup"
-                        className={`flex flex-col bg-surface-2/30 border border-divider rounded-lg overflow-hidden ${
+                        className={`flex flex-col bg-surface-2/30 border border-divider shadow-card rounded-lg overflow-hidden ${
                           cardStatusLocked ? 'opacity-60' : ''
                         }`}
                         title={
@@ -1462,7 +1462,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                   </Field>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <Field label="Annual Bonus (Pts)">
                     <Input
                       type="number"
@@ -1483,9 +1483,6 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       onChange={(e) => setAnnualFee(e.target.value)}
                     />
                   </Field>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
                   <Field label="First-Year Fee ($)">
                     <Input
                       type="number"
@@ -1518,7 +1515,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       No credits selected. Add credits this card grants from the picker below.
                     </p>
                   ) : (
-                    <ul className="flex flex-col gap-2 px-6 py-3 flex-1 min-h-0 overflow-y-auto">
+                    <ul className="flex flex-col gap-2 px-6 pt-1 pb-3 flex-1 min-h-0 overflow-y-auto">
                       {Object.entries(selectedCredits).map(([idStr, value]) => {
                         const libId = Number(idStr)
                         const lc = creditLibraryById.get(libId)
@@ -1543,8 +1540,8 @@ export function WalletCardModal(props: WalletCardModalProps) {
                         const isCash = !cur || cur.reward_kind === 'cash'
                         return (
                           <li key={libId}>
-                            <div className="bg-surface border border-divider rounded-lg p-3">
-                              <div className="flex items-start justify-between gap-3">
+                            <div className="bg-surface border border-divider shadow-card hover:border-divider-strong hover:bg-surface-2 hover:-translate-y-0.5 rounded-lg p-3 transition-all">
+                              <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0 flex-1 flex items-center gap-2">
                                   <p className="text-sm font-medium text-ink truncate">
                                     {lc?.credit_name ?? `Credit #${libId}`}
@@ -1782,7 +1779,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                     <p className="text-[11px] uppercase tracking-wider text-ink-faint font-semibold mb-2">
                       Pin categories to this card
                     </p>
-                    <ul className="divide-y divide-divider/60 -mx-2 flex-1 min-h-0 overflow-y-auto">
+                    <ul className="divide-y divide-divider/60 border border-divider shadow-card rounded-lg flex-1 min-h-0 overflow-y-auto">
                       {[...walletSpendItems]
                         .filter((item) => item.user_spend_category != null)
                         .sort((a, b) =>
