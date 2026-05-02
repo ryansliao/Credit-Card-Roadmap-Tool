@@ -1180,10 +1180,6 @@ export function WalletCardModal(props: WalletCardModalProps) {
           <div className="flex-1 min-h-0 flex flex-col">
             {activeTab === 'lifecycle' && (
               <div className="space-y-3">
-                <p className="text-[11px] text-ink-faint -mx-6 px-6 pb-2 border-b border-divider/60">
-                  When and how this card entered the wallet, and whether it's still active.
-                </p>
-
                 {/* Acquisition toggle + matching date input. The toggle is hidden
                     for owned-base ADD (implicit "open new") and overlay
                     (read-only); those modes show just the Opening Date. */}
@@ -1193,9 +1189,17 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       <p className="text-xs font-medium text-ink-muted">Acquisition</p>
                       <div role="radiogroup" aria-label="Acquisition" className="space-y-2">
                         {([
-                          { v: 'open' as const, label: 'Account Opening' },
-                          { v: 'pc' as const, label: 'Product Change' },
-                        ]).map(({ v, label }) => {
+                          {
+                            v: 'open' as const,
+                            label: 'Account Opening',
+                            desc: 'New card from this issuer. Counts toward 5/24 and other velocity rules.',
+                          },
+                          {
+                            v: 'pc' as const,
+                            label: 'Product Change',
+                            desc: "Switching from another card. Account number is preserved; doesn't count as a new app.",
+                          },
+                        ]).map(({ v, label, desc }) => {
                           const selected = acquisitionMode === v
                           return (
                             <button
@@ -1216,8 +1220,11 @@ export function WalletCardModal(props: WalletCardModalProps) {
                                   selected ? 'border-accent bg-accent' : 'border-divider-strong'
                                 }`}
                               />
-                              <span className={`text-sm font-medium ${selected ? 'text-accent' : 'text-ink'}`}>
-                                {label}
+                              <span className="min-w-0">
+                                <span className={`block text-sm font-medium ${selected ? 'text-accent' : 'text-ink'}`}>
+                                  {label}
+                                </span>
+                                <span className="block text-[11px] text-ink-faint mt-0.5">{desc}</span>
                               </span>
                             </button>
                           )
@@ -1424,9 +1431,6 @@ export function WalletCardModal(props: WalletCardModalProps) {
 
             {activeTab === 'bonuses' && (
               <div className="space-y-3">
-                <p className="text-[11px] text-ink-faint -mx-6 px-6 pb-2 border-b border-divider/60">
-                  Sign-up / product-change bonus, annual bonus, and fees.
-                </p>
 
                 <div className="grid grid-cols-3 gap-3">
                   <Field label={acquisitionMode === 'pc' ? 'PC Bonus (Pts)' : 'SUB Bonus (Pts)'}>
@@ -1501,9 +1505,6 @@ export function WalletCardModal(props: WalletCardModalProps) {
             {activeTab === 'credits' && lib && (
               <div className="-mx-6 flex-1 min-h-0 flex flex-col">
                 <div className="flex-1 min-h-0 flex flex-col">
-                  <p className="text-[11px] text-ink-faint px-6 pb-2 border-b border-divider/60">
-                    Input your valuation of each credit.
-                  </p>
                   {creditLibraryLoading || creditOverridesLoading ? (
                     <div className="flex items-center gap-2 px-6 py-3 text-xs text-ink-muted">
                       <svg className="w-3.5 h-3.5 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
@@ -1779,9 +1780,6 @@ export function WalletCardModal(props: WalletCardModalProps) {
 
             {activeTab === 'priority' && lib && categoryTabEnabled && (
               <div className="flex-1 min-h-0 flex flex-col">
-                <p className="text-[11px] text-ink-faint -mx-6 px-6 pb-2 border-b border-divider/60 mb-3">
-                  Force category spend onto this card only. Does not affect SUB spend allocation.
-                </p>
                 {!walletSpendItems || walletSpendItems.length === 0 ? (
                   <p className="text-xs text-ink-faint py-1">
                     No wallet spend categories yet.
