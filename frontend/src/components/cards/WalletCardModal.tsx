@@ -1522,13 +1522,6 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       {Object.entries(selectedCredits).map(([idStr, value]) => {
                         const libId = Number(idStr)
                         const lc = creditLibraryById.get(libId)
-                        // Pending currency edit (buffered until Save) drives the $/pts
-                        // affordances so the input UI matches the user's pick instantly.
-                        const pendingEdits = creditFlagEdits[libId]
-                        const effCurrencyIdForRow =
-                          'credit_currency_id' in (pendingEdits ?? {})
-                            ? pendingEdits!.credit_currency_id
-                            : lc?.credit_currency_id ?? null
                         // ``After Year 1`` / ``One-Time`` are per-instance overrides —
                         // any user can flip them on any credit and the change persists
                         // as a column override on WalletCardCredit / ScenarioCardCredit
@@ -1546,7 +1539,7 @@ export function WalletCardModal(props: WalletCardModalProps) {
                           'credit_currency_id' in (edits ?? {})
                             ? edits!.credit_currency_id
                             : lc?.credit_currency_id ?? null
-                        const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
+                        const cur = effCurrencyId != null ? currencies?.find(c => c.id === effCurrencyId) : null
                         const isCash = !cur || cur.reward_kind === 'cash'
                         return (
                           <li key={libId}>
