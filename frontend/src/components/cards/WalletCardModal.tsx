@@ -1438,89 +1438,72 @@ export function WalletCardModal(props: WalletCardModalProps) {
                 <p className="text-[11px] text-ink-faint -mx-6 px-6 pb-2 border-b border-divider/60">
                   Sign-up / product-change bonus, annual bonus, and fees.
                 </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">
-                      {acquisitionMode === 'pc' ? 'PC Bonus (Pts)' : 'Sign-Up Bonus (Pts)'}
-                    </label>
-                    <input
+
+                <div className="grid grid-cols-3 gap-3">
+                  <Field label={acquisitionMode === 'pc' ? 'PC Bonus (Pts)' : 'SUB Bonus (Pts)'}>
+                    <Input
                       type="number"
                       min={0}
                       disabled={formDisabled}
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={subPoints}
                       onChange={(e) => setSubPoints(e.target.value)}
                     />
-                  </div>
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">Annual Bonus (Pts)</label>
-                    <input
+                  </Field>
+                  <Field label={acquisitionMode === 'pc' ? 'PC Min Spend ($)' : 'SUB Min Spend ($)'}>
+                    <Input
+                      type="number"
+                      min={0}
+                      disabled={formDisabled}
+                      value={subMinSpend}
+                      onChange={(e) => setSubMinSpend(e.target.value)}
+                    />
+                  </Field>
+                  <Field label={acquisitionMode === 'pc' ? 'PC Spend Months' : 'SUB Spend Months'}>
+                    <Input
+                      type="number"
+                      min={0}
+                      disabled={formDisabled}
+                      value={subMonths}
+                      onChange={(e) => setSubMonths(e.target.value)}
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Annual Bonus (Pts)">
+                    <Input
                       type="number"
                       min={0}
                       disabled={formDisabled}
                       placeholder="Optional"
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={annualBonus}
                       onChange={(e) => setAnnualBonus(e.target.value)}
                     />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">
-                      {acquisitionMode === 'pc' ? 'PC Min Spend ($)' : 'SUB Min Spend ($)'}
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      disabled={formDisabled}
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
-                      value={subMinSpend}
-                      onChange={(e) => setSubMinSpend(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">
-                      {acquisitionMode === 'pc' ? 'PC Spend Months' : 'SUB Spend Months'}
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      disabled={formDisabled}
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
-                      value={subMonths}
-                      onChange={(e) => setSubMonths(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">Annual Fee ($)</label>
-                    <input
+                  </Field>
+                  <Field label="Annual Fee ($)">
+                    <Input
                       type="number"
                       min={0}
                       step="0.01"
                       disabled={formDisabled}
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={annualFee}
                       onChange={(e) => setAnnualFee(e.target.value)}
                     />
-                  </div>
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">First-Year Fee ($)</label>
-                    <input
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="First-Year Fee ($)">
+                    <Input
                       type="number"
                       min={0}
                       step="0.01"
                       disabled={formDisabled}
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       placeholder="Optional"
                       value={firstYearFee}
                       onChange={(e) => setFirstYearFee(e.target.value)}
                     />
-                  </div>
+                  </Field>
                 </div>
 
               </div>
