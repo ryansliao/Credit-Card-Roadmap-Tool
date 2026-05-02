@@ -100,7 +100,7 @@ export function AddScenarioModal({
         </form>
       </ModalBody>
       <ModalFooter>
-        <Button variant="ghost" size="sm" type="button" onClick={onClose} disabled={isSubmitting}>
+        <Button variant="secondary" size="sm" type="button" onClick={onClose} disabled={isSubmitting}>
           Cancel
         </Button>
         <Button

@@ -13,7 +13,15 @@ export function DeleteCardWarningModal({ cardName, onConfirm, onClose, isLoading
   return (
     <Modal open={true} onClose={onClose} size="sm" ariaLabel="Remove card from wallet">
       <ModalHeader>
-        <Heading level={4} className="text-neg">Remove card from wallet?</Heading>
+        <div className="flex items-center gap-3 px-5 pt-5">
+          <div className="w-10 h-10 rounded-full bg-neg/10 text-neg flex items-center justify-center shrink-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+          </div>
+          <Heading level={3}>Remove card from wallet?</Heading>
+        </div>
       </ModalHeader>
       <ModalBody>
         <p className="text-sm text-ink-muted mb-3">
@@ -29,20 +37,20 @@ export function DeleteCardWarningModal({ cardName, onConfirm, onClose, isLoading
       <ModalFooter>
         <Button
           type="button"
-          variant="ghost"
+          variant="secondary"
           onClick={onClose}
           disabled={isLoading}
         >
           Cancel
         </Button>
-        <Button
+        <button
           type="button"
-          variant="warn"
           onClick={onConfirm}
+          className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-md bg-neg text-white hover:opacity-90 transition-opacity disabled:opacity-50"
           disabled={isLoading}
         >
           {isLoading ? 'Removing…' : 'Remove card'}
-        </Button>
+        </button>
       </ModalFooter>
     </Modal>
   )
