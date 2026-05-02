@@ -16,8 +16,15 @@ import {
   walletSpendApi,
 } from '../../api/client'
 import type { ResolvedCard } from '../../pages/RoadmapTool/lib/resolveScenarioCards'
-import { Modal } from '../ui/Modal'
+import { Modal, ModalHeader, ModalBody, ModalFooter } from '../ui/Modal'
 import { Button } from '../ui/Button'
+import { Heading } from '../ui/Heading'
+import { Badge } from '../ui/Badge'
+import { Tabs } from '../ui/Tabs'
+import { Field } from '../ui/Field'
+import { Input } from '../ui/Input'
+import { Select } from '../ui/Select'
+import { Checkbox } from '../ui/Checkbox'
 import { formatMoney, today } from '../../utils/format'
 import { useCardLibrary } from '../../pages/RoadmapTool/hooks/useCardLibrary'
 import { useCreditLibrary } from '../../hooks/useCreditLibrary'
@@ -289,7 +296,6 @@ export function WalletCardModal(props: WalletCardModalProps) {
     >
   >({})
   const [creditSearch, setCreditSearch] = useState('')
-  const [creditOptionsOpen, setCreditOptionsOpen] = useState<number | null>(null)
   const [showCreditPicker, setShowCreditPicker] = useState(false)
   const [priorityCategoryIds, setPriorityCategoryIds] = useState<Set<number>>(new Set())
   const [formError, setFormError] = useState<string | null>(null)
@@ -1078,151 +1084,122 @@ export function WalletCardModal(props: WalletCardModalProps) {
       className="flex flex-col h-[640px] max-h-[90vh]"
     >
       {/* ── Fixed header ── */}
-      <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-divider">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1 space-y-1">
-            <h2 className="text-lg font-semibold text-ink">{title}</h2>
-            {(lib?.network_tier || lib?.issuer) && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-faint">
-                {lib?.network_tier && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="uppercase tracking-wide">Network</span>
-                    <span className="font-medium bg-surface-2 text-ink-muted border border-divider rounded px-1.5 py-0.5">
-                      {lib.network_tier.name}
-                    </span>
-                  </div>
-                )}
-                {lib?.issuer && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="uppercase tracking-wide">Issuer</span>
-                    <span className="font-medium bg-surface-2 text-ink-muted border border-divider rounded px-1.5 py-0.5">
-                      {lib.issuer.name}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
+      <ModalHeader>
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <Heading level={3}>{title}</Heading>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {lib?.network_tier && (
+                <Badge tone="neutral">{lib.network_tier.name}</Badge>
+              )}
+              {lib?.issuer && (
+                <Badge tone="neutral">{lib.issuer.name}</Badge>
+              )}
+              {!isAddFlow && (
+                isOverlayContext ? (
+                  <Badge tone="warn">Owned · scenario edit</Badge>
+                ) : isFuture ? (
+                  <Badge tone="accent">Future</Badge>
+                ) : (
+                  <Badge tone="neutral">Owned</Badge>
+                )
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {!isAddFlow && isOverlayContext && onClearOverlay && (
-              <button
-                type="button"
-                disabled={isLoading || !resolvedCard?.is_overlay_modified}
-                onClick={onClearOverlay}
-                className="px-2 py-1 text-xs rounded-md text-warn hover:bg-warn/10 disabled:opacity-40 transition-colors"
-                title="Reset to base values (clears the overlay)"
-              >
-                Reset
-              </button>
-            )}
-            {onDeleteHandler && (
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={onDeleteHandler}
-                className="p-2 rounded-lg text-ink-faint hover:text-neg hover:bg-neg/10 disabled:opacity-50 transition-colors"
-                title={isFuture ? 'Delete future card' : 'Delete card'}
-                aria-label="Delete card"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
-            )}
+          {onDeleteHandler && (
             <button
               type="button"
-              disabled={saveDisabled}
-              onClick={() => void handlePrimary()}
-              className="p-2 rounded-lg text-ink-muted hover:text-accent disabled:opacity-40 disabled:hover:text-ink-muted transition-colors"
-              title={isAddFlow ? 'Add card' : 'Save changes'}
-              aria-label={isAddFlow ? 'Add card' : 'Save changes'}
+              disabled={isLoading}
+              onClick={onDeleteHandler}
+              className="shrink-0 w-8 h-8 inline-flex items-center justify-center rounded-md text-ink-faint hover:text-neg hover:bg-neg/10 disabled:opacity-50 transition-colors"
+              title={isFuture ? 'Delete future card' : 'Delete card'}
+              aria-label="Delete card"
             >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                <polyline points="17 21 17 13 7 13 7 21" />
-                <polyline points="7 3 7 8 15 8" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
               </svg>
             </button>
-          </div>
+          )}
         </div>
-      </div>
-
-      {isOverlayContext && (
-        <div className="flex-shrink-0 px-6 py-2 text-[11px] text-warn bg-warn/10 border-b border-warn/40">
-          Editing in this scenario only — your owned card stays unchanged.
-        </div>
-      )}
+      </ModalHeader>
 
       {/* ── Tab bar ── */}
       {(isAddFlow || lib) && (
-        <div className="flex-shrink-0 flex gap-1 px-6 border-b border-divider">
-          {([
-            { id: 'lifecycle' as const, label: 'Lifecycle', badge: 0 },
-            ...(cardSelected
-              ? [
-                  { id: 'bonuses' as const, label: 'Bonuses & Fees', badge: 0 },
-                  {
-                    id: 'credits' as const,
-                    label: 'Credits',
-                    badge: Object.keys(selectedCredits).length,
-                  },
-                ]
-              : []),
-            ...(cardSelected && categoryTabEnabled
-              ? [{ id: 'priority' as const, label: 'Categories', badge: priorityUserCatCount }]
-              : []),
-          ]).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveTab(t.id)}
-              className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
-                activeTab === t.id
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-ink-muted hover:text-ink'
-              }`}
-            >
-              {t.label}
-              {(t.id === 'credits' || t.id === 'priority') && t.badge > 0 && (
-                <span className={`ml-1.5 ${activeTab === t.id ? 'text-accent' : 'text-ink-faint'}`}>
-                  ({t.badge})
-                </span>
-              )}
-            </button>
-          ))}
+        <div className="flex-shrink-0 px-5">
+          <Tabs
+            items={[
+              { id: 'lifecycle' as const, label: 'Lifecycle' },
+              ...(cardSelected
+                ? [
+                    { id: 'bonuses' as const, label: 'Bonuses & Fees' },
+                    {
+                      id: 'credits' as const,
+                      label: (
+                        <>
+                          Credits
+                          {Object.keys(selectedCredits).length > 0 && (
+                            <span className="ml-1.5 text-[10.5px] font-medium bg-surface-2 text-ink-faint px-1.5 py-0.5 rounded-full tnum-mono">
+                              {Object.keys(selectedCredits).length}
+                            </span>
+                          )}
+                        </>
+                      ),
+                    },
+                  ]
+                : []),
+              ...(cardSelected && categoryTabEnabled
+                ? [
+                    {
+                      id: 'priority' as const,
+                      label: (
+                        <>
+                          Categories
+                          {priorityUserCatCount > 0 && (
+                            <span className="ml-1.5 text-[10.5px] font-medium bg-surface-2 text-ink-faint px-1.5 py-0.5 rounded-full tnum-mono">
+                              {priorityUserCatCount}
+                            </span>
+                          )}
+                        </>
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+            active={activeTab}
+            onChange={(id) => setActiveTab(id as typeof activeTab)}
+          />
         </div>
       )}
 
       {/* ── Body ── */}
-      <div
-        className={`px-6 pt-3 flex-1 min-h-0 flex flex-col ${
-          activeTab === 'credits' ? 'pb-0' : 'pb-4'
-        }`}
-      >
+      <ModalBody className={`flex-1 min-h-0 flex flex-col ${activeTab === 'credits' ? '!pb-0' : ''}`}>
         {!isAddFlow && !lib ? (
           <p className="text-sm text-ink-muted py-8 text-center">Loading card…</p>
         ) : (
           <div className="flex-1 min-h-0 flex flex-col">
             {activeTab === 'lifecycle' && (
               <div className="space-y-3">
-                <p className="text-[11px] text-ink-faint -mx-6 px-6 pb-2 border-b border-divider/60">
-                  When and how this card entered the wallet, and whether it's still active.
-                </p>
-
-                {/* Acquisition toggle + matching date input. Mirrors the
-                    Card Status / Closed Date layout. The toggle is hidden for
-                    owned-base ADD (implicit "open new") and overlay
+                {/* Acquisition toggle + matching date input. The toggle is hidden
+                    for owned-base ADD (implicit "open new") and overlay
                     (read-only); those modes show just the Opening Date. */}
                 {(isFuture || (isOwnedBase && !isAddFlow)) ? (
-                  <div className="grid grid-cols-2 gap-3 items-start">
-                    <div>
-                      <label className="text-xs text-ink-muted mb-1 block">Acquisition</label>
-                      <div role="radiogroup" className="flex flex-col bg-surface-2/30 border border-divider rounded-lg overflow-hidden">
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-ink-muted">Acquisition</p>
+                      <div role="radiogroup" aria-label="Acquisition" className="space-y-2">
                         {([
-                          { v: 'open' as const, label: 'Account Opening' },
-                          { v: 'pc' as const, label: 'Product Change' },
-                        ]).map(({ v, label }, i) => {
+                          {
+                            v: 'open' as const,
+                            label: 'Account Opening',
+                            desc: 'New card from this issuer. Counts toward 5/24 and other velocity rules.',
+                          },
+                          {
+                            v: 'pc' as const,
+                            label: 'Product Change',
+                            desc: "Switching from another card. Account number is preserved; doesn't count as a new app.",
+                          },
+                        ]).map(({ v, label, desc }) => {
                           const selected = acquisitionMode === v
                           return (
                             <button
@@ -1231,32 +1208,32 @@ export function WalletCardModal(props: WalletCardModalProps) {
                               role="radio"
                               aria-checked={selected}
                               onClick={() => handleAcquisitionModeChange(v)}
-                              className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
-                                i > 0 ? 'border-t border-divider/60' : ''
-                              } ${
+                              className={`w-full text-left flex items-start gap-3 px-3 py-3 rounded-lg border transition-colors ${
                                 selected
-                                  ? 'bg-surface-2 text-ink'
-                                  : 'text-ink-muted hover:bg-surface-2/60'
+                                  ? 'border-accent bg-accent-soft'
+                                  : 'border-divider hover:border-divider-strong bg-surface'
                               }`}
                             >
-                              <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                selected ? 'border-accent' : 'border-divider'
-                              }`}>
-                                {selected && <span className="w-1.5 h-1.5 bg-accent rounded-full" />}
+                              <span
+                                aria-hidden
+                                className={`mt-0.5 shrink-0 w-3.5 h-3.5 rounded-full border transition-colors ${
+                                  selected ? 'border-accent bg-accent' : 'border-divider-strong'
+                                }`}
+                              />
+                              <span className="min-w-0">
+                                <span className={`block text-sm font-medium ${selected ? 'text-accent' : 'text-ink'}`}>
+                                  {label}
+                                </span>
+                                <span className="block text-[11px] text-ink-faint mt-0.5">{desc}</span>
                               </span>
-                              {label}
                             </button>
                           )
                         })}
                       </div>
                     </div>
-                    <div>
-                      <label className="text-xs text-ink-muted mb-1 block">
-                        {acquisitionMode === 'pc' ? 'Product Change Date *' : 'Opening Date *'}
-                      </label>
-                      <input
+                    <Field label={acquisitionMode === 'pc' ? 'Product Change Date' : 'Opening Date'} required>
+                      <Input
                         type="date"
-                        className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent"
                         value={acquisitionMode === 'pc' ? productChangeDate : openingDate}
                         onChange={(e) =>
                           acquisitionMode === 'pc'
@@ -1264,31 +1241,25 @@ export function WalletCardModal(props: WalletCardModalProps) {
                             : setOpeningDate(e.target.value)
                         }
                       />
-                    </div>
+                    </Field>
                   </div>
                 ) : (
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">
-                      Opening Date *
-                    </label>
-                    <input
+                  <Field label="Opening Date" required>
+                    <Input
                       type="date"
                       disabled={isOverlay}
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={openingDate}
                       onChange={(e) => setOpeningDate(e.target.value)}
                     />
-                  </div>
+                  </Field>
                 )}
 
                 {/* Changing From: editable picker in scenario-future ADD (PC),
                     read-only "Changed From" display in scenario-future EDIT
                     when the source is already pinned. */}
                 {isFuture && acquisitionMode === 'pc' && isAddFlow && (
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">Changing From *</label>
-                    <select
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent"
+                  <Field label="Changing From" required>
+                    <Select
                       value={pcFromInstanceId}
                       onChange={(e) => e.target.value ? selectPcFromInstance(Number(e.target.value)) : setPcFromInstanceId('')}
                     >
@@ -1298,8 +1269,8 @@ export function WalletCardModal(props: WalletCardModalProps) {
                           {inst.card_name}
                         </option>
                       ))}
-                    </select>
-                  </div>
+                    </Select>
+                  </Field>
                 )}
 
                 {!isAddFlow && isFuture && acquisitionMode === 'pc' && pcFromInstanceId !== '' && (() => {
@@ -1443,17 +1414,15 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       )}
                     </div>
                     {closedDate && (
-                      <div>
-                        <label className="text-xs text-ink-muted mb-1 block">Closed Date</label>
-                        <input
+                      <Field label="Closed Date">
+                        <Input
                           type="date"
                           min={openingDate}
                           disabled={cardStatusLocked}
-                          className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed"
                           value={closedDate}
                           onChange={(e) => setClosedDate(e.target.value)}
                         />
-                      </div>
+                      </Field>
                     )}
                   </div>
                 )}
@@ -1462,92 +1431,72 @@ export function WalletCardModal(props: WalletCardModalProps) {
 
             {activeTab === 'bonuses' && (
               <div className="space-y-3">
-                <p className="text-[11px] text-ink-faint -mx-6 px-6 pb-2 border-b border-divider/60">
-                  Sign-up / product-change bonus, annual bonus, and fees.
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">
-                      {acquisitionMode === 'pc' ? 'PC Bonus (Pts)' : 'Sign-Up Bonus (Pts)'}
-                    </label>
-                    <input
+
+                <div className="grid grid-cols-3 gap-3">
+                  <Field label={acquisitionMode === 'pc' ? 'PC Bonus (Pts)' : 'SUB Bonus (Pts)'}>
+                    <Input
                       type="number"
                       min={0}
                       disabled={formDisabled}
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={subPoints}
                       onChange={(e) => setSubPoints(e.target.value)}
                     />
-                  </div>
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">Annual Bonus (Pts)</label>
-                    <input
+                  </Field>
+                  <Field label={acquisitionMode === 'pc' ? 'PC Min Spend ($)' : 'SUB Min Spend ($)'}>
+                    <Input
+                      type="number"
+                      min={0}
+                      disabled={formDisabled}
+                      value={subMinSpend}
+                      onChange={(e) => setSubMinSpend(e.target.value)}
+                    />
+                  </Field>
+                  <Field label={acquisitionMode === 'pc' ? 'PC Spend Months' : 'SUB Spend Months'}>
+                    <Input
+                      type="number"
+                      min={0}
+                      disabled={formDisabled}
+                      value={subMonths}
+                      onChange={(e) => setSubMonths(e.target.value)}
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Annual Bonus (Pts)">
+                    <Input
                       type="number"
                       min={0}
                       disabled={formDisabled}
                       placeholder="Optional"
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={annualBonus}
                       onChange={(e) => setAnnualBonus(e.target.value)}
                     />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">
-                      {acquisitionMode === 'pc' ? 'PC Min Spend ($)' : 'SUB Min Spend ($)'}
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      disabled={formDisabled}
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
-                      value={subMinSpend}
-                      onChange={(e) => setSubMinSpend(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">
-                      {acquisitionMode === 'pc' ? 'PC Spend Months' : 'SUB Spend Months'}
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      disabled={formDisabled}
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
-                      value={subMonths}
-                      onChange={(e) => setSubMonths(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">Annual Fee ($)</label>
-                    <input
+                  </Field>
+                  <Field label="Annual Fee ($)">
+                    <Input
                       type="number"
                       min={0}
                       step="0.01"
                       disabled={formDisabled}
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       value={annualFee}
                       onChange={(e) => setAnnualFee(e.target.value)}
                     />
-                  </div>
-                  <div>
-                    <label className="text-xs text-ink-muted mb-1 block">First-Year Fee ($)</label>
-                    <input
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="First-Year Fee ($)">
+                    <Input
                       type="number"
                       min={0}
                       step="0.01"
                       disabled={formDisabled}
-                      className="w-full bg-surface-2 border border-divider text-ink text-sm px-3 py-2 rounded-lg outline-none focus:border-accent disabled:opacity-50"
                       placeholder="Optional"
                       value={firstYearFee}
                       onChange={(e) => setFirstYearFee(e.target.value)}
                     />
-                  </div>
+                  </Field>
                 </div>
 
               </div>
@@ -1556,9 +1505,6 @@ export function WalletCardModal(props: WalletCardModalProps) {
             {activeTab === 'credits' && lib && (
               <div className="-mx-6 flex-1 min-h-0 flex flex-col">
                 <div className="flex-1 min-h-0 flex flex-col">
-                  <p className="text-[11px] text-ink-faint px-6 pb-2 border-b border-divider/60">
-                    Input your valuation of each credit.
-                  </p>
                   {creditLibraryLoading || creditOverridesLoading ? (
                     <div className="flex items-center gap-2 px-6 py-3 text-xs text-ink-muted">
                       <svg className="w-3.5 h-3.5 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
@@ -1572,174 +1518,140 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       No credits selected. Add credits this card grants from the picker below.
                     </p>
                   ) : (
-                    <ul className="divide-y divide-divider/40 flex-1 min-h-0 overflow-y-auto">
+                    <ul className="flex flex-col gap-2 px-6 py-3 flex-1 min-h-0 overflow-y-auto">
                       {Object.entries(selectedCredits).map(([idStr, value]) => {
                         const libId = Number(idStr)
                         const lc = creditLibraryById.get(libId)
-                        const isExpanded = creditOptionsOpen === libId
-                        // Pending currency edit (buffered until Save) drives the $/pts
-                        // affordances so the input UI matches the user's pick instantly.
-                        const pendingEdits = creditFlagEdits[libId]
-                        const effCurrencyIdForRow =
-                          'credit_currency_id' in (pendingEdits ?? {})
-                            ? pendingEdits!.credit_currency_id
+                        // ``After Year 1`` / ``One-Time`` are per-instance overrides —
+                        // any user can flip them on any credit and the change persists
+                        // as a column override on WalletCardCredit / ScenarioCardCredit
+                        // (NULL on the row inherits the library default). Currency is
+                        // intentionally library-only and stays gated to user-owned
+                        // credits. Edits buffer in ``creditFlagEdits`` and only persist
+                        // on Save.
+                        const isUserOwned = lc?.owner_user_id != null
+                        const edits = creditFlagEdits[libId]
+                        const effExcludesFirstYear =
+                          edits?.excludes_first_year ?? lc?.excludes_first_year ?? false
+                        const effIsOneTime =
+                          edits?.is_one_time ?? lc?.is_one_time ?? false
+                        const effCurrencyId =
+                          'credit_currency_id' in (edits ?? {})
+                            ? edits!.credit_currency_id
                             : lc?.credit_currency_id ?? null
+                        const cur = effCurrencyId != null ? currencies?.find(c => c.id === effCurrencyId) : null
+                        const isCash = !cur || cur.reward_kind === 'cash'
                         return (
                           <li key={libId}>
-                            <div className="flex items-center justify-between gap-2 px-6 py-2 text-sm">
-                              <button
-                                type="button"
-                                onClick={() => setCreditOptionsOpen(isExpanded ? null : libId)}
-                                className="text-ink-faint hover:text-ink hover:bg-surface-2 rounded p-0.5 shrink-0 transition-colors"
-                              >
-                                <svg
-                                  className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                                </svg>
-                              </button>
-                              <span className="text-ink truncate min-w-0 flex-1">
-                                {lc?.credit_name ?? `Credit #${libId}`}
-                              </span>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <div className="relative">
-                                  {(() => {
-                                    const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
-                                    const isCash = !cur || cur.reward_kind === 'cash'
-                                    return isCash ? (
-                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none">$</span>
-                                    ) : null
-                                  })()}
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    step={(() => {
-                                      const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
-                                      return (!cur || cur.reward_kind === 'cash') ? '0.01' : '1'
-                                    })()}
-                                    value={value === 0 ? '' : value}
-                                    placeholder="0"
-                                    onChange={(e) => {
-                                      const raw = e.target.value
-                                      const parsed = raw === '' ? 0 : Number.parseFloat(raw)
-                                      if (Number.isNaN(parsed) || parsed < 0) return
-                                      setSelectedCredits((prev) => ({
-                                        ...prev,
-                                        [libId]: parsed,
-                                      }))
-                                    }}
-                                    className={`w-24 bg-surface-2 border border-divider text-ink text-xs tabular-nums pr-2 py-1 rounded outline-none focus:border-accent placeholder:text-ink-faint ${
-                                      (() => {
-                                        const cur = effCurrencyIdForRow != null ? currencies?.find(c => c.id === effCurrencyIdForRow) : null
-                                        return (!cur || cur.reward_kind === 'cash') ? 'pl-5' : 'pl-2'
-                                      })()
-                                    }`}
-                                  />
+                            <div className="bg-surface border border-divider rounded-lg p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1 flex items-center gap-2">
+                                  <p className="text-sm font-medium text-ink truncate">
+                                    {lc?.credit_name ?? `Credit #${libId}`}
+                                  </p>
+                                  {isUserOwned && (
+                                    <Badge tone="accent">Custom</Badge>
+                                  )}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedCredits((prev) => {
-                                      const next = { ...prev }
-                                      delete next[libId]
-                                      return next
-                                    })
-                                    if (isExpanded) setCreditOptionsOpen(null)
-                                  }}
-                                  className="text-ink-faint hover:text-neg hover:bg-neg/10 p-0.5 rounded transition-colors"
-                                  title="Remove credit"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <div className="relative w-24">
+                                    {isCash && (
+                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none">$</span>
+                                    )}
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step={isCash ? '0.01' : '1'}
+                                      value={value === 0 ? '' : value}
+                                      placeholder="0"
+                                      onChange={(e) => {
+                                        const raw = e.target.value
+                                        const parsed = raw === '' ? 0 : Number.parseFloat(raw)
+                                        if (Number.isNaN(parsed) || parsed < 0) return
+                                        setSelectedCredits((prev) => ({
+                                          ...prev,
+                                          [libId]: parsed,
+                                        }))
+                                      }}
+                                      className={`w-full bg-surface-2 border border-divider text-ink text-xs tabular-nums text-right pr-2 py-1 rounded outline-none focus:border-accent placeholder:text-ink-faint ${isCash ? 'pl-5' : 'pl-2'}`}
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedCredits((prev) => {
+                                        const next = { ...prev }
+                                        delete next[libId]
+                                        return next
+                                      })
+                                    }}
+                                    className="text-ink-faint hover:text-neg hover:bg-neg/10 p-0.5 rounded transition-colors"
+                                    title="Remove credit"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                            {isExpanded && (() => {
-                              // ``After Year 1`` / ``One-Time`` are per-instance overrides —
-                              // any user can flip them on any credit and the change persists
-                              // as a column override on WalletCardCredit / ScenarioCardCredit
-                              // (NULL on the row inherits the library default). Currency is
-                              // intentionally library-only and stays gated to user-owned
-                              // credits. Edits buffer in ``creditFlagEdits`` and only persist
-                              // on Save.
-                              const isUserOwned = lc?.owner_user_id != null
-                              const edits = creditFlagEdits[libId]
-                              const effExcludesFirstYear =
-                                edits?.excludes_first_year ?? lc?.excludes_first_year ?? false
-                              const effIsOneTime =
-                                edits?.is_one_time ?? lc?.is_one_time ?? false
-                              const effCurrencyId =
-                                'credit_currency_id' in (edits ?? {})
-                                  ? edits!.credit_currency_id
-                                  : lc?.credit_currency_id ?? null
-                              return (
-                              <div className="flex items-center gap-3 px-6 pb-2.5 pt-0.5 text-xs text-ink-muted">
-                                <label className="flex items-center gap-1.5 select-none cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={effExcludesFirstYear}
-                                    onChange={() => {
-                                      if (!lc) return
-                                      setCreditFlagEdits((prev) => ({
-                                        ...prev,
-                                        [libId]: {
-                                          ...prev[libId],
-                                          excludes_first_year: !effExcludesFirstYear,
-                                        },
-                                      }))
-                                    }}
-                                    className="accent-warn w-3 h-3"
-                                  />
-                                  <span>After Year 1</span>
-                                </label>
-                                <label className="flex items-center gap-1.5 select-none cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={effIsOneTime}
-                                    onChange={() => {
-                                      if (!lc) return
-                                      setCreditFlagEdits((prev) => ({
-                                        ...prev,
-                                        [libId]: {
-                                          ...prev[libId],
-                                          is_one_time: !effIsOneTime,
-                                        },
-                                      }))
-                                    }}
-                                    className="accent-accent w-3 h-3"
-                                  />
-                                  <span>One-Time</span>
-                                </label>
-                                <div className="flex-1" />
-                                <select
-                                  disabled={!isUserOwned}
-                                  value={effCurrencyId ?? 'null'}
-                                  onChange={(e) => {
-                                    if (!lc || !isUserOwned) return
-                                    const cid = e.target.value === 'null' ? null : Number(e.target.value)
+                              <div className="mt-3 pt-3 border-t border-divider/60 flex flex-wrap gap-4">
+                                <Checkbox
+                                  checked={effExcludesFirstYear}
+                                  onChange={() => {
+                                    if (!lc) return
                                     setCreditFlagEdits((prev) => ({
                                       ...prev,
                                       [libId]: {
                                         ...prev[libId],
-                                        credit_currency_id: cid,
+                                        excludes_first_year: !effExcludesFirstYear,
                                       },
                                     }))
                                   }}
-                                  className="w-60 bg-surface-2 border border-divider text-ink text-xs px-2 py-1 rounded outline-none focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed truncate"
-                                >
-                                  {(currencies ?? []).filter((cur) => {
-                                    // Cash + every currency in the card issuer's ecosystem.
-                                    if (cur.reward_kind === 'cash') return true
-                                    return issuerCurrencyIds.has(cur.id)
-                                  }).map((cur) => (
-                                    <option key={cur.id} value={cur.id}>{cur.name}</option>
-                                  ))}
-                                </select>
+                                  label="Excludes first year"
+                                />
+                                <Checkbox
+                                  checked={effIsOneTime}
+                                  onChange={() => {
+                                    if (!lc) return
+                                    setCreditFlagEdits((prev) => ({
+                                      ...prev,
+                                      [libId]: {
+                                        ...prev[libId],
+                                        is_one_time: !effIsOneTime,
+                                      },
+                                    }))
+                                  }}
+                                  label="One-time only"
+                                />
+                                {isUserOwned && (
+                                  <div className="w-full mt-1">
+                                    <select
+                                      value={effCurrencyId ?? 'null'}
+                                      onChange={(e) => {
+                                        if (!lc) return
+                                        const cid = e.target.value === 'null' ? null : Number(e.target.value)
+                                        setCreditFlagEdits((prev) => ({
+                                          ...prev,
+                                          [libId]: {
+                                            ...prev[libId],
+                                            credit_currency_id: cid,
+                                          },
+                                        }))
+                                      }}
+                                      className="w-full bg-surface-2 border border-divider text-ink text-xs px-2 py-1 rounded outline-none focus:border-accent truncate"
+                                    >
+                                      {(currencies ?? []).filter((cur) => {
+                                        // Cash + every currency in the card issuer's ecosystem.
+                                        if (cur.reward_kind === 'cash') return true
+                                        return issuerCurrencyIds.has(cur.id)
+                                      }).map((cur) => (
+                                        <option key={cur.id} value={cur.id}>{cur.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
                               </div>
-                              )
-                            })()}
+                            </div>
                           </li>
                         )
                       })}
@@ -1750,12 +1662,13 @@ export function WalletCardModal(props: WalletCardModalProps) {
                       <button
                         type="button"
                         onClick={() => setShowCreditPicker(true)}
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-accent hover:text-accent hover:bg-surface-2/40 rounded transition-colors"
+                        className="w-full flex items-center justify-center gap-1.5 py-3 text-sm font-medium text-accent hover:text-accent border-2 border-dashed border-divider hover:border-accent rounded-lg transition-colors"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="12" y1="5" x2="12" y2="19" />
+                          <line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
-                        Add Credit
+                        Add credit
                       </button>
                     ) : (
                       <div className="space-y-1.5">
@@ -1860,102 +1773,132 @@ export function WalletCardModal(props: WalletCardModalProps) {
 
             {activeTab === 'priority' && lib && categoryTabEnabled && (
               <div className="flex-1 min-h-0 flex flex-col">
-                <p className="text-[11px] text-ink-faint -mx-6 px-6 pb-2 border-b border-divider/60 mb-3">
-                  Force category spend onto this card only. Does not affect SUB spend allocation.
-                </p>
                 {!walletSpendItems || walletSpendItems.length === 0 ? (
                   <p className="text-xs text-ink-faint py-1">
                     No wallet spend categories yet.
                   </p>
                 ) : (
-                  <ul className="grid grid-cols-2 gap-x-2 gap-y-1 auto-rows-min flex-1 min-h-0 overflow-y-auto border border-divider rounded-lg p-2">
-                    {[...walletSpendItems]
-                      .filter((item) => item.user_spend_category != null)
-                      .sort((a, b) =>
-                        (a.user_spend_category?.name ?? '').localeCompare(
-                          b.user_spend_category?.name ?? '',
-                          undefined,
-                          { sensitivity: 'base' },
-                        ),
-                      )
-                      .map((item) => {
-                        const userCat = item.user_spend_category!
-                        const earnCatIds = userCat.mappings.map((m) => m.earn_category_id)
-                        const claimedByOther = earnCatIds.some((id) => priorityClaimsByOther.has(id))
-                        const checked = earnCatIds.length > 0 && earnCatIds.every((id) => priorityCategoryIds.has(id))
-                        const disabled = claimedByOther && !checked
-                        return (
-                          <li key={item.id}>
-                            <label
-                              className={`flex items-center gap-2 text-xs px-1 py-1 rounded ${
-                                disabled
-                                  ? 'text-ink-faint cursor-not-allowed'
-                                  : 'text-ink cursor-pointer hover:bg-surface-2/40'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                className="accent-accent"
-                                checked={checked}
-                                disabled={disabled}
-                                onChange={() => {
-                                  setPriorityCategoryIds((prev) => {
-                                    const next = new Set(prev)
-                                    if (checked) {
-                                      earnCatIds.forEach((id) => next.delete(id))
-                                    } else {
-                                      earnCatIds.forEach((id) => next.add(id))
-                                    }
-                                    return next
-                                  })
-                                }}
-                              />
-                              <span className="flex-1 min-w-0 truncate">
-                                {userCat.name}
-                              </span>
-                              {disabled && (
-                                <span className="text-[10px] text-ink-faint shrink-0">
-                                  Claimed By Another Card
-                                </span>
-                              )}
-                            </label>
-                          </li>
+                  <div className="flex-1 min-h-0 flex flex-col">
+                    <p className="text-[11px] uppercase tracking-wider text-ink-faint font-semibold mb-2">
+                      Pin categories to this card
+                    </p>
+                    <ul className="divide-y divide-divider/60 -mx-2 flex-1 min-h-0 overflow-y-auto">
+                      {[...walletSpendItems]
+                        .filter((item) => item.user_spend_category != null)
+                        .sort((a, b) =>
+                          (a.user_spend_category?.name ?? '').localeCompare(
+                            b.user_spend_category?.name ?? '',
+                            undefined,
+                            { sensitivity: 'base' },
+                          ),
                         )
-                      })}
-                  </ul>
+                        .map((item) => {
+                          const userCat = item.user_spend_category!
+                          const earnCatIds = userCat.mappings.map((m) => m.earn_category_id)
+                          const claimedByOther = earnCatIds.some((id) => priorityClaimsByOther.has(id))
+                          const checked = earnCatIds.length > 0 && earnCatIds.every((id) => priorityCategoryIds.has(id))
+                          const disabled = claimedByOther && !checked
+                          return (
+                            <li key={item.id}>
+                              <label
+                                className={`flex items-center gap-2 py-2 px-2 rounded transition-colors ${
+                                  disabled ? 'text-ink-faint cursor-not-allowed' : 'text-ink hover:bg-surface-2/40 cursor-pointer'
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  disabled={disabled}
+                                  onChange={() => {
+                                    setPriorityCategoryIds((prev) => {
+                                      const next = new Set(prev)
+                                      if (checked) {
+                                        earnCatIds.forEach((id) => next.delete(id))
+                                      } else {
+                                        earnCatIds.forEach((id) => next.add(id))
+                                      }
+                                      return next
+                                    })
+                                  }}
+                                />
+                                <span className="flex-1 min-w-0 truncate text-sm">
+                                  {userCat.name}
+                                </span>
+                                {disabled && (
+                                  <span className="text-[11px] text-ink-faint shrink-0">
+                                    Claimed by another card
+                                  </span>
+                                )}
+                              </label>
+                            </li>
+                          )
+                        })}
+                    </ul>
+                  </div>
                 )}
               </div>
             )}
 
             {formError && (
-              <p className="text-xs text-neg bg-neg/10 border border-neg/50 rounded-lg mx-0 mt-3 px-3 py-2">
-                {formError}
-              </p>
+              <div className="mt-3 px-3 py-2 rounded-md bg-neg/10 border border-neg/30 text-[11px] text-neg flex items-start gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 mt-0.5">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>{formError}</span>
+              </div>
             )}
           </div>
         )}
-      </div>
+      </ModalBody>
 
-      {/* ── Fixed footer ── */}
-      {/* Next is a step-through affordance for the add flow only — when
-          editing an existing card the user can click tabs directly. */}
-      {isAddFlow && hasNextTab && (
-        <div className="flex-shrink-0 flex items-center gap-2 px-6 py-4 border-t border-divider">
+      {/* ── Footer ── */}
+      <ModalFooter>
+        {!isAddFlow && isOverlayContext && onClearOverlay && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={isLoading || !resolvedCard?.is_overlay_modified}
+            onClick={onClearOverlay}
+            className="!text-warn hover:!text-warn"
+          >
+            Reset overlay
+          </Button>
+        )}
+        <div className="flex-1" />
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={isLoading}
+          onClick={onClose}
+        >
+          Cancel
+        </Button>
+        {isAddFlow && hasNextTab ? (
           <Button
             type="button"
             variant="primary"
+            size="sm"
             disabled={isLoading}
-            className="flex-1 justify-center"
             onClick={() => setActiveTab(tabOrder[currentTabIndex + 1])}
           >
-            Next
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14" />
-              <path d="M13 6l6 6-6 6" />
-            </svg>
+            Next →
           </Button>
-        </div>
-      )}
+        ) : (
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={saveDisabled}
+            loading={isLoading}
+            onClick={() => void handlePrimary()}
+          >
+            {isAddFlow ? 'Add card' : 'Save changes'}
+          </Button>
+        )}
+      </ModalFooter>
     </Modal>
   )
 }
