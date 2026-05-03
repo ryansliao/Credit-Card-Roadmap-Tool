@@ -120,7 +120,7 @@ function RosTile({
       className="w-16 flex flex-col items-center"
       title={`${cardName} · ${rosLabel}${tagDescription[tag]}`}
     >
-      <div className="relative w-16 h-10 bg-surface-2/50 border border-divider rounded overflow-hidden transition-colors group-hover:border-accent">
+      <div className="relative w-16 h-10">
         <CardPhoto slug={photoSlug} name={cardName} />
         {tagDotClass[tag] && (
           <span
@@ -631,7 +631,7 @@ export function SpendTabContent({
                   <polyline points="15 18 9 12 15 6" />
                 </svg>
               </button>
-              <div className="w-8 h-5 rounded overflow-hidden bg-surface-2/50 shrink-0">
+              <div className="w-8 h-5 shrink-0">
                 <CardPhoto
                   slug={currentCard?.photo_slug ?? null}
                   name={currentCard?.card_name ?? ''}
