@@ -139,8 +139,8 @@ export function GroupSection({
           gear (gear pushed to the right edge of its cell via ml-auto, so
           it sits just before the Today line). Timeline-column cell holds
           the stats inside an opaque bg-surface chip (z-[30]) so year
-          gridlines don't slice through the text; mr-2 leaves an 8px gap
-          before the End line. */}
+          gridlines don't slice through the text; ml-1 anchors it just to
+          the right of the Today line. */}
       <div
         className={`relative flex items-center gap-2 px-3 ${DIVIDER_CLASS} hover:bg-surface-2/40 transition-colors`}
         style={{ gridColumn: 2, height: CURRENCY_ROW_HEIGHT }}
@@ -193,24 +193,24 @@ export function GroupSection({
         style={{ gridColumn: 3, height: CURRENCY_ROW_HEIGHT }}
       >
         <div
-          className={`ml-auto mr-1 px-1 relative z-[30] bg-surface flex items-center gap-1.5 text-xs text-ink-muted truncate transition-opacity ${isStale ? 'opacity-60' : ''}`}
+          className={`ml-1 px-1 relative z-[30] bg-surface flex items-center gap-1.5 text-xs text-ink-muted truncate transition-opacity ${isStale ? 'opacity-60' : ''}`}
           title={
             isStale
               ? 'Results are out of date — click Calculate to refresh'
               : undefined
           }
         >
+          {balanceLabel != null ? (
+            <span className="tnum-mono">{balanceLabel}</span>
+          ) : (
+            <span>—</span>
+          )}
+          <span className="text-ink-faint text-sm leading-none">·</span>
           {incomeLabel && (
             <span className="text-ink-faint">
               <span className="tnum-mono">{incomeLabel.number}</span>
               {incomeLabel.suffix}
             </span>
-          )}
-          <span className="text-ink-faint text-sm leading-none">·</span>
-          {balanceLabel != null ? (
-            <span className="tnum-mono">{balanceLabel}</span>
-          ) : (
-            <span>—</span>
           )}
           {group.secondaries.map((s) => {
             const parts = formatSecondaryBalance(s)
